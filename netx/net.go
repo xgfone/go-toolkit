@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package nets provides some convenient net functions.
-package nets
+// Package netx provides some convenient net functions.
+package netx
 
 import (
 	"errors"
