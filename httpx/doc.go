@@ -12,25 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package timex
-
-import (
-	"testing"
-	"time"
-)
-
-func TestToday(t *testing.T) {
-	now := time.Now()
-	nowdate := now.Format(time.DateOnly)
-
-	today := Today()
-	if date := today.Format(time.DateOnly); date != nowdate {
-		t.Errorf("expect date '%s', but got '%s'", nowdate, date)
-	}
-	if time := today.Format(time.TimeOnly); time != "00:00:00" {
-		t.Errorf("expect time '%s', but got '%s'", "00:00:00", time)
-	}
-	if nsec := today.Nanosecond(); nsec != 0 {
-		t.Errorf("expect nanosecond %d, but got %d", 0, nsec)
-	}
-}
+// Package httpx provides some http functions.
+package httpx

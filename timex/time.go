@@ -22,6 +22,8 @@ const (
 	Week = Day * 7
 )
 
-func check() bool {
-	return Week/Day == 7
+// Today returns the today local time at 00:00:00.
+func Today() time.Time {
+	now := time.Now()
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 }
