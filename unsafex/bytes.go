@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bytex
+package unsafex
 
-import "testing"
+import "unsafe"
 
-func TestString(t *testing.T) {
-	const s = "中国"
-	v := String([]byte(s))
-	if v != s {
-		t.Errorf("expect '%s', but got '%s'", s, v)
-	}
+// Bytes converts the value s from string to []byte.
+//
+// NOTICE: the returned bytes must not be modified.
+func Bytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
