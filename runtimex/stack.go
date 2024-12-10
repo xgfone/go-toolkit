@@ -70,7 +70,7 @@ func Caller(skip int) Frame {
 		if frame.PC != 0 {
 			return Frame{
 				File: TrimPkgFile(frame.File),
-				Func: frame.Function,
+				Func: extractfuncname(frame.Function),
 				Line: frame.Line,
 			}
 		}
@@ -95,10 +95,17 @@ func Stacks(skip int) []Frame {
 		}
 		stacks = append(stacks, Frame{
 			File: TrimPkgFile(frame.File),
-			Func: frame.Function,
+			Func: extractfuncname(frame.Function),
 			Line: frame.Line,
 		})
 	}
 
 	return stacks
+}
+
+func extractfuncname(function string) string {
+	if index := strings.LastIndexByte(function, '.'); index > -1 {
+		function = function[index+1:]
+	}
+	return function
 }
