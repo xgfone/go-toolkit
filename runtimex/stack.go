@@ -49,9 +49,6 @@ func (f Frame) String() string {
 	}
 
 	if f.Func != "" {
-		if index := strings.LastIndexByte(f.Func, '.'); index > -1 {
-			f.Func = f.Func[index+1:]
-		}
 		ss = append(ss, f.Func)
 	}
 
