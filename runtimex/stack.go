@@ -42,21 +42,21 @@ type Frame struct {
 
 // String formats the frame to a string.
 func (f Frame) String() string {
-	ss := make([]string, 0, 3)
-
-	if f.File != "" {
-		ss = append(ss, f.File)
-	}
+	var b strings.Builder
+	b.Grow(len(f.File) + len(f.Func) + 8)
+	b.WriteString(f.File)
 
 	if f.Func != "" {
-		ss = append(ss, f.Func)
+		b.WriteByte(':')
+		b.WriteString(f.Func)
 	}
 
 	if f.Line > 0 {
-		ss = append(ss, strconv.FormatInt(int64(f.Line), 10))
+		b.WriteByte(':')
+		b.WriteString(strconv.FormatInt(int64(f.Line), 10))
 	}
 
-	return strings.Join(ss, ":")
+	return b.String()
 }
 
 // Caller returns the stack frame of caller.
