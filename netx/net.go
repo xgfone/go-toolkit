@@ -17,6 +17,8 @@ package netx
 
 import (
 	"errors"
+	"net"
+	"net/netip"
 	"strings"
 )
 
@@ -29,6 +31,38 @@ type timeoutError interface {
 func IsTimeout(err error) bool {
 	var timeoutErr timeoutError
 	return errors.As(err, &timeoutErr) && timeoutErr.Timeout()
+}
+
+// IPIsOn reports whether the ip is configured on a certain network interface.
+//
+// If ip is empty, return (false, nil).
+func IPIsOn(ip string) (on bool, err error) {
+	if ip == "" {
+		return
+	}
+
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return
+	}
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return
+	}
+
+	ip = addr.String()
+	for _, addr := range addrs {
+		_ip := addr.String()
+		if index := strings.IndexByte(_ip, '/'); index > 0 {
+			_ip = _ip[:index]
+		}
+		if _ip == ip {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // SplitHostPort separates host and port. If the port is not valid, it returns
