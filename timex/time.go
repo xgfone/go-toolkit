@@ -24,6 +24,10 @@ const (
 
 // Today returns the today local time at 00:00:00.
 func Today() time.Time {
-	now := time.Now()
-	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return ToToday(time.Now())
+}
+
+// ToToday converts the any time.Time to today at 00:00:00.
+func ToToday(any time.Time) (today time.Time) {
+	return time.Date(any.Year(), any.Month(), any.Day(), 0, 0, 0, 0, any.Location())
 }
