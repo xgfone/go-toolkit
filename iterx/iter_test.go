@@ -1,0 +1,109 @@
+// Copyright 2023 xgfone
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//go:build go1.23
+
+package iterx
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+)
+
+func ExampleAll() {
+	{
+		ints := []int{1, 2, 3}
+		seq := slices.Values(ints)
+
+		ok0 := All(seq, func(v int) bool { return v > 0 })
+		ok1 := All(seq, func(v int) bool { return v > 1 })
+		ok2 := All(seq, func(v int) bool { return v > 2 })
+		ok3 := All(seq, func(v int) bool { return v > 3 })
+
+		fmt.Println(ok0)
+		fmt.Println(ok1)
+		fmt.Println(ok2)
+		fmt.Println(ok3)
+	}
+
+	{
+		intm := map[int]int{1: 1, 2: 2, 3: 3}
+		seq := maps.Values(intm)
+
+		ok0 := All(seq, func(v int) bool { return v > 0 })
+		ok1 := All(seq, func(v int) bool { return v > 1 })
+		ok2 := All(seq, func(v int) bool { return v > 2 })
+		ok3 := All(seq, func(v int) bool { return v > 3 })
+
+		fmt.Println(ok0)
+		fmt.Println(ok1)
+		fmt.Println(ok2)
+		fmt.Println(ok3)
+	}
+
+	// Output:
+	// true
+	// false
+	// false
+	// false
+	// true
+	// false
+	// false
+	// false
+}
+
+func ExampleAny() {
+	// Slice
+	{
+		ints := []int{1, 2, 3}
+		seq := slices.Values(ints)
+
+		ok0 := Any(seq, func(v int) bool { return v > 0 })
+		ok1 := Any(seq, func(v int) bool { return v > 1 })
+		ok2 := Any(seq, func(v int) bool { return v > 2 })
+		ok3 := Any(seq, func(v int) bool { return v > 3 })
+
+		fmt.Println(ok0)
+		fmt.Println(ok1)
+		fmt.Println(ok2)
+		fmt.Println(ok3)
+	}
+
+	// Map
+	{
+		intm := map[int]int{1: 1, 2: 2, 3: 3}
+		seq := maps.Values(intm)
+
+		ok0 := Any(seq, func(v int) bool { return v > 0 })
+		ok1 := Any(seq, func(v int) bool { return v > 1 })
+		ok2 := Any(seq, func(v int) bool { return v > 2 })
+		ok3 := Any(seq, func(v int) bool { return v > 3 })
+
+		fmt.Println(ok0)
+		fmt.Println(ok1)
+		fmt.Println(ok2)
+		fmt.Println(ok3)
+	}
+
+	// Output:
+	// true
+	// true
+	// true
+	// false
+	// true
+	// true
+	// true
+	// false
+}
