@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2024 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package jsonx provides some extra json functions.
 package jsonx
 
-import "io"
-
-var (
-	// Marshal is used to marshal a value by json to a writer.
-	//
-	// Default: use json
-	Marshal func(out io.Writer, in any) error = marshal
-
-	// Unmarshal is used to unmarshal a value by json from a reader.
-	Unmarshal func(out any, in io.Reader) error = unmarshal
+import (
+	"encoding/json"
+	"io"
 )
+
+// EncodeJSON encodes the value by json into w.
+//
+// NOTICE: it does not escape the problematic HTML characters.
+//
+// DEPRECATED!!! Please use Marshal instead.
+func EncodeJSON(w io.Writer, value any) error {
+	return marshal(w, value)
+}
+
+func marshal(out io.Writer, in any) error {
+	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(in)
+}
+
+func unmarshal(out any, in io.Reader) error {
+	return json.NewDecoder(in).Decode(out)
+}

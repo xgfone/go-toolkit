@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2024 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,28 +20,11 @@ import (
 	"testing"
 )
 
-func TestMarshal(t *testing.T) {
+func TestEncodeJSON(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	err := Marshal(buf, "http://localhost/path?a=b&c=d")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	const expect = `"http://localhost/path?a=b&c=d"`
-	if s := strings.TrimSpace(buf.String()); s != expect {
-		t.Errorf("expected '%s', but got '%s'", expect, s)
-	}
-}
-
-func TestUnmarshal(t *testing.T) {
-	var url string
-	err := Unmarshal(&url, bytes.NewBufferString(`"http://localhost/path?a=b&c=d"`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	const expect = "http://localhost/path?a=b&c=d"
-	if url != expect {
-		t.Errorf("expected '%s', but got '%s'", expect, url)
+	if err := EncodeJSON(buf, `abc`); err != nil {
+		t.Error(err)
+	} else if s := strings.TrimSpace(buf.String()); s != `"abc"` {
+		t.Errorf("expect '%s', but got '%s'", `"abc"`, s)
 	}
 }
