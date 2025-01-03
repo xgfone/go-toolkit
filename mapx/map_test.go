@@ -29,6 +29,14 @@ func ExampleConvert() {
 	int64map1 := Convert(intmap1, func(k string, v int) (string, int64) { return k, int64(v) })
 	int64map2 := Convert(intmap2, func(k string, v int) (string, int64) { return k, int64(v) })
 
+	var nilmap1 Maps
+	nilmap2 := Convert(nilmap1, func(k string, v int) (string, int64) { return k, int64(v) })
+	if nilmap2 == nil {
+		fmt.Println("nil")
+	} else {
+		fmt.Printf("%v\n", nilmap2)
+	}
+
 	fmt.Printf("%T\n", int64map1)
 	fmt.Printf("%T\n", int64map2)
 	fmt.Printf("%s=%v\n", "a", int64map1["a"])
@@ -37,6 +45,7 @@ func ExampleConvert() {
 	fmt.Printf("%s=%v\n", "b", int64map2["b"])
 
 	// Output:
+	// nil
 	// map[string]int64
 	// map[string]int64
 	// a=1
