@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2025 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,12 @@
 
 // Package mapx provides some extra map functions.
 package mapx
+
+// Pair represents a key-value pair of map.
+type Pair[K comparable, V any] struct {
+	Key   K
+	Value V
+}
 
 // Convert converts the map from map[K1]V1 to map[K1]V2.
 func Convert[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
