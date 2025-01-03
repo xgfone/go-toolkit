@@ -9,17 +9,17 @@ jobs:
     strategy:
       matrix:
         go:
-        - '1.22'
-        - '1.23'
+          - "1.22"
+          - "1.23"
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go }}
-    - run: |
-        # just for file path from stacks.
-        mkdir -p /home/runner/go/src/github.com/xgfone/go-toolkit
-        cp -r ./* /home/runner/go/src/github.com/xgfone/go-toolkit
-        cd /home/runner/go/src/github.com/xgfone/go-toolkit
-        go test -cover -race ./...
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: |
+          # just for file path from stacks.
+          mkdir -p /home/runner/go/src/github.com/xgfone/go-toolkit
+          cp -r ./* /home/runner/go/src/github.com/xgfone/go-toolkit
+          cd /home/runner/go/src/github.com/xgfone/go-toolkit
+          go test -cover -race ./...
