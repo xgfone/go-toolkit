@@ -20,9 +20,11 @@ import "io"
 var (
 	// Marshal is used to marshal a value by json to a writer.
 	//
-	// Default: use json
+	// Default: use json.Encoder
 	Marshal func(out io.Writer, in any) error = marshal
 
 	// Unmarshal is used to unmarshal a value by json from a reader.
+	//
+	// Default: use json.Decoder
 	Unmarshal func(out any, in io.Reader) error = unmarshal
 )
