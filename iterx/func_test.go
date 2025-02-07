@@ -150,6 +150,7 @@ func ExampleSeq() {
 	intm := map[string]int64{"a": 1, "b": 2, "c": 3}
 	iterm := Seq(maps.All(intm), func(_ string, v int64) string { return strconv.FormatInt(v*2, 10) })
 	strm := slices.Collect(iterm)
+	slices.Sort(strm)
 
 	fmt.Println(strs)
 	fmt.Println(strm)
