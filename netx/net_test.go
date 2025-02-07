@@ -26,7 +26,7 @@ func TestIsTimeout(t *testing.T) {
 		t.Error("expect false, but got true")
 	}
 
-	conn, err := net.DialTimeout("tcp", "8.8.8.8:53", time.Millisecond)
+	conn, err := net.DialTimeout("tcp", "8.8.8.8:53", time.Microsecond)
 	if err == nil {
 		_ = conn.Close()
 		t.Error("expect an error, but got nil")
