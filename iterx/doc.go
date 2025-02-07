@@ -12,29 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.23
-
 // Package iterx provides some extra iter functions.
 package iterx
-
-import "iter"
-
-// All returns true if all elements in the sequences match the predicate.
-func All[T any](seq iter.Seq[T], predicate func(T) bool) bool {
-	for v := range seq {
-		if !predicate(v) {
-			return false
-		}
-	}
-	return true
-}
-
-// Any returns true if any element in the sequences matches the predicate.
-func Any[T any](seq iter.Seq[T], predicate func(T) bool) bool {
-	for v := range seq {
-		if predicate(v) {
-			return true
-		}
-	}
-	return false
-}
