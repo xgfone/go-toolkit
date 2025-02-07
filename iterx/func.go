@@ -18,24 +18,23 @@ package iterx
 
 import "iter"
 
-// All returns true if all elements in the sequences match the predicate.
-func All[V any](seq iter.Seq[V], predicate func(V) bool) bool {
+func _predicate[V any](seq iter.Seq[V], predicate func(V) bool, result bool) bool {
 	for v := range seq {
-		if !predicate(v) {
-			return false
+		if predicate(v) == result {
+			return result
 		}
 	}
-	return true
+	return !result
+}
+
+// All returns true if all elements in the sequences match the predicate.
+func All[V any](seq iter.Seq[V], predicate func(V) bool) bool {
+	return _predicate(seq, predicate, false)
 }
 
 // Any returns true if any element in the sequences matches the predicate.
 func Any[V any](seq iter.Seq[V], predicate func(V) bool) bool {
-	for v := range seq {
-		if predicate(v) {
-			return true
-		}
-	}
-	return false
+	return _predicate(seq, predicate, true)
 }
 
 // Filter returns a new sequence that only contains the elements that match the predicate.
