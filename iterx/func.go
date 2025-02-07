@@ -19,7 +19,7 @@ package iterx
 import "iter"
 
 // All returns true if all elements in the sequences match the predicate.
-func All[T any](seq iter.Seq[T], predicate func(T) bool) bool {
+func All[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 	for v := range seq {
 		if !predicate(v) {
 			return false
@@ -29,11 +29,66 @@ func All[T any](seq iter.Seq[T], predicate func(T) bool) bool {
 }
 
 // Any returns true if any element in the sequences matches the predicate.
-func Any[T any](seq iter.Seq[T], predicate func(T) bool) bool {
+func Any[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 	for v := range seq {
 		if predicate(v) {
 			return true
 		}
 	}
 	return false
+}
+
+// Filter returns a new sequence that only contains the elements that match the predicate.
+func Filter[V any](seq iter.Seq[V], predicate func(V) bool) iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for v := range seq {
+			if predicate(v) && !yield(v) {
+				return
+			}
+		}
+	}
+}
+
+// Filter2 returns a new sequence that only contains the elements that match the predicate.
+func Filter2[K, V any](seq iter.Seq2[K, V], predicate func(K, V) bool) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for k, v := range seq {
+			if predicate(k, v) && !yield(k, v) {
+				return
+			}
+		}
+	}
+}
+
+// Map returns a new sequence that contains the results of applying the mapper function to the elements.
+func Map[T any, R any](seq iter.Seq[T], mapper func(T) R) iter.Seq[R] {
+	return func(yield func(R) bool) {
+		for v := range seq {
+			if !yield(mapper(v)) {
+				return
+			}
+		}
+	}
+}
+
+// Seq returns a new sequence that converts iter.Seq2 to iter.Seq.
+func Seq[K, V, T any](seq2 iter.Seq2[K, V], mapper func(K, V) T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for k, v := range seq2 {
+			if !yield(mapper(k, v)) {
+				return
+			}
+		}
+	}
+}
+
+// Seq2 returns a new sequence that converts iter.Seq to iter.Seq2.
+func Seq2[T, K, V any](seq iter.Seq[T], mapper func(T) (K, V)) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for v := range seq {
+			if !yield(mapper(v)) {
+				return
+			}
+		}
+	}
 }

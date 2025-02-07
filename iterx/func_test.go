@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 )
 
 func ExampleAll() {
@@ -106,4 +107,71 @@ func ExampleAny() {
 	// true
 	// true
 	// false
+}
+
+func ExampleFilter() {
+	ints := []int64{1, 2, 3, 4}
+	iter := Filter(slices.Values(ints), func(v int64) bool { return v%2 == 0 })
+	ints = slices.Collect(iter)
+
+	fmt.Println(ints)
+
+	// Output:
+	// [2 4]
+}
+
+func ExampleFilter2() {
+	ints := []int64{1, 2, 3, 4}
+	iter := Filter2(slices.All(ints), func(_ int, v int64) bool { return v%2 == 0 })
+	ints = slices.Collect(Seq(iter, func(_ int, v int64) int64 { return v }))
+
+	fmt.Println(ints)
+
+	// Output:
+	// [2 4]
+}
+
+func ExampleMap() {
+	ints := []int64{1, 2, 3}
+	iter := Map(slices.Values(ints), func(v int64) string { return strconv.FormatInt(v*v, 10) })
+	strs := slices.Collect(iter)
+
+	fmt.Println(strs)
+
+	// Output:
+	// [1 4 9]
+}
+
+func ExampleSeq() {
+	ints := []int64{1, 2, 3}
+	iters := Seq(slices.All(ints), func(_ int, v int64) string { return strconv.FormatInt(v*v, 10) })
+	strs := slices.Collect(iters)
+
+	intm := map[string]int64{"a": 1, "b": 2, "c": 3}
+	iterm := Seq(maps.All(intm), func(_ string, v int64) string { return strconv.FormatInt(v*2, 10) })
+	strm := slices.Collect(iterm)
+
+	fmt.Println(strs)
+	fmt.Println(strm)
+
+	// Output:
+	// [1 4 9]
+	// [2 4 6]
+}
+
+func ExampleSeq2() {
+	ints := []int64{1, 2, 3}
+	iters := Seq2(slices.Values(ints), func(v int64) (int64, string) { return v, strconv.FormatInt(v*v, 10) })
+	strs := maps.Collect(iters)
+
+	intm := map[string]int64{"a": 1, "b": 2, "c": 3}
+	iterm := Seq2(maps.Values(intm), func(v int64) (int64, string) { return v, strconv.FormatInt(v*2, 10) })
+	strm := maps.Collect(iterm)
+
+	fmt.Println(strs)
+	fmt.Println(strm)
+
+	// Output:
+	// map[1:1 2:4 3:9]
+	// map[1:2 2:4 3:6]
 }
