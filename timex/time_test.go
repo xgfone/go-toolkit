@@ -20,6 +20,8 @@ import (
 )
 
 func TestToday(t *testing.T) {
+	Location = time.Local
+
 	now := time.Now()
 	nowdate := now.Format(time.DateOnly)
 
@@ -32,5 +34,15 @@ func TestToday(t *testing.T) {
 	}
 	if nsec := today.Nanosecond(); nsec != 0 {
 		t.Errorf("expect nanosecond %d, but got %d", 0, nsec)
+	}
+}
+
+func TestUnix(t *testing.T) {
+	Location = time.UTC
+
+	expected := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	gottime := Unix(1735689600, 0)
+	if expected != gottime {
+		t.Errorf("expect time '%s', but got '%s'", expected.Format(time.RFC3339), gottime.Format(time.RFC3339))
 	}
 }
