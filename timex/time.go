@@ -39,6 +39,11 @@ var (
 // Default: time.Now
 var Now = time.Now
 
+// Unix is the same as time.Unix, but set the location with Location.
+func Unix(sec, nsec int64) time.Time {
+	return time.Unix(sec, nsec).In(Location)
+}
+
 // Today returns the today local time at 00:00:00.
 func Today() time.Time {
 	return ToToday(Now())
