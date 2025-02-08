@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2025 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,26 @@ const (
 	Week = Day * 7
 )
 
+// Some variables.
+var (
+	// Default: time.RFC3339Nano
+	Format = time.RFC3339Nano
+
+	// Defaults: []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
+	Formats = []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
+
+	// Default: time.UTC
+	Location = time.UTC
+)
+
+// Now is used to customize the now time.
+//
+// Default: time.Now
+var Now = time.Now
+
 // Today returns the today local time at 00:00:00.
 func Today() time.Time {
-	return ToToday(time.Now())
+	return ToToday(Now())
 }
 
 // ToToday converts the any time.Time to today at 00:00:00.
