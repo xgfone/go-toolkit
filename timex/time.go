@@ -36,8 +36,11 @@ var (
 
 // Now is used to customize the now time.
 //
-// Default: time.Now
-var Now = time.Now
+// Default: time.Now().In(Location)
+var Now func() time.Time
+
+func init()             { Now = nowloc }
+func nowloc() time.Time { return time.Now().In(Location) }
 
 // Unix is the same as time.Unix, but set the location with Location.
 func Unix(sec, nsec int64) time.Time {
