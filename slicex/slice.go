@@ -1,4 +1,4 @@
-// Copyright 2023 xgfone
+// Copyright 2023~2025 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ func Map[S ~[]E, K comparable, V, E any](s S, convert func(E) (K, V)) map[K]V {
 func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[K]V {
 	_len := len(s)
 	maps := make(map[K]V, _len)
-	for i := 0; i < _len; i++ {
+	for i := range _len {
 		k, v := convert(i, s[i])
 		maps[k] = v
 	}

@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2025 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,16 +24,16 @@ import (
 	"sync"
 )
 
-// SeedString returns a random-integer string.
+// SeedString returns a random 64-bit signed integer string.
 func SeedString() string { return strconv.FormatInt(Seed(), 10) }
 
-// Seed returns a random integer seed.
+// Seed returns a random 64-bit signed integer seed.
 func Seed() int64 { return Int64N(math.MaxInt64) }
 
-// IntN returns a random integer as int.
+// IntN returns a random integer in [0, n) as int.
 func IntN(n int) int { return int(Int64N(int64(n))) }
 
-// Int64N returns a random integer as int64.
+// Int64N returns a random integer in [0, n) as int64.
 func Int64N(n int64) int64 {
 	max := getBigInt(n)
 	if m, err := crand.Int(crand.Reader, max); err != nil {
