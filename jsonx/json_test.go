@@ -45,3 +45,30 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected '%s', but got '%s'", expect, url)
 	}
 }
+
+func TestUnmarshalBytes(t *testing.T) {
+	data := []byte(`"abc"`)
+
+	var s string
+	if err := UnmarshalBytes(data, &s); err != nil {
+		t.Fatal(err)
+	} else if s != "abc" {
+		t.Errorf("expected '%s', but got '%s'", "abc", s)
+	}
+}
+
+func TestMarshalBytes(t *testing.T) {
+	if data, err := MarshalBytes("abc"); err != nil {
+		t.Fatal(err)
+	} else if string(data) != `"abc"` {
+		t.Errorf("expected '%s', but got '%s'", `"abc"`, string(data))
+	}
+}
+
+func TestMarshalString(t *testing.T) {
+	if s, err := MarshalString("abc"); err != nil {
+		t.Fatal(err)
+	} else if s != `"abc"` {
+		t.Errorf("expected '%s', but got '%s'", `"abc"`, s)
+	}
+}

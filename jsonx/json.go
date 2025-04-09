@@ -15,7 +15,11 @@
 // Package jsonx provides some extra json functions.
 package jsonx
 
-import "io"
+import (
+	"bytes"
+	"io"
+	"strings"
+)
 
 var (
 	// Marshal is used to marshal a value by json to a writer.
@@ -28,3 +32,29 @@ var (
 	// Default: use json.Decoder
 	Unmarshal func(out any, in io.Reader) error = unmarshal
 )
+
+// UnmarshalBytes is similar to Unmarshal, but decodes a value directly
+// from a []byte instead of reading from an io.Reader.
+func UnmarshalBytes(data []byte, dst any) error {
+	return Unmarshal(dst, bytes.NewReader(data))
+}
+
+// MarshalBytes is similar to Marshal, but encodes a value directly
+// to a []byte instead of writing to an io.Writer.
+func MarshalBytes(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.Grow(256)
+	err := Marshal(&buf, v)
+	data := bytes.TrimRight(buf.Bytes(), "\n")
+	return data, err
+}
+
+// MarshalString is similar to Marshal, but encodes a value directly
+// to a string instead of writing to an io.Writer.
+func MarshalString(v any) (string, error) {
+	var buf strings.Builder
+	buf.Grow(256)
+	err := Marshal(&buf, v)
+	data := strings.TrimRight(buf.String(), "\n")
+	return data, err
+}
