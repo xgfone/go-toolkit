@@ -39,6 +39,12 @@ func UnmarshalBytes(data []byte, dst any) error {
 	return Unmarshal(dst, bytes.NewReader(data))
 }
 
+// UnmarshalString is similar to Unmarshal, but decodes a value directly
+// from a string instead of reading from an io.Reader.
+func UnmarshalString(data string, dst any) error {
+	return Unmarshal(dst, strings.NewReader(data))
+}
+
 // MarshalBytes is similar to Marshal, but encodes a value directly
 // to a []byte instead of writing to an io.Writer.
 func MarshalBytes(v any) ([]byte, error) {

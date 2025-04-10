@@ -57,6 +57,17 @@ func TestUnmarshalBytes(t *testing.T) {
 	}
 }
 
+func TestUnmarshalString(t *testing.T) {
+	data := `"abc"`
+
+	var s string
+	if err := UnmarshalString(data, &s); err != nil {
+		t.Fatal(err)
+	} else if s != "abc" {
+		t.Errorf("expected '%s', but got '%s'", "abc", s)
+	}
+}
+
 func TestMarshalBytes(t *testing.T) {
 	if data, err := MarshalBytes("abc"); err != nil {
 		t.Fatal(err)
