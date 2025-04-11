@@ -18,18 +18,18 @@ import "fmt"
 
 func ExampleIndiect() {
 	var v *int
-	fmt.Println(Indiect(v))
+	fmt.Println(Indirect(v))
 
 	v = new(int)
 	*v = 123
-	fmt.Println(Indiect(v))
+	fmt.Println(Indirect(v))
 
 	var s *string
-	fmt.Println(Indiect(s))
+	fmt.Println(Indirect(s))
 
 	s = new(string)
 	*s = "hello"
-	fmt.Println(Indiect(s))
+	fmt.Println(Indirect(s))
 
 	// Output:
 	// 0

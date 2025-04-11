@@ -14,10 +14,10 @@
 
 package runtimex
 
-// Indiect returns the value of the pointer v.
+// Indirect returns the value of the pointer v.
 //
 // If v is nil, it returns the zero value of T.
-func Indiect[T any](v *T) T {
+func Indirect[T any](v *T) T {
 	var _v T
 	if v != nil {
 		_v = *v
