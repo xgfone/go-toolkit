@@ -16,7 +16,7 @@ package runtimex
 
 import "fmt"
 
-func ExampleIndiect() {
+func ExampleIndirect() {
 	var v *int
 	fmt.Println(Indirect(v))
 
