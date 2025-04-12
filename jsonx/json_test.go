@@ -21,6 +21,16 @@ import (
 )
 
 func TestMarshal(t *testing.T) {
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expect a panic, but got not")
+			}
+		}()
+
+		SetMarshalWriterFunc(nil)
+	}()
+
 	buf := bytes.NewBuffer(nil)
 	err := Marshal(buf, "http://localhost/path?a=b&c=d")
 	if err != nil {
@@ -34,6 +44,16 @@ func TestMarshal(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expect a panic, but got not")
+			}
+		}()
+
+		SetUnmarshalReaderFunc(nil)
+	}()
+
 	var url string
 	err := Unmarshal(&url, bytes.NewBufferString(`"http://localhost/path?a=b&c=d"`))
 	if err != nil {

@@ -22,30 +22,66 @@ import (
 )
 
 var (
-	// Marshal is used to marshal a value by json to a writer.
-	//
-	// Default: use json.Encoder
-	Marshal func(out io.Writer, in any) error = marshal
-
-	// Unmarshal is used to unmarshal a value by json from a reader.
-	//
-	// Default: use json.Decoder
-	Unmarshal func(out any, in io.Reader) error = unmarshal
+	marshaler   func(out io.Writer, in any) error
+	unmarshaler func(out any, in io.Reader) error
 )
 
-// UnmarshalBytes is similar to Unmarshal, but decodes a value directly
+func init() {
+	SetMarshalWriterFunc(marshal)
+	SetUnmarshalReaderFunc(unmarshal)
+}
+
+// SetMarshalWriterFunc sets the marshal writer function
+// to marshal a value to a writer.
+func SetMarshalWriterFunc(f func(out io.Writer, in any) error) {
+	if f == nil {
+		panic("jsonx: marshal writer function is nil")
+	}
+	marshaler = f
+}
+
+// SetUnmarshalReaderFunc sets the unmarshal reader function
+// to unmarshal a value from a reader.
+func SetUnmarshalReaderFunc(f func(out any, in io.Reader) error) {
+	if f == nil {
+		panic("jsonx: unmarshal reader function is nil")
+	}
+	unmarshaler = f
+}
+
+// Marshal is short for MarshalWriter.
+func Marshal(out io.Writer, in any) error {
+	return MarshalWriter(out, in)
+}
+
+// Unmarshal is short for UnmarshalReader.
+func Unmarshal(out any, in io.Reader) error {
+	return UnmarshalReader(out, in)
+}
+
+// MarshalWriter marshals any value to a writer.
+func MarshalWriter(out io.Writer, in any) error {
+	return marshaler(out, in)
+}
+
+// UnmarshalReader unmarshals a value directly from a reader.
+func UnmarshalReader(out any, in io.Reader) error {
+	return unmarshaler(out, in)
+}
+
+// UnmarshalBytes is similar to Unmarshal, but unmarshals a value directly
 // from a []byte instead of reading from an io.Reader.
 func UnmarshalBytes(data []byte, dst any) error {
 	return Unmarshal(dst, bytes.NewReader(data))
 }
 
-// UnmarshalString is similar to Unmarshal, but decodes a value directly
+// UnmarshalString is similar to Unmarshal, but unmarshals a value directly
 // from a string instead of reading from an io.Reader.
 func UnmarshalString(data string, dst any) error {
 	return Unmarshal(dst, strings.NewReader(data))
 }
 
-// MarshalBytes is similar to Marshal, but encodes a value directly
+// MarshalBytes is similar to Marshal, but marshals a value directly
 // to a []byte instead of writing to an io.Writer.
 func MarshalBytes(v any) ([]byte, error) {
 	var buf bytes.Buffer
@@ -55,7 +91,7 @@ func MarshalBytes(v any) ([]byte, error) {
 	return data, err
 }
 
-// MarshalString is similar to Marshal, but encodes a value directly
+// MarshalString is similar to Marshal, but marshals a value directly
 // to a string instead of writing to an io.Writer.
 func MarshalString(v any) (string, error) {
 	var buf strings.Builder
