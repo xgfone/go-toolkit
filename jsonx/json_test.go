@@ -15,7 +15,6 @@
 package jsonx
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 )
@@ -31,14 +30,13 @@ func TestMarshal(t *testing.T) {
 		SetMarshalWriterFunc(nil)
 	}()
 
-	buf := bytes.NewBuffer(nil)
-	err := Marshal(buf, "http://localhost/path?a=b&c=d")
+	data, err := Marshal("http://localhost/path?a=b&c=d")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	const expect = `"http://localhost/path?a=b&c=d"`
-	if s := strings.TrimSpace(buf.String()); s != expect {
+	if s := strings.TrimSpace(string(data)); s != expect {
 		t.Errorf("expected '%s', but got '%s'", expect, s)
 	}
 }
@@ -55,7 +53,7 @@ func TestUnmarshal(t *testing.T) {
 	}()
 
 	var url string
-	err := Unmarshal(&url, bytes.NewBufferString(`"http://localhost/path?a=b&c=d"`))
+	err := Unmarshal([]byte(`"http://localhost/path?a=b&c=d"`), &url)
 	if err != nil {
 		t.Fatal(err)
 	}

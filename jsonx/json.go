@@ -49,54 +49,54 @@ func SetUnmarshalReaderFunc(f func(out any, in io.Reader) error) {
 	unmarshaler = f
 }
 
-// Marshal is short for MarshalWriter.
-func Marshal(out io.Writer, in any) error {
-	return MarshalWriter(out, in)
+// Marshal is short for MarshalBytes.
+func Marshal(in any) ([]byte, error) {
+	return MarshalBytes(in)
 }
 
-// Unmarshal is short for UnmarshalReader.
-func Unmarshal(out any, in io.Reader) error {
-	return UnmarshalReader(out, in)
+// Unmarshal is short for UnmarshalBytes.
+func Unmarshal(in []byte, out any) error {
+	return UnmarshalBytes(in, out)
 }
 
-// MarshalWriter marshals any value to a writer.
-func MarshalWriter(out io.Writer, in any) error {
-	return marshaler(out, in)
-}
-
-// UnmarshalReader unmarshals a value directly from a reader.
-func UnmarshalReader(out any, in io.Reader) error {
-	return unmarshaler(out, in)
-}
-
-// UnmarshalBytes is similar to Unmarshal, but unmarshals a value directly
+// UnmarshalBytes is similar to UnmarshalReader, but unmarshals a value directly
 // from a []byte instead of reading from an io.Reader.
-func UnmarshalBytes(data []byte, dst any) error {
-	return Unmarshal(dst, bytes.NewReader(data))
+func UnmarshalBytes(in []byte, out any) error {
+	return UnmarshalReader(out, bytes.NewReader(in))
 }
 
-// UnmarshalString is similar to Unmarshal, but unmarshals a value directly
+// UnmarshalString is similar to UnmarshalReader, but unmarshals a value directly
 // from a string instead of reading from an io.Reader.
-func UnmarshalString(data string, dst any) error {
-	return Unmarshal(dst, strings.NewReader(data))
+func UnmarshalString(in string, out any) error {
+	return UnmarshalReader(out, strings.NewReader(in))
 }
 
-// MarshalBytes is similar to Marshal, but marshals a value directly
+// MarshalBytes is similar to MarshalWriter, but marshals a value directly
 // to a []byte instead of writing to an io.Writer.
 func MarshalBytes(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.Grow(256)
-	err := Marshal(&buf, v)
+	err := MarshalWriter(&buf, v)
 	data := bytes.TrimRight(buf.Bytes(), "\n")
 	return data, err
 }
 
-// MarshalString is similar to Marshal, but marshals a value directly
+// MarshalString is similar to MarshalWriter, but marshals a value directly
 // to a string instead of writing to an io.Writer.
 func MarshalString(v any) (string, error) {
 	var buf strings.Builder
 	buf.Grow(256)
-	err := Marshal(&buf, v)
+	err := MarshalWriter(&buf, v)
 	data := strings.TrimRight(buf.String(), "\n")
 	return data, err
+}
+
+// MarshalWriter marshals any value in to a writer out.
+func MarshalWriter(out io.Writer, in any) error {
+	return marshaler(out, in)
+}
+
+// UnmarshalReader unmarshals a value out directly from a reader in.
+func UnmarshalReader(out any, in io.Reader) error {
+	return unmarshaler(out, in)
 }
