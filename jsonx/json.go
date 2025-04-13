@@ -17,6 +17,7 @@ package jsonx
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"strings"
 )
@@ -27,8 +28,15 @@ var (
 )
 
 func init() {
-	SetMarshalWriterFunc(marshal)
-	SetUnmarshalReaderFunc(unmarshal)
+	SetMarshalWriterFunc(func(out io.Writer, in any) error {
+		enc := json.NewEncoder(out)
+		enc.SetEscapeHTML(false)
+		return enc.Encode(in)
+	})
+
+	SetUnmarshalReaderFunc(func(out any, in io.Reader) error {
+		return json.NewDecoder(in).Decode(out)
+	})
 }
 
 // SetMarshalWriterFunc sets the marshal writer function
