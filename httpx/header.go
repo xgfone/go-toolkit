@@ -139,8 +139,8 @@ const (
 // IsWebSocket reports whether the request is websocket.
 func IsWebSocket(req *http.Request) bool {
 	return req.Method == http.MethodGet &&
-		req.Header.Get(HeaderConnection) == HeaderUpgrade &&
-		req.Header.Get(HeaderUpgrade) == "websocket"
+		strings.ToLower(req.Header.Get(HeaderConnection)) == "upgrade" &&
+		strings.ToLower(req.Header.Get(HeaderUpgrade)) == "websocket"
 }
 
 // ContentType returns the MIME media type portion of the header "Content-Type".
@@ -164,7 +164,7 @@ func Charset(header http.Header) string {
 		}
 
 		if index = strings.IndexByte(ct, '='); index > -1 {
-			if strings.TrimSpace(ct[:index]) == "charset" {
+			if strings.ToLower(strings.TrimSpace(ct[:index])) == "charset" {
 				return strings.TrimSpace(ct[index+1:])
 			}
 		}
