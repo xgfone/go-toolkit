@@ -95,6 +95,7 @@ func request(ctx context.Context, method, url string, body io.Reader,
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 
 	return do(resp)
 }

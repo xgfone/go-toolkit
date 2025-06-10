@@ -17,6 +17,7 @@ package httpx
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestClient(t *testing.T) {
 	}()
 
 	do := func(req *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 201}, nil
+		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
 	}
 	SetClient(WrapClientWithOptions(DoFunc(do), option.ByteRange(0, 1)))
 
@@ -56,7 +57,7 @@ func TestRequest(t *testing.T) {
 		if req.URL.Path == "/error" {
 			return nil, errors.New("error")
 		}
-		return &http.Response{StatusCode: 201}, nil
+		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
 	}))
 
 	err := Get(context.Background(), ":", nil)
@@ -87,7 +88,7 @@ func TestRequest(t *testing.T) {
 
 func TestPost(t *testing.T) {
 	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 201}, nil
+		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
 	}))
 
 	var code int
