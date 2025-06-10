@@ -15,21 +15,90 @@
 package httpx
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/xgfone/go-toolkit/httpx/option"
 )
 
-func TestDoer(t *testing.T) {
-	var client Doer
+func TestClient(t *testing.T) {
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expect a panic, but got nil")
+			}
+		}()
+		SetClient(nil)
+	}()
 
-	client = DoFunc(func(req *http.Request) (*http.Response, error) {
+	do := func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 201}, nil
-	})
+	}
+	SetClient(WrapClientWithOptions(DoFunc(do), option.ByteRange(0, 1)))
 
-	resp, err := client.Do(nil)
+	req, err := http.NewRequest(http.MethodGet, "http://localhost", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := GetClient().Do(req)
 	if err != nil {
 		t.Error(err)
 	} else if resp.StatusCode != 201 {
 		t.Errorf("expected status code 201, got %d", resp.StatusCode)
+	}
+}
+
+func TestRequest(t *testing.T) {
+	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/error" {
+			return nil, errors.New("error")
+		}
+		return &http.Response{StatusCode: 201}, nil
+	}))
+
+	err := Get(context.Background(), ":", nil)
+	if err == nil {
+		t.Error("expect an error, but got nil")
+	}
+
+	err = Get(context.Background(), "http://localhost/error", nil)
+	if err == nil {
+		t.Error("expect an error, but got nil")
+	} else if s := err.Error(); s != "error" {
+		t.Errorf("expect error '%s', but got '%s'", "error", s)
+	}
+
+	var code int
+	okdo := func(r *http.Response) error {
+		code = r.StatusCode
+		return nil
+	}
+
+	err = Get(context.Background(), "http://localhost/ok", okdo)
+	if err != nil {
+		t.Error(err)
+	} else if code != 201 {
+		t.Errorf("expect status code %d, but got %d", 201, code)
+	}
+}
+
+func TestPost(t *testing.T) {
+	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 201}, nil
+	}))
+
+	var code int
+	err := Post(context.Background(), "http://localhost", nil, func(r *http.Response) error {
+		code = r.StatusCode
+		return nil
+	})
+
+	if err != nil {
+		t.Error(err)
+	} else if code != 201 {
+		t.Errorf("expect status code %d, but got %d", 201, code)
 	}
 }
