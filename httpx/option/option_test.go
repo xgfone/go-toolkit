@@ -42,8 +42,8 @@ func TestAuthBearer(t *testing.T) {
 			if r := recover(); r == nil {
 				t.Error("expect a panic, but got nil")
 			}
-			AuthBearer("  ")
 		}()
+		AuthBearer("  ")
 	}()
 
 	req, err := http.NewRequest(http.MethodGet, "http://localhost", nil)
@@ -51,7 +51,7 @@ func TestAuthBearer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req = AuthBearer(" apikey ")(req)
+	req = Apply(req, AuthBearer(" apikey "))
 	if value := req.Header.Get("Authorization"); value != "Bearer apikey" {
 		t.Errorf("expect '%s', but got '%s'", "Bearer apikey", value)
 	}
