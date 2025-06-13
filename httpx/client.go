@@ -64,11 +64,36 @@ func (f DoFunc) Do(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-// WrapClientWithOptions wraps the original client and returns a new one
-// that configures the http request with the given options.
+type wclient struct {
+	client Client
+	wrapf  func(Client, *http.Request) (*http.Response, error)
+}
+
+func (c *wclient) Unwrap() Client                             { return c.client }
+func (c *wclient) Do(r *http.Request) (*http.Response, error) { return c.wrapf(c.client, r) }
+
+// UnwrapClient unwraps and returns the inner client.
+//
+// Return nil if client has not implemented the interface { Unwrap() Client }.
+func UnwrapClient(client Client) Client {
+	if c, ok := client.(interface{ Unwrap() Client }); ok {
+		return c.Unwrap()
+	}
+	return nil
+}
+
+// WrapClient wraps the client to handler the http request and
+// returns a new Client that has implemented the interface { Unwrap() Client }
+// to unwrap the inner client.
+func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error)) Client {
+	return &wclient{client: c, wrapf: f}
+}
+
+// WrapClientWithOptions is the same as WrapClient,
+// but applies the given options to the request.
 func WrapClientWithOptions(client Client, options ...option.Option) Client {
-	return DoFunc(func(req *http.Request) (*http.Response, error) {
-		return client.Do(option.Apply(req, options...))
+	return WrapClient(client, func(c Client, r *http.Request) (*http.Response, error) {
+		return c.Do(option.Apply(r, options...))
 	})
 }
 
