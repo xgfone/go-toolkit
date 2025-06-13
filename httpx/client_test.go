@@ -24,6 +24,25 @@ import (
 	"github.com/xgfone/go-toolkit/httpx/option"
 )
 
+func TestUnwrapClient(t *testing.T) {
+	if UnwrapClient(http.DefaultClient) != nil {
+		t.Errorf("expect a nil, but got a http client")
+	}
+
+	c := WrapClient(http.DefaultClient, func(c Client, r *http.Request) (*http.Response, error) {
+		return c.Do(r)
+	})
+
+	client := UnwrapClient(c)
+	if client == nil {
+		t.Fatal("expect a client, but got nil")
+	} else if hc, ok := client.(*http.Client); !ok {
+		t.Errorf("expect a *http.Client, but got %T", client)
+	} else if hc != http.DefaultClient {
+		t.Errorf("expect http.DefaultClient, but got other")
+	}
+}
+
 func TestClient(t *testing.T) {
 	func() {
 		defer func() {
