@@ -18,6 +18,7 @@ package option
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -36,15 +37,19 @@ func Apply(r *http.Request, options ...Option) *http.Request {
 
 // ByteRange returns a request option to add the http request header "Range".
 //
-// If length is equal to 0, return a noop option that does nothing.
+// If both start and length are equal to 0, return a noop option that does nothing.
 func ByteRange(start, length uint64) Option {
-	if length == 0 {
+	if start == 0 && length == 0 {
 		return noop
 	}
 
-	end := start + length - 1
+	var end string
+	if length > 0 {
+		end = strconv.FormatUint(start+length-1, 10)
+	}
+
 	return func(r *http.Request) *http.Request {
-		r.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+		r.Header.Set("Range", fmt.Sprintf("bytes=%d-%s", start, end))
 		return r
 	}
 }
