@@ -35,57 +35,35 @@ func IntN(n int) int { return int(Int64N(int64(n))) }
 
 // Int64N returns a random integer in [0, n) as int64.
 func Int64N(n int64) int64 {
+	var v int64
 	max := getBigInt(n)
 	if m, err := crand.Int(crand.Reader, max); err != nil {
 		slog.Error("crypto/rand.Int failed", "n", n, "err", err)
+		v = rand.Int64N(n)
 	} else {
-		return m.Int64()
+		v = m.Int64()
 	}
-
-	return rand.Int64N(n)
+	return v
 }
 
 var (
-	_big2  = big.NewInt(2)
-	_big4  = big.NewInt(4)
-	_big8  = big.NewInt(8)
-	_big16 = big.NewInt(16)
-	_big32 = big.NewInt(32)
-
 	_block  = new(sync.Mutex)
 	_bigmap = new(sync.Map)
 )
 
 func getBigInt(n int64) *big.Int {
-	switch n {
-	case 2:
-		return _big2
-	case 4:
-		return _big4
-
-	case 8:
-		return _big8
-
-	case 16:
-		return _big16
-
-	case 32:
-		return _big32
-
-	default:
-		if value, loaded := _bigmap.Load(n); loaded {
-			return value.(*big.Int)
-		}
-
-		_block.Lock()
-		defer _block.Unlock()
-
-		if value, loaded := _bigmap.Load(n); loaded {
-			return value.(*big.Int)
-		}
-
-		v := big.NewInt(n)
-		_bigmap.Store(n, v)
-		return v
+	if value, loaded := _bigmap.Load(n); loaded {
+		return value.(*big.Int)
 	}
+
+	_block.Lock()
+	defer _block.Unlock()
+
+	if value, loaded := _bigmap.Load(n); loaded {
+		return value.(*big.Int)
+	}
+
+	v := big.NewInt(n)
+	_bigmap.Store(n, v)
+	return v
 }
