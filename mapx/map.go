@@ -21,8 +21,15 @@ type Pair[K comparable, V any] struct {
 	Value V
 }
 
-// Convert converts the map from map[K1]V1 to map[K1]V2.
+// Convert converts the map from map[K1]V1 to map[K2]V2.
+//
+// DEPRECATED. Please use To instead.
 func Convert[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
+	return To(maps, convert)
+}
+
+// To converts the map from map[K1]V1 to map[K2]V2.
+func To[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
 	if maps == nil {
 		return nil
 	}
