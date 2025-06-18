@@ -16,7 +16,14 @@
 package slicex
 
 // Convert converts the slice from []E1 to []E2.
+//
+// DEPRECATED. Please use To instead.
 func Convert[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
+	return To(vs, convert)
+}
+
+// To converts the slice from []E1 to []E2.
+func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	newslice := make([]E2, len(vs))
 	for i, e := range vs {
 		newslice[i] = convert(e)
