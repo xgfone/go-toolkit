@@ -41,6 +41,20 @@ func TestUnwrapClient(t *testing.T) {
 	} else if hc != http.DefaultClient {
 		t.Errorf("expect http.DefaultClient, but got other")
 	}
+
+	c = WrapClientWithOptions(c, option.AuthBearer("token"))
+	for {
+		if _c := UnwrapClient(c); _c != nil {
+			c = _c
+		} else {
+			break
+		}
+	}
+	if hc, ok := c.(*http.Client); !ok {
+		t.Errorf("expect a *http.Client, but got %T", client)
+	} else if hc != http.DefaultClient {
+		t.Errorf("expect http.DefaultClient, but got other")
+	}
 }
 
 func TestClient(t *testing.T) {
