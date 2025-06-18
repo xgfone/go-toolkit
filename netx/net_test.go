@@ -21,6 +21,30 @@ import (
 	"time"
 )
 
+func TestIPIsOn(t *testing.T) {
+	if on, err := IPIsOn(""); err != nil {
+		t.Error(err)
+	} else if on {
+		t.Error("expect empty ip is not on, but got yes")
+	}
+
+	if _, err := IPIsOn("abc"); err == nil {
+		t.Error("expect an error, but got nil")
+	}
+
+	if on, err := IPIsOn("127.0.0.1"); err != nil {
+		t.Error(err)
+	} else if !on {
+		t.Error("expect ip is on, but got not")
+	}
+
+	if on, err := IPIsOn("1.2.3.4"); err != nil {
+		t.Error(err)
+	} else if on {
+		t.Error("expect ip is not on, but got yes")
+	}
+}
+
 func TestIsTimeout(t *testing.T) {
 	if IsTimeout(errors.New("false")) {
 		t.Error("expect false, but got true")

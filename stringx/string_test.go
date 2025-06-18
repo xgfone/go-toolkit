@@ -32,4 +32,13 @@ func TestTruncate(t *testing.T) {
 	if s := Truncate("中国", 10); s != "中国" {
 		t.Errorf("expect '%s', but got '%s'", "中国", s)
 	}
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expect a panic, but got not")
+			}
+		}()
+		Truncate("abc", -1)
+	}()
 }

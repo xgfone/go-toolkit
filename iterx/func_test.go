@@ -113,33 +113,54 @@ func ExampleFilter() {
 	ints := []int64{1, 2, 3, 4}
 	iter := Filter(slices.Values(ints), func(v int64) bool { return v%2 == 0 })
 	ints = slices.Collect(iter)
-
 	fmt.Println(ints)
+
+	var values []int64
+	iter(func(v int64) bool {
+		values = append(values, v)
+		return false
+	})
+	fmt.Println(values)
 
 	// Output:
 	// [2 4]
+	// [2]
 }
 
 func ExampleFilter2() {
 	ints := []int64{1, 2, 3, 4}
 	iter := Filter2(slices.All(ints), func(_ int, v int64) bool { return v%2 == 0 })
 	ints = slices.Collect(Seq(iter, func(_ int, v int64) int64 { return v }))
-
 	fmt.Println(ints)
+
+	var values []int64
+	iter(func(_ int, v int64) bool {
+		values = append(values, v)
+		return false
+	})
+	fmt.Println(values)
 
 	// Output:
 	// [2 4]
+	// [2]
 }
 
 func ExampleMap() {
 	ints := []int64{1, 2, 3}
 	iter := Map(slices.Values(ints), func(v int64) string { return strconv.FormatInt(v*v, 10) })
 	strs := slices.Collect(iter)
-
 	fmt.Println(strs)
+
+	var values []string
+	iter(func(v string) bool {
+		values = append(values, v)
+		return false
+	})
+	fmt.Println(values)
 
 	// Output:
 	// [1 4 9]
+	// [1]
 }
 
 func ExampleSeq() {
@@ -155,9 +176,17 @@ func ExampleSeq() {
 	fmt.Println(strs)
 	fmt.Println(strm)
 
+	var values []string
+	iters(func(v string) bool {
+		values = append(values, v)
+		return false
+	})
+	fmt.Println(values)
+
 	// Output:
 	// [1 4 9]
 	// [2 4 6]
+	// [1]
 }
 
 func ExampleSeq2() {
@@ -172,7 +201,15 @@ func ExampleSeq2() {
 	fmt.Println(strs)
 	fmt.Println(strm)
 
+	var values []string
+	iters(func(_ int64, v string) bool {
+		values = append(values, v)
+		return false
+	})
+	fmt.Println(values)
+
 	// Output:
 	// map[1:1 2:4 3:9]
 	// map[1:2 2:4 3:6]
+	// [1]
 }

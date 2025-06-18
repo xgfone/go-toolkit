@@ -41,6 +41,10 @@ func TestCaller(t *testing.T) {
 	if caller.String() != expect {
 		t.Errorf("expect '%s', but got '%s'", expect, caller.String())
 	}
+
+	if s := Caller(100).String(); s != "???" {
+		t.Errorf("expect '%s', but got '%s'", "???", s)
+	}
 }
 
 func TestStacks(t *testing.T) {
@@ -53,7 +57,7 @@ func TestStacks(t *testing.T) {
 	}
 
 	expects := []string{
-		"github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestStacks:47",
+		"github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestStacks:51",
 	}
 
 	if len(expects) != len(stacks) {
@@ -65,4 +69,10 @@ func TestStacks(t *testing.T) {
 			t.Errorf("%d: expect '%s', but got '%s'", i, line, stacks[i].String())
 		}
 	}
+
+	if stacks := Stacks(100); stacks != nil {
+		t.Errorf("expect stacks nil, but got %d", len(stacks))
+	}
+
+	// t.Error(Stacks(100))
 }

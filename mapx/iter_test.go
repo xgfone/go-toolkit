@@ -30,8 +30,16 @@ func ExampleAll() {
 		fmt.Printf("%d -> %d\n", p.Key, p.Value)
 	}
 
+	var keys []int
+	All(intm)(func(p Pair[int, int]) bool {
+		keys = append(keys, p.Key)
+		return false // Only append one key randomly
+	})
+	fmt.Println("KeyNum:", len(keys))
+
 	// Output:
 	// 1 -> 1
 	// 2 -> 2
 	// 3 -> 3
+	// KeyNum: 1
 }

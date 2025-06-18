@@ -17,6 +17,8 @@ package bytex
 import "fmt"
 
 func ExampleRemoveLineComments() {
+	var singleLine = []byte(`123`)
+
 	var slashOrig = []byte(`
 // line comment 1
 1
@@ -41,6 +43,9 @@ func ExampleRemoveLineComments() {
 5
 `)
 
+	fmt.Println("Single Line:")
+	fmt.Println(string(RemoveLineComments(singleLine, CommentHash)))
+
 	fmt.Println("Hash Result:")
 	fmt.Println(string(RemoveLineComments(hashOrig, CommentHash)))
 
@@ -48,6 +53,9 @@ func ExampleRemoveLineComments() {
 	fmt.Println(string(RemoveLineComments(slashOrig, CommentSlashes)))
 
 	// Output:
+	// Single Line:
+	// 123
+	//
 	// Hash Result:
 	// 1
 	// 2

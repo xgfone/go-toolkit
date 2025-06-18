@@ -18,6 +18,7 @@ import "testing"
 
 func TestIsZero(t *testing.T) {
 	testbool(t, "nil", IsZero(nil), true)
+	testbool(t, "nil", IsZero((*int)(nil)), true)
 
 	testbool(t, "bool", IsZero(false), true)
 	testbool(t, "bool", IsZero(true), false)
@@ -49,6 +50,9 @@ func TestIsZero(t *testing.T) {
 	testbool(t, "uint32", IsZero(uint32(1)), false)
 	testbool(t, "uint64", IsZero(uint64(0)), true)
 	testbool(t, "uint64", IsZero(uint64(1)), false)
+
+	testbool(t, "uintptr", IsZero(uintptr(0)), true)
+	testbool(t, "uintptr", IsZero(uintptr(1)), false)
 
 	testbool(t, "float32", IsZero(float32(0)), true)
 	testbool(t, "float32", IsZero(float32(1)), false)

@@ -29,7 +29,7 @@ func TestSeedString(t *testing.T) {
 }
 
 func TestIntN(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		v := IntN(10)
 		if v < 0 || v >= 10 {
 			t.Errorf("expect one of [0, 9], but got %v", v)

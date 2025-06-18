@@ -17,7 +17,7 @@ package stringx
 import "testing"
 
 func TestDesensitizer(t *testing.T) {
-	dephoner := NewDesensitizer(3, 4).WithChars("****")
+	dephoner := NewDesensitizer(3, 4).WithChars("")
 
 	if s := dephoner.Desensitize("123"); s != "****" {
 		t.Errorf("expect '%s', but got '%s'", "****", s)
@@ -43,5 +43,10 @@ func TestDesensitizer(t *testing.T) {
 	denamer2 := NewDesensitizer(0, 1).WithChars("**")
 	if s := denamer2.Desensitize("1谢2谢"); s != "**谢" {
 		t.Errorf("expect '%s', but got '%s'", "**谢", s)
+	}
+
+	denamer3 := NewDesensitizer(0, 0).WithChars("**")
+	if s := denamer3.Desensitize("1谢2谢"); s != "**" {
+		t.Errorf("expect '%s', but got '%s'", "**", s)
 	}
 }

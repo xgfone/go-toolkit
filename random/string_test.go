@@ -17,7 +17,7 @@ package random
 import "testing"
 
 func TestString(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		s := String(16, DefaultCharset)
 		if len(s) != 16 {
 			t.Errorf("expect length of string is equal to 16, but got '%s'", s)
