@@ -17,12 +17,27 @@ package httpx
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"testing"
-
-	"github.com/xgfone/go-toolkit/httpx/option"
 )
+
+func authBearerOption(token string) Option {
+	return func(r *http.Request) *http.Request {
+		r.Header.Set("Authorization", "Bearer "+token)
+		return r
+	}
+}
+
+func byteRangeOption(start, length uint64) Option {
+	end := strconv.FormatUint(start+length-1, 10)
+	return func(r *http.Request) *http.Request {
+		r.Header.Set("Range", fmt.Sprintf("bytes=%d-%s", start, end))
+		return r
+	}
+}
 
 func TestUnwrapClient(t *testing.T) {
 	if UnwrapClient(http.DefaultClient) != nil {
@@ -42,7 +57,7 @@ func TestUnwrapClient(t *testing.T) {
 		t.Errorf("expect http.DefaultClient, but got other")
 	}
 
-	c = WrapClientWithOptions(c, option.AuthBearer("token"))
+	c = WrapClientWithOptions(c, authBearerOption("token"))
 	for {
 		if _c := UnwrapClient(c); _c != nil {
 			c = _c
@@ -70,7 +85,7 @@ func TestClient(t *testing.T) {
 	do := func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
 	}
-	SetClient(WrapClientWithOptions(DoFunc(do), option.ByteRange(0, 1)))
+	SetClient(WrapClientWithOptions(DoFunc(do), byteRangeOption(0, 1)))
 
 	req, err := http.NewRequest(http.MethodGet, "http://localhost", nil)
 	if err != nil {

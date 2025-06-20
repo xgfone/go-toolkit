@@ -19,8 +19,6 @@ import (
 	"io"
 	"net/http"
 	"sync/atomic"
-
-	"github.com/xgfone/go-toolkit/httpx/option"
 )
 
 var _defaultclient atomic.Value
@@ -45,11 +43,6 @@ func SetClient(client Client) {
 func GetClient() Client {
 	return _defaultclient.Load().(_Client).Client
 }
-
-// Doer is the alias of Client.
-//
-// Deprecated.
-type Doer = Client
 
 // Client is a http client interface that sends a http request and returns a http response.
 type Client interface {
@@ -89,33 +82,52 @@ func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error))
 	return &wclient{client: c, wrapf: f}
 }
 
+// Option is used to configure the http request.
+type Option func(*http.Request) *http.Request
+
+// Apply applies the option to r and returns the new one.
+func (o Option) Apply(r *http.Request) *http.Request {
+	return o(r)
+}
+
+// Options is a set of Options.
+type Options []Option
+
+// Apply applies the set of options to r and returns the new one.
+func (os Options) Apply(r *http.Request) *http.Request {
+	for _, o := range os {
+		r = o.Apply(r)
+	}
+	return r
+}
+
 // WrapClientWithOptions is the same as WrapClient,
 // but applies the given options to the request.
-func WrapClientWithOptions(client Client, options ...option.Option) Client {
+func WrapClientWithOptions(client Client, options ...Option) Client {
 	return WrapClient(client, func(c Client, r *http.Request) (*http.Response, error) {
-		return c.Do(option.Apply(r, options...))
+		return c.Do(Options(options).Apply(r))
 	})
 }
 
 // Get sends a http GET request.
-func Get(ctx context.Context, url string, do func(*http.Response) error, options ...option.Option) error {
+func Get(ctx context.Context, url string, do func(*http.Response) error, options ...Option) error {
 	return request(ctx, http.MethodGet, url, nil, do, options...)
 }
 
 // Get sends a http POST request.
-func Post(ctx context.Context, url string, body io.Reader, do func(*http.Response) error, options ...option.Option) error {
+func Post(ctx context.Context, url string, body io.Reader, do func(*http.Response) error, options ...Option) error {
 	return request(ctx, http.MethodGet, url, body, do, options...)
 }
 
 func request(ctx context.Context, method, url string, body io.Reader,
-	do func(*http.Response) error, options ...option.Option) (err error) {
+	do func(*http.Response) error, options ...Option) (err error) {
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return
 	}
 
-	req = option.Apply(req, options...)
+	req = Options(options).Apply(req)
 	resp, err := GetClient().Do(req)
 	if err != nil {
 		return
