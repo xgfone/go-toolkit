@@ -15,8 +15,6 @@
 package httpx
 
 import (
-	"context"
-	"io"
 	"net/http"
 	"sync/atomic"
 )
@@ -52,7 +50,7 @@ type Client interface {
 // DoFunc is a function that sends a http request and returns a http response.
 type DoFunc func(req *http.Request) (*http.Response, error)
 
-// Do implements the Doer interface.
+// Do implements the Client interface.
 func (f DoFunc) Do(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
@@ -80,50 +78,4 @@ func UnwrapClient(client Client) Client {
 // to unwrap the inner client.
 func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error)) Client {
 	return &wclient{client: c, wrapf: f}
-}
-
-// Option is used to configure the http request.
-type Option func(*http.Request) *http.Request
-
-func applyOptions(r *http.Request, options []Option) *http.Request {
-	for _, o := range options {
-		r = o(r)
-	}
-	return r
-}
-
-// WrapClientWithOptions is the same as WrapClient,
-// but applies the given options to the request.
-func WrapClientWithOptions(client Client, options ...Option) Client {
-	return WrapClient(client, func(c Client, r *http.Request) (*http.Response, error) {
-		return c.Do(applyOptions(r, options))
-	})
-}
-
-// Get sends a http GET request.
-func Get(ctx context.Context, url string, do func(*http.Response) error, options ...Option) error {
-	return request(ctx, http.MethodGet, url, nil, do, options...)
-}
-
-// Get sends a http POST request.
-func Post(ctx context.Context, url string, body io.Reader, do func(*http.Response) error, options ...Option) error {
-	return request(ctx, http.MethodGet, url, body, do, options...)
-}
-
-func request(ctx context.Context, method, url string, body io.Reader,
-	do func(*http.Response) error, options ...Option) (err error) {
-
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return
-	}
-
-	req = applyOptions(req, options)
-	resp, err := GetClient().Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	return do(resp)
 }

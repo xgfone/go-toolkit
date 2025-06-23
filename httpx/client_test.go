@@ -15,29 +15,10 @@
 package httpx
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"testing"
 )
-
-func authBearerOption(token string) Option {
-	return func(r *http.Request) *http.Request {
-		r.Header.Set("Authorization", "Bearer "+token)
-		return r
-	}
-}
-
-func byteRangeOption(start, length uint64) Option {
-	end := strconv.FormatUint(start+length-1, 10)
-	return func(r *http.Request) *http.Request {
-		r.Header.Set("Range", fmt.Sprintf("bytes=%d-%s", start, end))
-		return r
-	}
-}
 
 func TestUnwrapClient(t *testing.T) {
 	if UnwrapClient(http.DefaultClient) != nil {
@@ -57,7 +38,7 @@ func TestUnwrapClient(t *testing.T) {
 		t.Errorf("expect http.DefaultClient, but got other")
 	}
 
-	c = WrapClientWithOptions(c, authBearerOption("token"))
+	c = WrapClient(c, func(c Client, r *http.Request) (*http.Response, error) { return c.Do(r) })
 	for {
 		if _c := UnwrapClient(c); _c != nil {
 			c = _c
@@ -85,7 +66,7 @@ func TestClient(t *testing.T) {
 	do := func(req *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
 	}
-	SetClient(WrapClientWithOptions(DoFunc(do), byteRangeOption(0, 1)))
+	SetClient(WrapClient(DoFunc(do), func(c Client, r *http.Request) (*http.Response, error) { return c.Do(r) }))
 
 	req, err := http.NewRequest(http.MethodGet, "http://localhost", nil)
 	if err != nil {
@@ -97,57 +78,5 @@ func TestClient(t *testing.T) {
 		t.Error(err)
 	} else if resp.StatusCode != 201 {
 		t.Errorf("expected status code 201, got %d", resp.StatusCode)
-	}
-}
-
-func TestRequest(t *testing.T) {
-	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Path == "/error" {
-			return nil, errors.New("error")
-		}
-		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
-	}))
-
-	err := Get(context.Background(), ":", nil)
-	if err == nil {
-		t.Error("expect an error, but got nil")
-	}
-
-	err = Get(context.Background(), "http://localhost/error", nil)
-	if err == nil {
-		t.Error("expect an error, but got nil")
-	} else if s := err.Error(); s != "error" {
-		t.Errorf("expect error '%s', but got '%s'", "error", s)
-	}
-
-	var code int
-	okdo := func(r *http.Response) error {
-		code = r.StatusCode
-		return nil
-	}
-
-	err = Get(context.Background(), "http://localhost/ok", okdo)
-	if err != nil {
-		t.Error(err)
-	} else if code != 201 {
-		t.Errorf("expect status code %d, but got %d", 201, code)
-	}
-}
-
-func TestPost(t *testing.T) {
-	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 201, Body: io.NopCloser(nil)}, nil
-	}))
-
-	var code int
-	err := Post(context.Background(), "http://localhost", nil, func(r *http.Response) error {
-		code = r.StatusCode
-		return nil
-	})
-
-	if err != nil {
-		t.Error(err)
-	} else if code != 201 {
-		t.Errorf("expect status code %d, but got %d", 201, code)
 	}
 }
