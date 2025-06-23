@@ -85,18 +85,9 @@ func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error))
 // Option is used to configure the http request.
 type Option func(*http.Request) *http.Request
 
-// Apply applies the option to r and returns the new one.
-func (o Option) Apply(r *http.Request) *http.Request {
-	return o(r)
-}
-
-// Options is a set of Options.
-type Options []Option
-
-// Apply applies the set of options to r and returns the new one.
-func (os Options) Apply(r *http.Request) *http.Request {
-	for _, o := range os {
-		r = o.Apply(r)
+func applyOptions(r *http.Request, options []Option) *http.Request {
+	for _, o := range options {
+		r = o(r)
 	}
 	return r
 }
@@ -105,7 +96,7 @@ func (os Options) Apply(r *http.Request) *http.Request {
 // but applies the given options to the request.
 func WrapClientWithOptions(client Client, options ...Option) Client {
 	return WrapClient(client, func(c Client, r *http.Request) (*http.Response, error) {
-		return c.Do(Options(options).Apply(r))
+		return c.Do(applyOptions(r, options))
 	})
 }
 
@@ -127,7 +118,7 @@ func request(ctx context.Context, method, url string, body io.Reader,
 		return
 	}
 
-	req = Options(options).Apply(req)
+	req = applyOptions(req, options)
 	resp, err := GetClient().Do(req)
 	if err != nil {
 		return
