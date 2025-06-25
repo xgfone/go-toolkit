@@ -22,8 +22,28 @@ func Convert[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	return To(vs, convert)
 }
 
+// Filter filters the elements of the slice s and converts them.
+func Filter[S1 ~[]E1, E1, E2 any](s S1, filter func(E1) (E2, bool)) []E2 {
+	if s == nil {
+		return nil
+	}
+
+	newslice := make([]E2, 0, len(s))
+	for i := range s {
+		if e2, ok := filter(s[i]); ok {
+			newslice = append(newslice, e2)
+		}
+	}
+
+	return newslice
+}
+
 // To converts the slice from []E1 to []E2.
 func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
+	if vs == nil {
+		return nil
+	}
+
 	newslice := make([]E2, len(vs))
 	for i, e := range vs {
 		newslice[i] = convert(e)

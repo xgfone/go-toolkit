@@ -16,20 +16,43 @@ package slicex
 
 import "fmt"
 
+func _convert(v int) int64        { return int64(v) }
+func _filter(v int) (int64, bool) { return int64(v), v%2 == 0 }
+
 func ExampleConvert() {
 	type Ints []int
 
-	ints1 := []int{1, 2, 3}
-	ints2 := Ints{4, 5, 6}
-	int64s1 := Convert(ints1, func(v int) int64 { return int64(v) })
-	int64s2 := Convert(ints2, func(v int) int64 { return int64(v) })
+	fmt.Println(Convert([]int{1, 2, 3}, _convert))
+	fmt.Println(Convert(Ints{4, 5, 6}, _convert))
 
-	fmt.Println(int64s1)
-	fmt.Println(int64s2)
+	if s := Convert(Ints(nil), _convert); s == nil {
+		fmt.Println(nil)
+	} else {
+		fmt.Println(s)
+	}
 
 	// Output:
 	// [1 2 3]
 	// [4 5 6]
+	// <nil>
+}
+
+func ExampleFilter() {
+	type Ints []int
+
+	fmt.Println(Filter([]int{1, 2, 3}, _filter))
+	fmt.Println(Filter(Ints{4, 5, 6}, _filter))
+
+	if s := Filter(Ints(nil), _filter); s == nil {
+		fmt.Println(nil)
+	} else {
+		fmt.Println(s)
+	}
+
+	// Output:
+	// [2]
+	// [4 6]
+	// <nil>
 }
 
 func ExampleMap() {
