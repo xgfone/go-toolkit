@@ -28,6 +28,22 @@ func Convert[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K
 	return To(maps, convert)
 }
 
+// Filter filters the elements of the map m and converts them.
+func Filter[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](m M, filter func(K1, V1) (K2, V2, bool)) map[K2]V2 {
+	if m == nil {
+		return nil
+	}
+
+	newmap := make(map[K2]V2, len(m))
+	for k1, v1 := range m {
+		if k2, v2, ok := filter(k1, v1); ok {
+			newmap[k2] = v2
+		}
+	}
+
+	return newmap
+}
+
 // To converts the map from map[K1]V1 to map[K2]V2.
 func To[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
 	if maps == nil {

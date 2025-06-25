@@ -20,22 +20,22 @@ import (
 	"sort"
 )
 
+func _convert(k string, v int) (string, int64)      { return k, int64(v) }
+func _filter(k string, v int) (string, int64, bool) { return k, int64(v), v%2 == 0 }
+
 func ExampleConvert() {
 	type Maps map[string]int
 
-	intmap1 := Maps{"a": 1, "b": 2}
-	intmap2 := map[string]int{"a": 3, "b": 4}
-
-	int64map1 := Convert(intmap1, func(k string, v int) (string, int64) { return k, int64(v) })
-	int64map2 := Convert(intmap2, func(k string, v int) (string, int64) { return k, int64(v) })
-
 	var nilmap1 Maps
-	nilmap2 := Convert(nilmap1, func(k string, v int) (string, int64) { return k, int64(v) })
+	nilmap2 := Convert(nilmap1, _convert)
 	if nilmap2 == nil {
 		fmt.Println("nil")
 	} else {
 		fmt.Printf("%v\n", nilmap2)
 	}
+
+	int64map1 := Convert(Maps{"a": 1, "b": 2}, _convert)
+	int64map2 := Convert(map[string]int{"a": 3, "b": 4}, _convert)
 
 	fmt.Printf("%T\n", int64map1)
 	fmt.Printf("%T\n", int64map2)
@@ -52,6 +52,29 @@ func ExampleConvert() {
 	// b=2
 	// a=3
 	// b=4
+}
+
+func ExampleFilter() {
+	type Maps map[string]int
+
+	var nilmap1 Maps
+	nilmap2 := Filter(nilmap1, _filter)
+	if nilmap2 == nil {
+		fmt.Println("nil")
+	} else {
+		fmt.Printf("%v\n", nilmap2)
+	}
+
+	int64map1 := Filter(Maps{"a": 1, "b": 2}, _filter)
+	int64map2 := Filter(map[string]int{"a": 3, "b": 4}, _filter)
+
+	fmt.Printf("%T, %v\n", int64map1, int64map1)
+	fmt.Printf("%T, %v\n", int64map2, int64map2)
+
+	// Output:
+	// nil
+	// map[string]int64, map[b:2]
+	// map[string]int64, map[b:4]
 }
 
 func ExampleKeys() {
