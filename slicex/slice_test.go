@@ -19,6 +19,22 @@ import "fmt"
 func _convert(v int) int64        { return int64(v) }
 func _filter(v int) (int64, bool) { return int64(v), v%2 == 0 }
 
+func ExampleEmpty() {
+	var vs []int
+	fmt.Println(vs == nil, len(vs), cap(vs))
+
+	vs = Empty(vs)
+	fmt.Println(vs == nil, len(vs), cap(vs))
+
+	vs = []int{1, 2}
+	fmt.Println(vs)
+
+	// Output:
+	// true 0 0
+	// false 0 0
+	// [1 2]
+}
+
 func ExampleConvert() {
 	type Ints []int
 

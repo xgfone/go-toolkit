@@ -15,6 +15,14 @@
 // Package slicex provides some extra slice functions.
 package slicex
 
+// Empty returns itself if vs is not nil, otherwise returns an empty slice.
+func Empty[S ~[]E, E any](vs S) S {
+	if vs == nil {
+		return S{}
+	}
+	return vs
+}
+
 // Convert converts the slice from []E1 to []E2.
 //
 // DEPRECATED. Please use To instead.
