@@ -23,6 +23,22 @@ import (
 func _convert(k string, v int) (string, int64)      { return k, int64(v) }
 func _filter(k string, v int) (string, int64, bool) { return k, int64(v), v%2 == 0 }
 
+func ExampleEmpty() {
+	var m map[string]int
+	fmt.Println(m == nil, len(m))
+
+	m = Empty(m)
+	fmt.Println(m == nil, len(m))
+
+	m = map[string]int{"a": 1}
+	fmt.Println(m)
+
+	// Output:
+	// true 0
+	// false 0
+	// map[a:1]
+}
+
 func ExampleConvert() {
 	type Maps map[string]int
 

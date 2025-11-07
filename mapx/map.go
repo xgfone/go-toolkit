@@ -21,6 +21,14 @@ type Pair[K comparable, V any] struct {
 	Value V
 }
 
+// Empty returns itself if vs is not nil, otherwise returns an empty map.
+func Empty[M ~map[K]V, K comparable, V any](m M) M {
+	if m == nil {
+		return M{}
+	}
+	return m
+}
+
 // Convert converts the map from map[K1]V1 to map[K2]V2.
 //
 // DEPRECATED. Please use To instead.
