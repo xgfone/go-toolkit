@@ -254,3 +254,11 @@ func accept(accept string) []string {
 	}
 	return results
 }
+
+// SetContentType sets the "Content-Type" header.
+func SetContentType(header http.Header, contentType string) {
+	if contentType == "" {
+		return
+	}
+	header.Set(HeaderContentType, contentType)
+}

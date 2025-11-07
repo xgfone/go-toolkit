@@ -171,3 +171,17 @@ func TestAcceptLanguage(t *testing.T) {
 		}
 	}
 }
+
+func TestSetContentType(t *testing.T) {
+	header := make(http.Header)
+
+	SetContentType(header, "text/html")
+	if ct := ContentType(header); ct != "text/html" {
+		t.Errorf("expect 'text/html', got '%s'", ct)
+	}
+
+	SetContentType(header, "")
+	if ct := ContentType(header); ct != "text/html" {
+		t.Errorf("expect 'text/html', got '%s'", ct)
+	}
+}
