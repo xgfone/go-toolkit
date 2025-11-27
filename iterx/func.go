@@ -16,7 +16,20 @@
 
 package iterx
 
-import "iter"
+import (
+	"iter"
+)
+
+// Integer is the integer type.
+type Integer interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+}
+
+// Number is the integer or float type.
+type Number interface {
+	Integer | ~float32 | ~float64
+}
 
 func _predicate[V any](seq iter.Seq[V], predicate func(V) bool, result bool) bool {
 	for v := range seq {
@@ -35,6 +48,15 @@ func All[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 // Any returns true if any element in the sequences matches the predicate.
 func Any[V any](seq iter.Seq[V], predicate func(V) bool) bool {
 	return _predicate(seq, predicate, true)
+}
+
+// Sum returns the sum of the elements in the sequence.
+func Sum[V any, R Number](seq iter.Seq[V], f func(V) R) R {
+	var r R
+	for v := range seq {
+		r += f(v)
+	}
+	return r
 }
 
 // Filter returns a new sequence that only contains the elements that match the predicate.

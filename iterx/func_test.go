@@ -109,6 +109,20 @@ func ExampleAny() {
 	// false
 }
 
+func ExampleSum() {
+	ints1 := []int{1, 2, 3, 4}
+	sum1 := Sum(slices.Values(ints1), func(v int) int { return v })
+	fmt.Println(sum1)
+
+	ints2 := []int64{1, 2, 3, 4}
+	sum2 := Sum(slices.Values(ints2), func(v int64) int { return int(v) })
+	fmt.Println(sum2)
+
+	// Output:
+	// 10
+	// 10
+}
+
 func ExampleFilter() {
 	ints := []int64{1, 2, 3, 4}
 	iter := Filter(slices.Values(ints), func(v int64) bool { return v%2 == 0 })
