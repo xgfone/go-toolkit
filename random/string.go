@@ -17,7 +17,7 @@ package random
 import "unsafe"
 
 // Pre-define some charsets to generate the random string.
-var (
+const (
 	NumCharset      = "0123456789"
 	HexCharset      = NumCharset + "abcdefABCDEF"
 	HexLowerCharset = NumCharset + "abcdef"
@@ -30,9 +30,10 @@ var (
 	AlphaNumLowerCharset = NumCharset + AlphaLowerCharset
 	AlphaNumUpperCharset = NumCharset + AlphaUpperCharset
 	AlphaNumCharset      = NumCharset + AlphaCharset
-
-	DefaultCharset = AlphaNumLowerCharset
 )
+
+// DefaultCharset is the default charset.
+var DefaultCharset = AlphaNumLowerCharset
 
 // String generates a random string with the length from the given charsets.
 func String(n int, charset string) string {
