@@ -56,3 +56,13 @@ func Today() time.Time {
 func ToToday(any time.Time) (today time.Time) {
 	return time.Date(any.Year(), any.Month(), any.Day(), 0, 0, 0, 0, any.Location())
 }
+
+// Measure calculates the duration of the function execution.
+func Measure(f func()) (cost time.Duration) {
+	start := time.Now()
+	defer func() {
+		cost = time.Since(start)
+	}()
+	f()
+	return
+}

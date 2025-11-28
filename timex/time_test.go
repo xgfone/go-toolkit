@@ -46,3 +46,14 @@ func TestUnix(t *testing.T) {
 		t.Errorf("expect time '%s', but got '%s'", expected.Format(time.RFC3339), gottime.Format(time.RFC3339))
 	}
 }
+
+func TestMeasure(t *testing.T) {
+	f := func() {
+		time.Sleep(time.Millisecond * 500)
+	}
+
+	cost := Measure(f)
+	if cost < time.Millisecond*500 || cost > time.Millisecond*600 {
+		t.Errorf("expect cost %dms, but got %dms", 500, cost.Milliseconds())
+	}
+}
