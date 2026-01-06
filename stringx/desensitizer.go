@@ -51,8 +51,13 @@ func (d Desensitizer) WithChars(s string) Desensitizer {
 }
 
 // Desensitize returns a desensitized string of s.
+//
+// If both s and d.Chars are empty, return "".
 func (d Desensitizer) Desensitize(s string) string {
 	if d.Chars == "" {
+		if s == "" {
+			return ""
+		}
 		d.Chars = "****"
 	}
 

@@ -19,6 +19,10 @@ import "testing"
 func TestDesensitizer(t *testing.T) {
 	dephoner := NewDesensitizer(3, 4).WithChars("")
 
+	if s := dephoner.Desensitize(""); s != "" {
+		t.Errorf("expect an empty string, but got '%s'", s)
+	}
+
 	if s := dephoner.Desensitize("123"); s != "****" {
 		t.Errorf("expect '%s', but got '%s'", "****", s)
 	}
