@@ -33,6 +33,8 @@ var (
 	ErrRefunded = ErrConflict.WithCode(400013).WithMessage("has refunded")
 	ErrReturned = ErrConflict.WithCode(400013).WithMessage("has returned")
 
+	ErrUsedUp = ErrConflict.WithCode(400020).WithMessage("used up")
+
 	ErrUnallowed   = ErrConflict.WithCode(400030).WithMessage("unallowed")
 	ErrUnsupported = ErrConflict.WithCode(400031).WithMessage("unsupported")
 
