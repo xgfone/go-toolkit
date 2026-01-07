@@ -16,6 +16,7 @@ package result
 
 import (
 	"errors"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -53,6 +54,22 @@ func TestDefaultRepond(t *testing.T) {
 	Success(_NoopJSONer{t: t}, nil)
 	Success(_NoopJSONer{t: t}, 123)
 	Failure(_NoopJSONer{t: t}, errors.New("test"))
+
+	rec1 := httptest.NewRecorder()
+	Success(rec1, nil)
+	if rec1.Code != 200 {
+		t.Errorf("expect status code %d, but got %d", 200, rec1.Code)
+	} else if body := rec1.Body.String(); body != "" {
+		t.Errorf("expect empty body, but got %s", body)
+	}
+
+	rec2 := httptest.NewRecorder()
+	Respond(rec2, Response{Data: 123, Error: _Error{code: 400, msg: "test"}})
+	if rec2.Code != 400 {
+		t.Errorf("expect status code %d, but got %d", 400, rec2.Code)
+	} else if body := rec2.Body.String(); body != `{"Error":"test","Data":123}`+"\n" {
+		t.Errorf("expect body %s, but got %s", `{"Error":"test","Data":123}`+"\n", body)
+	}
 
 	defer func() {
 		if r := recover(); r == nil {

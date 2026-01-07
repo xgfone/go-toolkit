@@ -14,7 +14,12 @@
 
 package result
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/xgfone/go-toolkit/httpx"
+)
 
 var respond func(responder any, response Response) = defaultRespond
 
@@ -25,6 +30,7 @@ var respond func(responder any, response Response) = defaultRespond
 //
 // By default, the responder must implement one of:
 //
+//	http.ResponseWriter
 //	interface{ Respond(Response) }
 //	interface{ JSON(code int, value any) }
 func Respond(responder any, response Response) {
@@ -57,6 +63,13 @@ func defaultRespond(responder any, response Response) {
 			resp.JSON(response.StatusCode(), nil)
 		} else {
 			resp.JSON(response.StatusCode(), response)
+		}
+
+	case http.ResponseWriter:
+		if response.IsZero() {
+			resp.WriteHeader(response.StatusCode())
+		} else {
+			_ = httpx.JSON(resp, response.StatusCode(), response)
 		}
 
 	default:
