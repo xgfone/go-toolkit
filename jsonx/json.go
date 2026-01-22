@@ -89,11 +89,16 @@ func MarshalBytes(v any) ([]byte, error) {
 	return data, err
 }
 
+// MarshalString is eqaul to MarshalStringWithCap(v, 256).
+func MarshalString(v any) (string, error) {
+	return MarshalStringWithCap(v, 256)
+}
+
 // MarshalString is similar to MarshalWriter, but marshals a value directly
 // to a string instead of writing to an io.Writer.
-func MarshalString(v any) (string, error) {
+func MarshalStringWithCap(v any, cap int) (string, error) {
 	var buf strings.Builder
-	buf.Grow(256)
+	buf.Grow(cap)
 	err := MarshalWriter(&buf, v)
 	data := strings.TrimRight(buf.String(), "\n")
 	return data, err
