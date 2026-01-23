@@ -19,7 +19,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/xgfone/go-toolkit/netx"
+	"github.com/xgfone/go-toolkit/internal/netx"
 )
 
 // AddrFromNetAddr converts a net.Addr to netip.Addr.
