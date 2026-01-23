@@ -26,6 +26,7 @@ func newBuffer(cap int) *bytes.Buffer {
 
 var (
 	bufpool256  = sync.Pool{New: func() any { return newBuffer(256) }}
+	bufpool1KB  = sync.Pool{New: func() any { return newBuffer(1024) }}
 	bufpool64KB = sync.Pool{New: func() any { return newBuffer(64 * 1024) }}
 )
 
@@ -33,6 +34,9 @@ func GetBuffer(cap int) (pool *sync.Pool, buf *bytes.Buffer) {
 	switch cap {
 	case 256:
 		pool = &bufpool256
+
+	case 1024: //1KB
+		pool = &bufpool1KB
 
 	case 64 * 1024: //64KB
 		pool = &bufpool64KB
