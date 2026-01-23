@@ -43,6 +43,9 @@ debug_test
 # Mac
 .DS_Store
 
+# coverage test
+coverage.*
+
 # hidden files
 .*
 _*
