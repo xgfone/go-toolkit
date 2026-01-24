@@ -18,6 +18,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestExit(t *testing.T) {
@@ -242,6 +243,148 @@ func TestExitEdgeCases(t *testing.T) {
 		Exit(2)
 		if !secondCalled {
 			t.Error("Second function should be called on subsequent Exit")
+		}
+	})
+}
+
+func TestExitContext(t *testing.T) {
+	originalExit := GetExitFunc()
+	defer SetExitFunc(originalExit)
+
+	t.Run("ExitContext returns non-nil context", func(t *testing.T) {
+		ctx := ExitContext()
+		if ctx == nil {
+			t.Error("ExitContext should not return nil")
+		}
+	})
+
+	t.Run("ExitContext is cancelled when Exit is called", func(t *testing.T) {
+		ctx := ExitContext()
+
+		// Set up a function that signals when context is done
+		done := make(chan bool)
+		go func() {
+			<-ctx.Done()
+			done <- true
+		}()
+
+		// Set exit function that doesn't actually exit
+		SetExitFunc(func(int) {})
+
+		// Call Exit which should cancel the context
+		Exit(1)
+
+		// Wait for context to be cancelled
+		select {
+		case <-done:
+			// Context was cancelled, good
+		case <-time.After(100 * time.Millisecond):
+			t.Error("ExitContext should be cancelled when Exit is called")
+		}
+	})
+
+	t.Run("ExitContext can be used for cleanup coordination", func(t *testing.T) {
+		cleanupDone := make(chan bool)
+		cleanupStarted := make(chan bool)
+
+		// Start a goroutine that waits for context cancellation
+		go func() {
+			ctx := ExitContext()
+			cleanupStarted <- true
+			<-ctx.Done()
+			cleanupDone <- true
+		}()
+
+		// Wait for cleanup goroutine to start
+		<-cleanupStarted
+
+		// Set exit function that signals before returning
+		exitCalled := make(chan bool)
+		SetExitFunc(func(int) {
+			exitCalled <- true
+		})
+
+		// Call Exit in a goroutine
+		go Exit(1)
+
+		// First the cleanup should complete
+		select {
+		case <-cleanupDone:
+			// Good, cleanup completed
+		case <-exitCalled:
+			t.Error("Cleanup should complete before exit function is called")
+			return
+		case <-time.After(100 * time.Millisecond):
+			t.Error("Timeout waiting for cleanup")
+			return
+		}
+
+		// Then the exit function should be called
+		select {
+		case <-exitCalled:
+			// Good, exit function called after cleanup
+		case <-time.After(100 * time.Millisecond):
+			t.Error("Exit function should be called after context cancellation")
+		}
+	})
+
+	t.Run("Multiple Exit calls cancel context only once", func(t *testing.T) {
+		ctx := ExitContext()
+		cancelCount := 0
+
+		// Monitor context cancellation
+		go func() {
+			<-ctx.Done()
+			cancelCount++
+		}()
+
+		SetExitFunc(func(int) {})
+
+		// Call Exit multiple times
+		Exit(1)
+		Exit(2)
+		Exit(3)
+
+		// Give some time for goroutine to process
+		time.Sleep(10 * time.Millisecond)
+
+		if cancelCount != 1 {
+			t.Errorf("ExitContext should be cancelled only once, got %d cancellations", cancelCount)
+		}
+	})
+
+	t.Run("ExitContext works with concurrent Exit calls", func(t *testing.T) {
+		const goroutines = 10
+		var wg sync.WaitGroup
+		ctx := ExitContext()
+		cancelled := false
+		var mu sync.Mutex
+
+		// Monitor context cancellation
+		go func() {
+			<-ctx.Done()
+			mu.Lock()
+			cancelled = true
+			mu.Unlock()
+		}()
+
+		SetExitFunc(func(int) {})
+
+		wg.Add(goroutines)
+		for i := range goroutines {
+			go func() {
+				defer wg.Done()
+				Exit(i)
+			}()
+		}
+		wg.Wait()
+
+		mu.Lock()
+		wasCancelled := cancelled
+		mu.Unlock()
+
+		if !wasCancelled {
+			t.Error("ExitContext should be cancelled with concurrent Exit calls")
 		}
 	})
 }

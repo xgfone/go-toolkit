@@ -14,9 +14,23 @@
 
 package runtimex
 
-import "os"
+import (
+	"context"
+	"os"
+)
 
-var _exit func(code int) = os.Exit
+var (
+	_exit func(code int) = os.Exit
+
+	_exitcontext, _exitcancelf = context.WithCancel(context.Background())
+)
+
+// ExitContext returns a context that will be cancelled when Exit is called.
+// This can be used to signal cleanup operations that should complete before
+// the program terminates.
+func ExitContext() context.Context {
+	return _exitcontext
+}
 
 // Exit terminates the program with the given exit code.
 // By default, Exit is equivalent to os.Exit(code).
@@ -24,6 +38,7 @@ var _exit func(code int) = os.Exit
 // The exit behavior can be customized via SetExitFunc
 // to perform some cleanup operations before exit.
 func Exit(code int) {
+	_exitcancelf()
 	_exit(code)
 }
 
