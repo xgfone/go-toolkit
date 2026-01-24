@@ -15,7 +15,9 @@
 package random
 
 import (
+	"math/big"
 	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -33,6 +35,31 @@ func TestIntN(t *testing.T) {
 		v := IntN(10)
 		if v < 0 || v >= 10 {
 			t.Errorf("expect one of [0, 9], but got %v", v)
+		}
+	}
+}
+
+func TestGetBigInt(t *testing.T) {
+	for i := range 100 {
+		var int1, int2 *big.Int
+
+		wg := new(sync.WaitGroup)
+		wg.Add(2)
+
+		go func(i int) {
+			defer wg.Done()
+			int1 = getBigInt(int64(i))
+		}(i)
+
+		go func(i int) {
+			defer wg.Done()
+			int2 = getBigInt(int64(i))
+		}(i)
+
+		wg.Wait()
+
+		if int1 != int2 {
+			t.Fail()
 		}
 	}
 }
