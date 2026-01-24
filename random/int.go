@@ -1,4 +1,4 @@
-// Copyright 2024~2025 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,10 @@ import (
 	"sync"
 )
 
+// cryptoRandInt is a variable that holds the function to call for crypto/rand.Int.
+// This allows mocking it during tests.
+var cryptoRandInt = crand.Int
+
 // SeedString returns a random 64-bit signed integer string.
 func SeedString() string { return strconv.FormatInt(Seed(), 10) }
 
@@ -37,7 +41,7 @@ func IntN(n int) int { return int(Int64N(int64(n))) }
 func Int64N(n int64) int64 {
 	var v int64
 	max := getBigInt(n)
-	if m, err := crand.Int(crand.Reader, max); err != nil {
+	if m, err := cryptoRandInt(crand.Reader, max); err != nil {
 		slog.Error("crypto/rand.Int failed", "n", n, "err", err)
 		v = rand.Int64N(n)
 	} else {
