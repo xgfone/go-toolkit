@@ -30,7 +30,7 @@ func ExampleEmpty() {
 	m = Empty(m)
 	fmt.Println(m == nil, len(m))
 
-	m = map[string]int{"a": 1}
+	m = Empty(map[string]int{"a": 1})
 	fmt.Println(m)
 
 	// Output:
