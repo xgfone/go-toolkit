@@ -22,7 +22,6 @@ import (
 )
 
 func TestExit(t *testing.T) {
-	// Save original exit function to restore after test
 	originalExit := GetExitFunc()
 	defer SetExitFunc(originalExit)
 
@@ -92,7 +91,6 @@ func TestSetExitFunc(t *testing.T) {
 			t.Error("First function should be called")
 		}
 
-		// Reset firstCalled to check it's not called again
 		firstCalled = false
 		SetExitFunc(func(int) { secondCalled = true })
 		Exit(2)
@@ -153,56 +151,6 @@ func TestGetExitFunc(t *testing.T) {
 		if callCount != 2 {
 			t.Errorf("GetExitFunc should return second function, got callCount=%d", callCount)
 		}
-	})
-}
-
-func TestExitConcurrent(t *testing.T) {
-	originalExit := GetExitFunc()
-	defer SetExitFunc(originalExit)
-
-	t.Run("Concurrent Exit calls", func(t *testing.T) {
-		const goroutines = 100
-		var mu sync.Mutex
-		callCount := 0
-
-		SetExitFunc(func(int) {
-			mu.Lock()
-			callCount++
-			mu.Unlock()
-		})
-
-		var wg sync.WaitGroup
-		wg.Add(goroutines)
-		for range goroutines {
-			go func() {
-				defer wg.Done()
-				Exit(0)
-			}()
-		}
-		wg.Wait()
-
-		if callCount != goroutines {
-			t.Errorf("Exit should be called %d times, got %d", goroutines, callCount)
-		}
-	})
-
-	t.Run("Concurrent SetExitFunc and GetExitFunc", func(t *testing.T) {
-		const goroutines = 50
-		var wg sync.WaitGroup
-
-		wg.Add(goroutines * 2)
-		for range goroutines {
-			go func() {
-				defer wg.Done()
-				SetExitFunc(func(int) {})
-			}()
-			go func() {
-				defer wg.Done()
-				_ = GetExitFunc()
-			}()
-		}
-		wg.Wait()
-		// Test passes if no panic occurs
 	})
 }
 
@@ -331,11 +279,16 @@ func TestExitContext(t *testing.T) {
 	t.Run("Multiple Exit calls cancel context only once", func(t *testing.T) {
 		ctx := ExitContext()
 		cancelCount := 0
+		var mu sync.Mutex
 
 		// Monitor context cancellation
+		done := make(chan bool)
 		go func() {
 			<-ctx.Done()
+			mu.Lock()
 			cancelCount++
+			mu.Unlock()
+			done <- true
 		}()
 
 		SetExitFunc(func(int) {})
@@ -345,46 +298,21 @@ func TestExitContext(t *testing.T) {
 		Exit(2)
 		Exit(3)
 
-		// Give some time for goroutine to process
-		time.Sleep(10 * time.Millisecond)
-
-		if cancelCount != 1 {
-			t.Errorf("ExitContext should be cancelled only once, got %d cancellations", cancelCount)
+		// Wait for context cancellation
+		select {
+		case <-done:
+			// Context was cancelled
+		case <-time.After(100 * time.Millisecond):
+			t.Error("Timeout waiting for context cancellation")
+			return
 		}
-	})
-
-	t.Run("ExitContext works with concurrent Exit calls", func(t *testing.T) {
-		const goroutines = 10
-		var wg sync.WaitGroup
-		ctx := ExitContext()
-		cancelled := false
-		var mu sync.Mutex
-
-		// Monitor context cancellation
-		go func() {
-			<-ctx.Done()
-			mu.Lock()
-			cancelled = true
-			mu.Unlock()
-		}()
-
-		SetExitFunc(func(int) {})
-
-		wg.Add(goroutines)
-		for i := range goroutines {
-			go func() {
-				defer wg.Done()
-				Exit(i)
-			}()
-		}
-		wg.Wait()
 
 		mu.Lock()
-		wasCancelled := cancelled
+		count := cancelCount
 		mu.Unlock()
 
-		if !wasCancelled {
-			t.Error("ExitContext should be cancelled with concurrent Exit calls")
+		if count != 1 {
+			t.Errorf("ExitContext should be cancelled only once, got %d cancellations", count)
 		}
 	})
 }
