@@ -15,7 +15,9 @@
 package httpx
 
 import (
+	"bytes"
 	"encoding/xml"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,3 +93,16 @@ func TestXML(t *testing.T) {
 		t.Errorf("expect response body '%s', but got '%s'", expectbody, body)
 	}
 }
+
+func TestWriter(t *testing.T) {
+	err := write(&mockResponseWriter{}, bytes.NewBufferString("abc"))
+	if err != io.ErrShortWrite {
+		t.Errorf("expect an io.ErrShortWrite, but got %v", err)
+	}
+}
+
+type mockResponseWriter struct{}
+
+func (m *mockResponseWriter) WriteHeader(statusCode int)  {}
+func (m *mockResponseWriter) Write(p []byte) (int, error) { return 0, nil }
+func (m *mockResponseWriter) Header() http.Header         { return nil }
