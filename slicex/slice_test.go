@@ -26,7 +26,7 @@ func ExampleEmpty() {
 	vs = Empty(vs)
 	fmt.Println(vs == nil, len(vs), cap(vs))
 
-	vs = []int{1, 2}
+	vs = Empty([]int{1, 2})
 	fmt.Println(vs)
 
 	// Output:
