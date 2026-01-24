@@ -66,6 +66,9 @@ func TestError(t *testing.T) {
 	if code := err.StatusCode(); code != 501 {
 		t.Errorf("expect status code %d, but got %d", 501, code)
 	}
+	if code := err.WithStatus(600).StatusCode(); code != 500 {
+		t.Errorf("expect status code %d, but got %d", 500, code)
+	}
 
 	if s := err.String(); s != "code=401, msg=message 1, reason=reason 2, data=abc" {
 		t.Errorf("expect string '%s', but got '%s'", "code=401, msg=message 1, reason=reason 2, data=abc", s)
