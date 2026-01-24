@@ -248,7 +248,7 @@ func TestPost_Non200StatusCode(t *testing.T) {
 		t.Fatal("expected error for non-200 status code")
 	}
 
-	expectedErr := "statuscode=400, err={\"error\":\"bad request\"}"
+	expectedErr := "statuscode=400, body={\"error\":\"bad request\"}"
 	if err.Error() != expectedErr {
 		t.Errorf("expected error %q, got %q", expectedErr, err.Error())
 	}
@@ -333,8 +333,8 @@ func TestPost_JsonDecodeFailed(t *testing.T) {
 		t.Fatal("expected error for invalid JSON response")
 	}
 
-	if !strings.Contains(err.Error(), "fail to decode response body") {
-		t.Errorf("expected error containing 'fail to decode response body', got %v", err)
+	if !strings.Contains(err.Error(), "fail to decode the response body") {
+		t.Errorf("expected error containing 'fail to decode the response body', got %v", err)
 	}
 }
 
@@ -511,7 +511,7 @@ func TestPost_BytesBufferRequest(t *testing.T) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"data":"bytes buffer"}`)
 
-	var respData map[string]interface{}
+	var respData map[string]any
 	ctx := context.Background()
 	err := Post(ctx, "http://example.com/api", &respData, &buf)
 
@@ -596,4 +596,111 @@ func TestPost_VariousStatusCodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Test _ClientError methods
+func TestClientError(t *testing.T) {
+	// Create a mock request and response
+	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	rsp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader("error body")),
+	}
+
+	// Test basic error creation
+	err := newClientError(req, rsp)
+	if err.StatusCode() != http.StatusBadRequest {
+		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, err.StatusCode())
+	}
+
+	if err.Request() != req {
+		t.Error("Request() should return the original request")
+	}
+
+	if err.Response() != rsp {
+		t.Error("Response() should return the original response")
+	}
+
+	if err.ResponseBody() != "" {
+		t.Errorf("expected empty response body, got %q", err.ResponseBody())
+	}
+
+	if err.Unwrap() != nil {
+		t.Error("Unwrap() should return nil when no error is set")
+	}
+
+	// Test WithBody method
+	body := []byte("test body")
+	errWithBody := err.WithBody(body)
+	if errWithBody.ResponseBody() != "test body" {
+		t.Errorf("expected response body %q, got %q", "test body", errWithBody.ResponseBody())
+	}
+
+	// Test WithError method
+	testErr := errors.New("test error")
+	errWithError := err.WithError(testErr)
+	if errWithError.Unwrap() != testErr {
+		t.Error("Unwrap() should return the wrapped error")
+	}
+
+	// Test Error() method with different combinations
+	t.Run("Error method combinations", func(t *testing.T) {
+		// Case 1: Only status code (no body, no error)
+		err1 := newClientError(req, &http.Response{StatusCode: 404})
+		expected1 := "statuscode=404"
+		if err1.Error() != expected1 {
+			t.Errorf("expected %q, got %q", expected1, err1.Error())
+		}
+
+		// Case 2: Status code with body
+		err2 := newClientError(req, &http.Response{StatusCode: 400}).WithBody([]byte("bad request"))
+		expected2 := "statuscode=400, body=bad request"
+		if err2.Error() != expected2 {
+			t.Errorf("expected %q, got %q", expected2, err2.Error())
+		}
+
+		// Case 3: Status code with error
+		err3 := newClientError(req, &http.Response{StatusCode: 500}).WithError(errors.New("server error"))
+		expected3 := "statuscode=500, err=server error"
+		if err3.Error() != expected3 {
+			t.Errorf("expected %q, got %q", expected3, err3.Error())
+		}
+
+		// Case 4: Status code with both body and error
+		err4 := newClientError(req, &http.Response{StatusCode: 503}).
+			WithBody([]byte("service unavailable")).
+			WithError(errors.New("timeout"))
+		expected4 := "statuscode=503, body=service unavailable, err=timeout"
+		if err4.Error() != expected4 {
+			t.Errorf("expected %q, got %q", expected4, err4.Error())
+		}
+	})
+
+	// Test that WithBody and WithError return new instances (immutability)
+	t.Run("Immutability", func(t *testing.T) {
+		baseErr := newClientError(req, &http.Response{StatusCode: 400})
+
+		// Apply WithBody
+		err1 := baseErr.WithBody([]byte("body1"))
+		if baseErr.ResponseBody() != "" {
+			t.Error("base error should not be modified by WithBody")
+		}
+		_ = err1 // Use the variable
+
+		// Apply WithError
+		err2 := baseErr.WithError(errors.New("error1"))
+		if baseErr.Unwrap() != nil {
+			t.Error("base error should not be modified by WithError")
+		}
+		_ = err2 // Use the variable
+
+		// Chain methods
+		err3 := baseErr.WithBody([]byte("body2")).WithError(errors.New("error2"))
+		if baseErr.ResponseBody() != "" || baseErr.Unwrap() != nil {
+			t.Error("base error should not be modified by chained methods")
+		}
+		if err3.ResponseBody() != "body2" || err3.Unwrap().Error() != "error2" {
+			t.Error("chained methods should work correctly")
+		}
+	})
 }

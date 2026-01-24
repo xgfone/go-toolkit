@@ -25,6 +25,51 @@ import (
 	"github.com/xgfone/go-toolkit/unsafex"
 )
 
+type _ClientError struct {
+	req *http.Request  `json:"-"`
+	rsp *http.Response `json:"-"`
+
+	code int
+	body string
+	err  error
+}
+
+func newClientError(req *http.Request, rsp *http.Response) _ClientError {
+	return _ClientError{req: req, rsp: rsp, code: rsp.StatusCode}
+}
+
+func (e _ClientError) WithError(err error) _ClientError {
+	e.err = err
+	return e
+}
+
+func (e _ClientError) WithBody(body []byte) _ClientError {
+	e.body = unsafex.String(body)
+	return e
+}
+
+func (e _ClientError) Request() *http.Request   { return e.req }
+func (e _ClientError) Response() *http.Response { return e.rsp }
+func (e _ClientError) ResponseBody() string     { return e.body }
+func (e _ClientError) StatusCode() int          { return e.code }
+
+func (e _ClientError) Unwrap() error { return e.err }
+func (e _ClientError) Error() string {
+	switch {
+	case e.err != nil && e.body != "":
+		return fmt.Sprintf("statuscode=%d, body=%s, err=%v", e.code, e.body, e.err)
+
+	case e.err != nil:
+		return fmt.Sprintf("statuscode=%d, err=%v", e.code, e.err)
+
+	case e.body != "":
+		return fmt.Sprintf("statuscode=%d, body=%s", e.code, e.body)
+
+	default:
+		return fmt.Sprintf("statuscode=%d", e.code)
+	}
+}
+
 // Get sends a GET request to the specified URL and decodes the response body
 // into the provided response object.
 //
@@ -94,16 +139,18 @@ func request(ctx context.Context, method, url string, resp, req any) (err error)
 
 	data, err := io.ReadAll(_rsp.Body)
 	if err != nil {
-		return fmt.Errorf("statuscode=%d, err=%w", _rsp.StatusCode, err)
+		err = fmt.Errorf("fail to read the response body: %w", err)
+		return newClientError(_req, _rsp).WithError(err)
 	}
 
 	if _rsp.StatusCode != 200 {
-		return fmt.Errorf("statuscode=%d, err=%s", _rsp.StatusCode, unsafex.String(data))
+		return newClientError(_req, _rsp).WithBody(data)
 	}
 
 	if resp != nil {
 		if err = jsonx.UnmarshalBytes(data, &resp); err != nil {
-			return fmt.Errorf("fail to decode response body: data=%s, err=%w", unsafex.String(data), err)
+			err = fmt.Errorf("fail to decode the response body: %w", err)
+			return newClientError(_req, _rsp).WithBody(data).WithError(err)
 		}
 	}
 
