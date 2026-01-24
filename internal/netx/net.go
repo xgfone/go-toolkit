@@ -17,37 +17,51 @@ package netx
 
 import "strings"
 
-// SplitHostPort separates host and port. If the port is not valid, it returns
-// the entire input as host, and it doesn't check the validity of the host.
-// Unlike net.SplitHostPort, but per RFC 3986, it requires ports to be numeric.
+// SplitHostPort separates host and port from a string in "host:port",
+// "ipv4:port" or "[ipv6]:port" format.
+//
+// The function doesn't validate the host or port format. For IPv6 addresses
+// without brackets, the last colon is treated as the port separator.
+//
+// Examples:
+//
+//	"example.com:80"      -> host="example.com", port="80"
+//	"1.2.3.4:80"          -> host="1.2.3.4", port="80"
+//	"1.2.3.4"             -> host="1.2.3.4", port=""
+//	"[ff00::1]:80"        -> host="ff00::1", port="80"
+//	"[ff00::]"            -> host="ff00::", port=""
+//	"ff00::"              -> host="ff00:", port=""
 func SplitHostPort(hostport string) (host, port string) {
-	host = hostport
-
-	colon := strings.LastIndexByte(host, ':')
-	if colon != -1 && validOptionalPort(host[colon:]) {
-		host, port = host[:colon], host[colon+1:]
+	i := strings.LastIndexByte(hostport, ':')
+	if i < 0 {
+		host = hostport
+		return
 	}
 
-	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
-		host = host[1 : len(host)-1]
+	if hostport[0] != '[' {
+		host = hostport[:i]
+		port = hostport[i+1:]
+		return
+	}
+
+	end := strings.IndexByte(hostport, ']')
+	if end < 0 {
+		host = hostport
+		return
+	}
+
+	switch end + 1 {
+	case len(hostport):
+		host = hostport[1:end]
+		return
+
+	case i:
+		host = hostport[1:end]
+		port = hostport[i+1:]
+
+	default:
+		host = hostport
 	}
 
 	return
-}
-
-// validOptionalPort reports whether port is either an empty string
-// or matches /^:\d*$/
-func validOptionalPort(port string) bool {
-	if port == "" {
-		return true
-	}
-	if port[0] != ':' {
-		return false
-	}
-	for _, b := range port[1:] {
-		if b < '0' || b > '9' {
-			return false
-		}
-	}
-	return true
 }

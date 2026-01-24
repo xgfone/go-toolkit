@@ -46,14 +46,14 @@ func TestSplitHostPort(t *testing.T) {
 
 		// Incomplete IPv6 addresses
 		{"[abc", "[abc", ""},
-		{"[abc]", "abc", ""},
+		{"[abc]", "[abc]", ""},
 		{"[abc]:80", "abc", "80"},
 
 		// Invalid port numbers (contain non-digit characters)
-		{"1.2.3.4:80a", "1.2.3.4:80a", ""},
-		{"localhost:8.0", "localhost:8.0", ""},
-		{"[ff00::]:80x", "[ff00::]:80x", ""},
-		{"example.com:443abc", "example.com:443abc", ""},
+		{"1.2.3.4:80a", "1.2.3.4", "80a"},
+		{"localhost:8.0", "localhost", "8.0"},
+		{"[ff00::]:80x", "ff00::", "80x"},
+		{"example.com:443abc", "example.com", "443abc"},
 
 		// Empty port numbers
 		{"1.2.3.4:", "1.2.3.4", ""},
@@ -68,6 +68,42 @@ func TestSplitHostPort(t *testing.T) {
 		{"host-name:8080", "host-name", "8080"},
 		{"host_name:8080", "host_name", "8080"},
 		{"host.name:8080", "host.name", "8080"},
+
+		// Edge cases for IPv6 with brackets
+		{"[abc]xyz", "[abc]xyz", ""},
+		{"[abc]:80:extra", "[abc]:80:extra", ""},
+		{"[ff00::]extra", "[ff00::]extra", ""},
+		{"[ff00::]:80:extra", "[ff00::]:80:extra", ""},
+		{"[]", "[]", ""},
+		{"[]:", "", ""},
+		{"[]:80", "", "80"},
+
+		// More edge cases
+		{"[", "[", ""},
+		{"]", "]", ""},
+		{"[:", "[:", ""},
+		{"]:", "]", ""},
+		{"[::]", "::", ""},
+		{"[::]:", "::", ""},
+		{"[::]:80", "::", "80"},
+		{"[2001:db8::1:2:3:4]", "2001:db8::1:2:3:4", ""},
+		{"[2001:db8::1:2:3:4]:8080", "2001:db8::1:2:3:4", "8080"},
+		// IPv6 with multiple colons without brackets
+		{"2001:db8::1:2:3:4", "2001:db8::1:2:3", "4"},
+		{"2001:db8::1:2:3:4:80", "2001:db8::1:2:3:4", "80"},
+		// Single character cases
+		{":", "", ""},
+		{"a:", "a", ""},
+		{":a", "", "a"},
+		{"[a", "[a", ""},
+		{"a]", "a]", ""},
+		// Multiple colons edge cases
+		{":::80", "::", "80"},
+		{"::::", ":::", ""},
+		// Mixed cases
+		{"[a:b]", "a:b", ""},
+		{"[a:b]:80", "a:b", "80"},
+		{"[a:b]:", "a:b", ""},
 	}
 
 	for _, test := range tests {
@@ -78,50 +114,6 @@ func TestSplitHostPort(t *testing.T) {
 			}
 			if port != test.expectedPort {
 				t.Errorf("input=%q: expected port=%q, got %q", test.input, test.expectedPort, port)
-			}
-		})
-	}
-}
-
-func TestValidOptionalPort(t *testing.T) {
-	tests := []struct {
-		port     string
-		expected bool
-	}{
-		// Empty string
-		{"", true},
-
-		// Valid ports
-		{":", true},
-		{":0", true},
-		{":80", true},
-		{":8080", true},
-		{":65535", true},
-
-		// Invalid ports (not starting with colon)
-		{"80", false},
-		{"8080", false},
-		{"port", false},
-
-		// Invalid ports (contain non-digit characters)
-		{":80a", false},
-		{":8.0", false},
-		{":80-", false},
-		{":80+", false},
-		{": 80", false},
-		{":80 ", false},
-
-		// Edge cases
-		{":999999", true}, // Although exceeds 65535, still numeric
-		{":-1", false},    // Contains minus sign
-		{":+1", false},    // Contains plus sign
-	}
-
-	for _, test := range tests {
-		t.Run(test.port, func(t *testing.T) {
-			result := validOptionalPort(test.port)
-			if result != test.expected {
-				t.Errorf("validOptionalPort(%q) = %v, expected %v", test.port, result, test.expected)
 			}
 		})
 	}
