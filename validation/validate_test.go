@@ -21,6 +21,14 @@ import (
 	"testing"
 )
 
+type mockValidator struct {
+	err error
+}
+
+func (m mockValidator) Validate(context.Context) error {
+	return m.err
+}
+
 func TestValidate_DefaultNoop(t *testing.T) {
 	// Test that Validate works with the default no-op function
 	if err := Validate(context.Background(), nil); err != nil {
@@ -31,8 +39,12 @@ func TestValidate_DefaultNoop(t *testing.T) {
 		t.Errorf("expect nil, but got an error: %v", err)
 	}
 
-	if err := Validate(context.Background(), 123); err != nil {
+	if err := Validate(context.Background(), mockValidator{err: nil}); err != nil {
 		t.Errorf("expect nil, but got an error: %v", err)
+	}
+
+	if Validate(context.Background(), mockValidator{err: errors.New("test")}) == nil {
+		t.Errorf("expect an error, but got nil")
 	}
 }
 

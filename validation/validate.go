@@ -17,9 +17,18 @@ package validation
 
 import "context"
 
-var _validate func(context.Context, any) error = noop
+var _validate func(context.Context, any) error = _default
 
-func noop(context.Context, any) error { return nil }
+func _default(ctx context.Context, value any) error {
+	if v, ok := value.(_Validator); ok {
+		return v.Validate(ctx)
+	}
+	return nil
+}
+
+type _Validator interface {
+	Validate(context.Context) error
+}
 
 // Validate validates whether the value is the valid,
 // which can be overrided by SetValidateFunc.
