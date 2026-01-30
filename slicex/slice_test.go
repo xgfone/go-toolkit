@@ -16,6 +16,7 @@ package slicex
 
 import "fmt"
 
+func _convert2(_, v int) int64    { return int64(v) }
 func _convert(v int) int64        { return int64(v) }
 func _filter(v int) (int64, bool) { return int64(v), v%2 == 0 }
 
@@ -42,6 +43,42 @@ func ExampleConvert() {
 	fmt.Println(Convert(Ints{4, 5, 6}, _convert))
 
 	if s := Convert(Ints(nil), _convert); s == nil {
+		fmt.Println(nil)
+	} else {
+		fmt.Println(s)
+	}
+
+	// Output:
+	// [1 2 3]
+	// [4 5 6]
+	// <nil>
+}
+
+func ExampleTo() {
+	type Ints []int
+
+	fmt.Println(To([]int{1, 2, 3}, _convert))
+	fmt.Println(To(Ints{4, 5, 6}, _convert))
+
+	if s := Convert(Ints(nil), _convert); s == nil {
+		fmt.Println(nil)
+	} else {
+		fmt.Println(s)
+	}
+
+	// Output:
+	// [1 2 3]
+	// [4 5 6]
+	// <nil>
+}
+
+func ExampleTo2() {
+	type Ints []int
+
+	fmt.Println(To2([]int{1, 2, 3}, _convert2))
+	fmt.Println(To2(Ints{4, 5, 6}, _convert2))
+
+	if s := To2(Ints(nil), _convert2); s == nil {
 		fmt.Println(nil)
 	} else {
 		fmt.Println(s)

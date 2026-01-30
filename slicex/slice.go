@@ -53,8 +53,21 @@ func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	}
 
 	newslice := make([]E2, len(vs))
-	for i, e := range vs {
-		newslice[i] = convert(e)
+	for i := range vs {
+		newslice[i] = convert(vs[i])
+	}
+	return newslice
+}
+
+// To2 converts the slice from []E1 to []E2.
+func To2[S1 ~[]E1, E1, E2 any](vs S1, convert func(int, E1) E2) []E2 {
+	if vs == nil {
+		return nil
+	}
+
+	newslice := make([]E2, len(vs))
+	for i := range vs {
+		newslice[i] = convert(i, vs[i])
 	}
 	return newslice
 }
