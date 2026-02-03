@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/xgfone/go-toolkit/internal/pools"
@@ -141,6 +142,22 @@ func request(ctx context.Context, method, url string, resp, req any) (err error)
 	if err != nil {
 		err = fmt.Errorf("fail to read the response body: %w", err)
 		return newClientError(_req, _rsp).WithError(err)
+	}
+
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		var reqbody any
+		if _, ok := req.(io.Reader); !ok {
+			reqbody = req
+		}
+
+		slog.Debug("log http response",
+			"method", _req.Method,
+			"url", _req.URL.String(),
+			"reqheader", _req.Header,
+			"reqbody", reqbody,
+			"statuscode", _rsp.StatusCode,
+			"respheader", _rsp.Header,
+			"respbody", unsafex.String(data))
 	}
 
 	if _rsp.StatusCode != 200 {
