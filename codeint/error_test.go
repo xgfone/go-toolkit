@@ -115,6 +115,13 @@ func TestError(t *testing.T) {
 	} else if s := _e.Error(); s != "error" {
 		t.Errorf("expect error '%s', but got '%s'", "error", s)
 	}
+	if e := err.TryError(_TestError{Code: 404}); e == nil {
+		t.Errorf("expect an error, but got nil")
+	} else if _e, ok := e.(Error); !ok {
+		t.Errorf("expect an Error, but got %T", e)
+	} else if code := _e.GetCode(); code != 404 {
+		t.Errorf("expect code %d, but got %d", 404, code)
+	}
 
 	if !err.Is(NewError(401)) {
 		t.Error("expect error 401, but got not")
@@ -137,4 +144,8 @@ func (e _TestError) Error() string {
 
 func (e _TestError) GetCode() int {
 	return e.Code
+}
+
+func (e _TestError) ToError() error {
+	return NewError(e.Code)
 }

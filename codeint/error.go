@@ -180,12 +180,15 @@ func (e Error) WithMessagef(msg string, args ...any) Error {
 // TryError tries to assert err to Error and return it.
 // If nil, return nil. Or, wrap it and return a new Error.
 func (e Error) TryError(err error) error {
-	switch err.(type) {
+	switch _err := err.(type) {
 	case nil:
 		return nil
 
 	case Error:
 		return err
+
+	case interface{ ToError() error }:
+		return _err.ToError()
 
 	default:
 		return e.WithError(err)
