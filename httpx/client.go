@@ -14,14 +14,9 @@
 
 package httpx
 
-import (
-	"net/http"
-	"sync/atomic"
-)
+import "net/http"
 
-var _defaultclient atomic.Value
-
-type _Client struct{ Client }
+var _defaultclient Client
 
 func init() {
 	SetClient(http.DefaultClient)
@@ -34,12 +29,12 @@ func SetClient(client Client) {
 	if client == nil {
 		panic("httpx.SetClient: client must not be nil")
 	}
-	_defaultclient.Store(_Client{client})
+	_defaultclient = client
 }
 
 // GetClient returns the default http client.
 func GetClient() Client {
-	return _defaultclient.Load().(_Client).Client
+	return _defaultclient
 }
 
 // Client is a http client interface that sends a http request and returns a http response.
