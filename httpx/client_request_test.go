@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -703,4 +704,283 @@ func TestClientError(t *testing.T) {
 			t.Error("chained methods should work correctly")
 		}
 	})
+}
+
+func TestPost_DebugLogging(t *testing.T) {
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	logger := slog.New(handler)
+
+	// Save the original logger and restore it after the test
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify Content-Type header
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			// Read request body
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			// Verify request body
+			var reqBody testRequest
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+
+			if reqBody.Name != "test" || reqBody.Value != 42 {
+				t.Errorf("unexpected request body: %+v", reqBody)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"123","name":"test","value":42}`)),
+				Header:     http.Header{"X-Test": []string{"value"}},
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient) // Restore default client
+
+	// Prepare request and response data
+	reqData := testRequest{Name: "test", Value: 42}
+	var respData testResponse
+
+	// Call Post function with context
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, reqData)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post failed: %v", err)
+	}
+
+	if respData.ID != "123" || respData.Name != "test" || respData.Value != 42 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+
+	// Check that debug log was written
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "log http response") {
+		t.Error("expected debug log 'log http response' not found")
+	}
+
+	// Verify log contains expected fields
+	expectedFields := []string{
+		"method=POST",
+		"url=http://example.com/api",
+		"statuscode=200",
+		"reqbody=",
+		"respbody=",
+	}
+
+	for _, field := range expectedFields {
+		if !strings.Contains(logOutput, field) {
+			t.Errorf("expected log field '%s' not found in log output", field)
+		}
+	}
+}
+
+func TestPost_DebugLogging_WithReaderRequest(t *testing.T) {
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	logger := slog.New(handler)
+
+	// Save the original logger and restore it after the test
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// When request is io.Reader, Content-Type should still be set to application/json
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s for io.Reader request, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			// Read request body
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			// Verify request body
+			expectedBody := `{"test":"data"}`
+			if string(body) != expectedBody {
+				t.Errorf("unexpected request body: got %s, want %s", string(body), expectedBody)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"456","name":"reader-test","value":99}`)),
+				Header:     http.Header{"X-Reader-Test": []string{"reader-value"}},
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient) // Restore default client
+
+	// Prepare request as io.Reader and response data
+	reqData := strings.NewReader(`{"test":"data"}`)
+	var respData testResponse
+
+	// Call Post function with context
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/reader-api", &respData, reqData)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post failed: %v", err)
+	}
+
+	if respData.ID != "456" || respData.Name != "reader-test" || respData.Value != 99 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+
+	// Check that debug log was written
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "log http response") {
+		t.Error("expected debug log 'log http response' not found")
+	}
+
+	// When request is io.Reader, reqbody should be nil in the log
+	// Check that reqbody is logged as empty/nil
+	if !strings.Contains(logOutput, "reqbody=") {
+		t.Error("reqbody should be present in log even when request is io.Reader")
+	}
+}
+
+func TestPost_DebugLogging_Non200Response(t *testing.T) {
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	logger := slog.New(handler)
+
+	// Save the original logger and restore it after the test
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Return 404 response
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(strings.NewReader(`{"error":"not found"}`)),
+				Header:     http.Header{"X-Error": []string{"true"}},
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient) // Restore default client
+
+	// Prepare request and response data
+	reqData := testRequest{Name: "test", Value: 42}
+	var respData testResponse
+
+	// Call Post function with context
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/not-found", &respData, reqData)
+
+	// Verify error is returned
+	if err == nil {
+		t.Fatal("expected error for non-200 response, got nil")
+	}
+
+	// Check that debug log was written even for error response
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "log http response") {
+		t.Error("expected debug log 'log http response' not found for non-200 response")
+	}
+
+	// Verify log contains status code 404
+	if !strings.Contains(logOutput, "statuscode=404") {
+		t.Error("expected statuscode=404 in log output")
+	}
+}
+
+func TestPost_NoDebugLogging(t *testing.T) {
+	// Create a buffer to capture log output
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo, // Set to Info level, not Debug
+	})
+	logger := slog.New(handler)
+
+	// Save the original logger and restore it after the test
+	originalLogger := slog.Default()
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"no-debug-test"}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Prepare request and response data
+	reqData := testRequest{Name: "no-debug", Value: 100}
+	var respData testResponse
+
+	// Call Post function with context
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/no-debug", &respData, reqData)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post failed: %v", err)
+	}
+
+	if respData.ID != "no-debug-test" {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+
+	// Check that no debug log was written (since level is Info)
+	logOutput := buf.String()
+	if strings.Contains(logOutput, "log http response") {
+		t.Error("debug log 'log http response' should not be written when log level is Info")
+	}
 }
