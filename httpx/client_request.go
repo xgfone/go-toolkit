@@ -164,7 +164,7 @@ func request(ctx context.Context, method, url string, resp, req any) (err error)
 		return newClientError(_req, _rsp).WithBody(data)
 	}
 
-	if resp != nil {
+	if resp != nil && len(data) > 0 {
 		if err = jsonx.UnmarshalBytes(data, &resp); err != nil {
 			err = fmt.Errorf("fail to decode the response body: %w", err)
 			return newClientError(_req, _rsp).WithBody(data).WithError(err)
