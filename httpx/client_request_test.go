@@ -39,6 +39,79 @@ type testResponse struct {
 	Value int    `json:"value"`
 }
 
+// Test types for interface support
+type simpleRequestBuilder struct {
+	customHeader string
+}
+
+func (b *simpleRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if b.customHeader != "" {
+		req.Header.Set("X-Simple-Builder", b.customHeader)
+	}
+	return req, nil
+}
+
+type cleanupRequestBuilder struct {
+	customHeader  string
+	cleanupCalled bool
+}
+
+func (b *cleanupRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, func(), error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if b.customHeader != "" {
+		req.Header.Set("X-Cleanup-Builder", b.customHeader)
+	}
+
+	cleanup := func() {
+		b.cleanupCalled = true
+	}
+
+	return req, cleanup, nil
+}
+
+// Additional test types for interface tests
+type errorRequestBuilder struct{}
+
+func (b *errorRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
+	return nil, fmt.Errorf("builder error")
+}
+
+type errorCleanupRequestBuilder struct {
+	cleanupCalled bool
+}
+
+func (b *errorCleanupRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, func(), error) {
+	cleanup := func() {
+		b.cleanupCalled = true
+	}
+	return nil, cleanup, fmt.Errorf("cleanup builder error")
+}
+
+type bodyRequestBuilder struct{}
+
+func (b *bodyRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
+	reqBody := testRequest{Name: "interface-body", Value: 500}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	SetContentType(req.Header, MIMEApplicationJSON)
+	return req, nil
+}
+
 // Mock HTTP client
 type mockClient struct {
 	doFunc func(*http.Request) (*http.Response, error)
@@ -1265,5 +1338,248 @@ func TestPost_RequestFunctionWithCleanup(t *testing.T) {
 	// Verify cleanup function was called
 	if !cleanupCalled {
 		t.Error("cleanup function was not called")
+	}
+}
+
+func TestPost_InterfaceSimpleBuilder(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify URL
+			if req.URL.String() != "http://example.com/api" {
+				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
+			}
+
+			// Verify custom header from builder
+			customHeader := req.Header.Get("X-Simple-Builder")
+			if customHeader != "simple-value" {
+				t.Errorf("expected X-Simple-Builder=simple-value, got %s", customHeader)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"simple-789","name":"simple-test","value":300}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create simple request builder
+	builder := &simpleRequestBuilder{
+		customHeader: "simple-value",
+	}
+
+	var respData testResponse
+
+	// Call Post function with interface
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, builder)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post with simple interface builder failed: %v", err)
+	}
+
+	if respData.ID != "simple-789" || respData.Name != "simple-test" || respData.Value != 300 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+}
+
+func TestPost_InterfaceCleanupBuilder(t *testing.T) {
+	builder := &cleanupRequestBuilder{
+		customHeader:  "cleanup-value",
+		cleanupCalled: false,
+	}
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify URL
+			if req.URL.String() != "http://example.com/api" {
+				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
+			}
+
+			// Verify custom header from builder
+			customHeader := req.Header.Get("X-Cleanup-Builder")
+			if customHeader != "cleanup-value" {
+				t.Errorf("expected X-Cleanup-Builder=cleanup-value, got %s", customHeader)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"cleanup-999","name":"cleanup-test","value":400}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	var respData testResponse
+
+	// Call Post function with cleanup interface
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, builder)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post with cleanup interface builder failed: %v", err)
+	}
+
+	if respData.ID != "cleanup-999" || respData.Name != "cleanup-test" || respData.Value != 400 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+
+	// Verify cleanup was called
+	if !builder.cleanupCalled {
+		t.Error("cleanup function was not called for cleanup builder")
+	}
+}
+
+func TestPost_InterfaceSimpleBuilder_Error(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// This should not be called
+			t.Error("mock client should not be called when builder returns error")
+			return nil, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create a builder that always returns error
+	errorBuilder := &errorRequestBuilder{}
+
+	var respData testResponse
+
+	// Call Post function with error builder
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, errorBuilder)
+
+	// Verify error is returned
+	if err == nil {
+		t.Fatal("expected error from Post when builder returns error")
+	}
+
+	if !strings.Contains(err.Error(), "builder error") {
+		t.Errorf("expected error to contain 'builder error', got: %v", err)
+	}
+}
+
+func TestPost_InterfaceCleanupBuilder_Error(t *testing.T) {
+	cleanupCalled := false
+
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// This should not be called
+			t.Error("mock client should not be called when builder returns error")
+			return nil, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create a builder that always returns error but has cleanup
+	builder := &errorCleanupRequestBuilder{
+		cleanupCalled: cleanupCalled,
+	}
+
+	var respData testResponse
+
+	// Call Post function with error builder
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, builder)
+
+	// Verify error is returned
+	if err == nil {
+		t.Fatal("expected error from Post when cleanup builder returns error")
+	}
+
+	if !strings.Contains(err.Error(), "cleanup builder error") {
+		t.Errorf("expected error to contain 'cleanup builder error', got: %v", err)
+	}
+
+	// Verify cleanup was called even on error
+	if !builder.cleanupCalled {
+		t.Error("cleanup function should be called even when builder returns error")
+	}
+}
+
+func TestPost_InterfaceWithRequestBody(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify Content-Type header
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			// Read request body
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			// Verify request body
+			var reqBody testRequest
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+
+			if reqBody.Name != "interface-body" || reqBody.Value != 500 {
+				t.Errorf("unexpected request body: %+v", reqBody)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"body-111","name":"interface-body","value":500}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create a builder that sets request body
+	bodyBuilder := &bodyRequestBuilder{}
+
+	var respData testResponse
+
+	// Call Post function with body builder
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, bodyBuilder)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post with interface body builder failed: %v", err)
+	}
+
+	if respData.ID != "body-111" || respData.Name != "interface-body" || respData.Value != 500 {
+		t.Errorf("unexpected response data: %+v", respData)
 	}
 }

@@ -95,6 +95,8 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 //   - io.Reader: used directly as the request body
 //   - func(ctx context.Context, method, url string) (req *http.Request, err error)
 //   - func(ctx context.Context, method, url string) (req *http.Request, clean func(), err error)
+//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, err error) }
+//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, clean func(), err error) }
 //   - any other type: automatically encoded as JSON
 //
 // If reqbody is not nil, it will set the Content-Type header to "application/json".
@@ -117,6 +119,18 @@ func request(ctx context.Context, method, url string, resp, req any) (err error)
 	case func(ctx context.Context, method string, url string) (*http.Request, func(), error):
 		var clean func()
 		_req, clean, err = r(ctx, method, url)
+		defer clean()
+
+	case interface {
+		NewRequest(ctx context.Context, method string, url string) (*http.Request, error)
+	}:
+		_req, err = r.NewRequest(ctx, method, url)
+
+	case interface {
+		NewRequest(ctx context.Context, method string, url string) (*http.Request, func(), error)
+	}:
+		var clean func()
+		_req, clean, err = r.NewRequest(ctx, method, url)
 		defer clean()
 
 	default:
