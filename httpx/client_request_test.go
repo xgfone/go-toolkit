@@ -39,18 +39,18 @@ type testResponse struct {
 	Value int    `json:"value"`
 }
 
-// Test types for interface support
+// Request builder interfaces for testing
 type simpleRequestBuilder struct {
 	customHeader string
 }
 
-func (b *simpleRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
+func (b *simpleRequestBuilder) NewRequest(ctx context.Context, method string, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	if b.customHeader != "" {
-		req.Header.Set("X-Simple-Builder", b.customHeader)
+		req.Header.Set("X-Custom", b.customHeader)
 	}
 	return req, nil
 }
@@ -60,55 +60,43 @@ type cleanupRequestBuilder struct {
 	cleanupCalled bool
 }
 
-func (b *cleanupRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, func(), error) {
+func (b *cleanupRequestBuilder) NewRequest(ctx context.Context, method string, url string) (*http.Request, func(), error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	if b.customHeader != "" {
-		req.Header.Set("X-Cleanup-Builder", b.customHeader)
+		req.Header.Set("X-Custom", b.customHeader)
 	}
-
-	cleanup := func() {
-		b.cleanupCalled = true
-	}
-
-	return req, cleanup, nil
+	return req, func() { b.cleanupCalled = true }, nil
 }
 
-// Additional test types for interface tests
 type errorRequestBuilder struct{}
 
-func (b *errorRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
-	return nil, fmt.Errorf("builder error")
+func (b *errorRequestBuilder) NewRequest(ctx context.Context, method string, url string) (*http.Request, error) {
+	return nil, errors.New("builder error")
 }
 
 type errorCleanupRequestBuilder struct {
 	cleanupCalled bool
 }
 
-func (b *errorCleanupRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, func(), error) {
+func (b *errorCleanupRequestBuilder) NewRequest(ctx context.Context, method string, url string) (*http.Request, func(), error) {
 	cleanup := func() {
 		b.cleanupCalled = true
 	}
-	return nil, cleanup, fmt.Errorf("cleanup builder error")
+	return nil, cleanup, errors.New("builder error")
 }
 
 type bodyRequestBuilder struct{}
 
-func (b *bodyRequestBuilder) NewRequest(ctx context.Context, method, url string) (*http.Request, error) {
-	reqBody := testRequest{Name: "interface-body", Value: 500}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(bodyBytes))
+func (b *bodyRequestBuilder) NewRequest(ctx context.Context, method string, url string) (*http.Request, error) {
+	body := bytes.NewBufferString(`{"name":"builder","value":100}`)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
 	}
-
-	SetContentType(req.Header, MIMEApplicationJSON)
+	req.Header.Set("Content-Type", MIMEApplicationJSON)
 	return req, nil
 }
 
@@ -121,51 +109,26 @@ func (m *mockClient) Do(req *http.Request) (*http.Response, error) {
 	if m.doFunc != nil {
 		return m.doFunc(req)
 	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(`{"id":"123","name":"test","value":42}`)),
-	}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}, nil
 }
 
-// Helper type: Reader that simulates read errors
+// Error reader for testing
 type errorReader struct{}
 
 func (r *errorReader) Read(p []byte) (n int, err error) {
-	return 0, errors.New("simulated read error")
+	return 0, errors.New("read error")
 }
 
-// Test Post function - basic success case
-func TestPost_Success(t *testing.T) {
+// Test Request function with nil request
+func TestRequest_NilRequest(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
+			if req.Method != http.MethodGet {
+				t.Errorf("expected method GET, got %s", req.Method)
 			}
-
-			// Verify Content-Type header
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			if req.Body != nil {
+				t.Error("expected nil body for nil request")
 			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			var reqBody testRequest
-			if err := json.Unmarshal(body, &reqBody); err != nil {
-				t.Fatalf("failed to unmarshal request body: %v", err)
-			}
-
-			if reqBody.Name != "test" || reqBody.Value != 42 {
-				t.Errorf("unexpected request body: %+v", reqBody)
-			}
-
-			// Return success response
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(`{"id":"123","name":"test","value":42}`)),
@@ -173,52 +136,41 @@ func TestPost_Success(t *testing.T) {
 		},
 	}
 
-	// Set mock client
 	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
+	defer SetClient(http.DefaultClient)
 
-	// Prepare request and response data
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
-	// Call Post function
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
+	err := Request(ctx, http.MethodGet, "http://example.com/api", &resp, nil)
 
-	// Verify results
 	if err != nil {
-		t.Fatalf("Post failed: %v", err)
+		t.Fatalf("Request failed: %v", err)
 	}
-
-	if respData.ID != "123" || respData.Name != "test" || respData.Value != 42 {
-		t.Errorf("unexpected response data: %+v", respData)
+	if resp.ID != "123" || resp.Name != "test" || resp.Value != 42 {
+		t.Errorf("unexpected response: %+v", resp)
 	}
 }
 
-// Test Post function - req parameter is nil
-func TestPost_RequestNil(t *testing.T) {
+// Test Request function with io.Reader request
+func TestRequest_ReaderRequest(t *testing.T) {
+	requestBody := `{"name":"reader","value":99}`
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify Content-Type header is not set
-			contentType := req.Header.Get("Content-Type")
-			if contentType != "" {
-				t.Errorf("expected empty Content-Type for nil request, got %s", contentType)
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
 			}
 
-			// Verify request body is empty (don't read if it might be nil)
-			if req.Body != nil {
-				body, err := io.ReadAll(req.Body)
-				if err != nil {
-					t.Fatalf("failed to read request body: %v", err)
-				}
-				if len(body) != 0 {
-					t.Errorf("expected empty body for nil request, got %s", string(body))
-				}
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+			if string(body) != requestBody {
+				t.Errorf("expected body %q, got %q", requestBody, string(body))
 			}
 
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"456"}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"id":"456","name":"reader","value":99}`)),
 			}, nil
 		},
 	}
@@ -226,44 +178,49 @@ func TestPost_RequestNil(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	var respData testResponse
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, nil)
+	reader := strings.NewReader(requestBody)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, reader)
 
 	if err != nil {
-		t.Fatalf("Post with nil request failed: %v", err)
+		t.Fatalf("Request failed: %v", err)
 	}
-
-	if respData.ID != "456" {
-		t.Errorf("unexpected response data: %+v", respData)
+	if resp.ID != "456" || resp.Name != "reader" || resp.Value != 99 {
+		t.Errorf("unexpected response: %+v", resp)
 	}
 }
 
-// Test Post function - req parameter is io.Reader
-func TestPost_RequestReader(t *testing.T) {
+// Test Request function with struct request (JSON encoded)
+func TestRequest_StructRequest(t *testing.T) {
+	reqData := testRequest{Name: "struct", Value: 77}
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify Content-Type header
+			if req.Method != http.MethodPut {
+				t.Errorf("expected method PUT, got %s", req.Method)
+			}
+
 			contentType := req.Header.Get("Content-Type")
 			if contentType != MIMEApplicationJSON {
 				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
 			}
 
-			// Read request body
 			body, err := io.ReadAll(req.Body)
 			if err != nil {
 				t.Fatalf("failed to read request body: %v", err)
 			}
 
-			// Verify request body content
-			expectedBody := `{"name":"reader","value":99}`
-			if string(body) != expectedBody {
-				t.Errorf("expected body %s, got %s", expectedBody, string(body))
+			var reqBody testRequest
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+			if reqBody.Name != "struct" || reqBody.Value != 77 {
+				t.Errorf("unexpected request body: %+v", reqBody)
 			}
 
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"789"}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"id":"789","name":"struct","value":77}`)),
 			}, nil
 		},
 	}
@@ -271,24 +228,200 @@ func TestPost_RequestReader(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	// Create io.Reader request body
-	reqBody := strings.NewReader(`{"name":"reader","value":99}`)
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqBody)
+	err := Request(ctx, http.MethodPut, "http://example.com/api", &resp, reqData)
 
 	if err != nil {
-		t.Fatalf("Post with io.Reader failed: %v", err)
+		t.Fatalf("Request failed: %v", err)
 	}
-
-	if respData.ID != "789" {
-		t.Errorf("unexpected response data: %+v", respData)
+	if resp.ID != "789" || resp.Name != "struct" || resp.Value != 77 {
+		t.Errorf("unexpected response: %+v", resp)
 	}
 }
 
-// Test Post function - response status code is not 200
-func TestPost_Non200StatusCode(t *testing.T) {
+// Test Request function with request function
+func TestRequest_RequestFunction(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodDelete {
+				t.Errorf("expected method DELETE, got %s", req.Method)
+			}
+			if req.Header.Get("X-Custom") != "custom-value" {
+				t.Error("expected X-Custom header")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"status":"deleted"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("X-Custom", "custom-value")
+		return req, nil
+	}
+
+	var resp map[string]string
+	ctx := context.Background()
+	err := Request(ctx, http.MethodDelete, "http://example.com/api", &resp, reqFunc)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp["status"] != "deleted" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+}
+
+// Test Request function with request function that returns cleanup
+func TestRequest_RequestFunctionWithCleanup(t *testing.T) {
+	cleanupCalled := false
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"status":"ok"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, func(), error) {
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		return req, func() { cleanupCalled = true }, nil
+	}
+
+	var resp map[string]string
+	ctx := context.Background()
+	err := Request(ctx, http.MethodPatch, "http://example.com/api", &resp, reqFunc)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if !cleanupCalled {
+		t.Error("cleanup function should have been called")
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+}
+
+// Test Request function with request builder interface
+func TestRequest_RequestBuilderInterface(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			if req.Header.Get("X-Custom") != "builder-header" {
+				t.Error("expected X-Custom header from builder")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"builder"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	builder := &simpleRequestBuilder{customHeader: "builder-header"}
+	var resp map[string]string
+	ctx := context.Background()
+	err := Request(ctx, http.MethodHead, "http://example.com/api", &resp, builder)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp["id"] != "builder" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+}
+
+// Test Request function with request builder interface that returns cleanup
+func TestRequest_RequestBuilderInterfaceWithCleanup(t *testing.T) {
+	builder := &cleanupRequestBuilder{customHeader: "cleanup-builder"}
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			if req.Header.Get("X-Custom") != "cleanup-builder" {
+				t.Error("expected X-Custom header from builder")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"cleanup"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	var resp map[string]string
+	ctx := context.Background()
+	err := Request(ctx, http.MethodOptions, "http://example.com/api", &resp, builder)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if !builder.cleanupCalled {
+		t.Error("cleanup should have been called")
+	}
+	if resp["id"] != "cleanup" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+}
+
+// Test Request function with response function
+func TestRequest_ResponseFunction(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"custom":"response"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	var capturedResponse *http.Response
+	respFunc := func(rsp *http.Response) error {
+		capturedResponse = rsp
+		body, err := io.ReadAll(rsp.Body)
+		if err != nil {
+			return err
+		}
+		if string(body) != `{"custom":"response"}` {
+			return fmt.Errorf("unexpected body: %s", string(body))
+		}
+		return nil
+	}
+
+	ctx := context.Background()
+	err := Request(ctx, http.MethodGet, "http://example.com/api", respFunc, nil)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if capturedResponse == nil {
+		t.Error("response function should have received the response")
+	}
+}
+
+// Test Request function with non-200 status code
+func TestRequest_Non200StatusCode(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -301,24 +434,22 @@ func TestPost_Non200StatusCode(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, nil)
 
 	if err == nil {
 		t.Fatal("expected error for non-200 status code")
 	}
 
-	expectedErr := "statuscode=400, body={\"error\":\"bad request\"}"
-	if err.Error() != expectedErr {
-		t.Errorf("expected error %q, got %q", expectedErr, err.Error())
+	// Check that error contains status code
+	if !strings.Contains(err.Error(), "statuscode=400") {
+		t.Errorf("error should contain 'statuscode=400', got: %v", err)
 	}
 }
 
-// Test Post function - HTTP request fails
-func TestPost_HttpRequestFailed(t *testing.T) {
+// Test Request function with HTTP request failure
+func TestRequest_HttpRequestFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return nil, errors.New("network error")
@@ -328,52 +459,60 @@ func TestPost_HttpRequestFailed(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, nil)
 
 	if err == nil {
-		t.Fatal("expected error for failed HTTP request")
+		t.Fatal("expected error for HTTP request failure")
 	}
-
 	if !strings.Contains(err.Error(), "network error") {
-		t.Errorf("expected error containing 'network error', got %v", err)
+		t.Errorf("error should contain 'network error', got: %v", err)
 	}
 }
 
-// Test Post function - reading response body fails
-func TestPost_ReadResponseBodyFailed(t *testing.T) {
+// Test Request function with invalid URL
+func TestRequest_InvalidURL(t *testing.T) {
+	SetClient(&mockClient{})
+	defer SetClient(http.DefaultClient)
+
+	var resp testResponse
+	ctx := context.Background()
+	err := Request(ctx, http.MethodGet, "://invalid-url", &resp, nil)
+
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+}
+
+// Test Request function with JSON encode failure
+func TestRequest_JsonEncodeFailed(t *testing.T) {
+	// Create a value that cannot be JSON encoded
+	unencodable := func() {}
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(&errorReader{}),
-			}, nil
+			t.Error("HTTP request should not be made")
+			return nil, nil
 		},
 	}
 
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, unencodable)
 
 	if err == nil {
-		t.Fatal("expected error for failed response body reading")
+		t.Fatal("expected error for JSON encode failure")
 	}
-
-	if !strings.Contains(err.Error(), "statuscode=200") {
-		t.Errorf("expected error containing 'statuscode=200', got %v", err)
+	if !strings.Contains(err.Error(), "fail to encode request body") {
+		t.Errorf("error should contain 'fail to encode request body', got: %v", err)
 	}
 }
 
-// Test Post function - JSON decoding fails
-func TestPost_JsonDecodeFailed(t *testing.T) {
+// Test Request function with JSON decode failure
+func TestRequest_JsonDecodeFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -386,28 +525,25 @@ func TestPost_JsonDecodeFailed(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, nil)
 
 	if err == nil {
-		t.Fatal("expected error for invalid JSON response")
+		t.Fatal("expected error for JSON decode failure")
 	}
-
 	if !strings.Contains(err.Error(), "fail to decode the response body") {
-		t.Errorf("expected error containing 'fail to decode the response body', got %v", err)
+		t.Errorf("error should contain 'fail to decode the response body', got: %v", err)
 	}
 }
 
-// Test Post function - resp parameter is nil
-func TestPost_ResponseNil(t *testing.T) {
+// Test Request function with read response body failure
+func TestRequest_ReadResponseBodyFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"123"}`)),
+				Body:       io.NopCloser(&errorReader{}),
 			}, nil
 		},
 	}
@@ -415,23 +551,25 @@ func TestPost_ResponseNil(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", nil, reqData)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, nil)
 
-	if err != nil {
-		t.Fatalf("Post with nil response failed: %v", err)
+	if err == nil {
+		t.Fatal("expected error for read response body failure")
+	}
+	if !strings.Contains(err.Error(), "fail to read the response body") {
+		t.Errorf("error should contain 'fail to read the response body', got: %v", err)
 	}
 }
 
-// Test Post function - resp parameter is a function type
-func TestPost_ResponseFunction(t *testing.T) {
+// Test Request function with nil response
+func TestRequest_NilResponse(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
-				StatusCode: http.StatusCreated,
-				Body:       io.NopCloser(strings.NewReader(`custom response`)),
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"test"}`)),
 			}, nil
 		},
 	}
@@ -439,81 +577,134 @@ func TestPost_ResponseFunction(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	called := false
-
-	respFunc := func(rsp *http.Response) error {
-		called = true
-		if rsp.StatusCode != http.StatusCreated {
-			return fmt.Errorf("expected status 201, got %d", rsp.StatusCode)
-		}
-		return nil
-	}
-
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", respFunc, reqData)
+	err := Request(ctx, http.MethodGet, "http://example.com/api", nil, nil)
 
 	if err != nil {
-		t.Fatalf("Post with response function failed: %v", err)
-	}
-
-	if !called {
-		t.Fatal("response function was not called")
+		t.Fatalf("Request with nil response failed: %v", err)
 	}
 }
 
-// Test Post function - request creation fails (invalid URL)
-func TestPost_InvalidURL(t *testing.T) {
-	// Save original client
-	originalClient := GetClient()
-	defer SetClient(originalClient)
+// Test Request function with empty response body
+func TestRequest_EmptyResponseBody(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		},
+	}
 
-	// Use default client
-	SetClient(http.DefaultClient)
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "://invalid-url", &respData, reqData)
+	err := Request(ctx, http.MethodGet, "http://example.com/api", &resp, nil)
+
+	if err != nil {
+		t.Fatalf("Request with empty response body failed: %v", err)
+	}
+	// Response should remain zero-valued
+	if resp.ID != "" || resp.Name != "" || resp.Value != 0 {
+		t.Errorf("expected zero-valued response, got: %+v", resp)
+	}
+}
+
+// Test Request function with request builder that has body
+func TestRequest_RequestBuilderWithBody(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			if string(body) != `{"name":"builder","value":100}` {
+				t.Errorf("unexpected request body: %s", string(body))
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"body-builder"}`)),
+			}, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	builder := &bodyRequestBuilder{}
+	var resp map[string]string
+	ctx := context.Background()
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, builder)
+
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	if resp["id"] != "body-builder" {
+		t.Errorf("unexpected response: %v", resp)
+	}
+}
+
+// Test Request function with error request builder
+func TestRequest_ErrorRequestBuilder(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			t.Error("HTTP request should not be made")
+			return nil, nil
+		},
+	}
+
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	builder := &errorRequestBuilder{}
+	var resp testResponse
+	ctx := context.Background()
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, builder)
 
 	if err == nil {
-		t.Fatal("expected error for invalid URL")
+		t.Fatal("expected error for builder error")
 	}
-
-	if !strings.Contains(err.Error(), "parse") {
-		t.Errorf("expected parse error, got %v", err)
+	if !strings.Contains(err.Error(), "builder error") {
+		t.Errorf("error should contain 'builder error', got: %v", err)
 	}
 }
 
-// Test Post function - JSON encoding fails (non-encodable type)
-func TestPost_JsonEncodeFailed(t *testing.T) {
-	// Save original client
-	originalClient := GetClient()
-	defer SetClient(originalClient)
+// Test Request function with error cleanup request builder
+func TestRequest_ErrorCleanupRequestBuilder(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			t.Error("HTTP request should not be made")
+			return nil, nil
+		},
+	}
 
-	// Use default client (request won't actually be sent)
-	SetClient(http.DefaultClient)
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
 
-	// Create a value that cannot be JSON encoded (function type)
-	invalidReq := func() {}
-
-	var respData testResponse
-
+	builder := &errorCleanupRequestBuilder{}
+	var resp testResponse
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, invalidReq)
+	err := Request(ctx, http.MethodPost, "http://example.com/api", &resp, builder)
 
 	if err == nil {
-		t.Fatal("expected error for JSON encoding failure")
+		t.Fatal("expected error for builder error")
 	}
-
-	if !strings.Contains(err.Error(), "fail to encode request body") {
-		t.Errorf("expected error containing 'fail to encode request body', got %v", err)
+	if !strings.Contains(err.Error(), "builder error") {
+		t.Errorf("error should contain 'builder error', got: %v", err)
 	}
 }
 
-// Test Post function - response function returns error
-func TestPost_ResponseFunctionError(t *testing.T) {
+// Test Request function with response function error
+func TestRequest_ResponseFunctionError(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -526,113 +717,46 @@ func TestPost_ResponseFunctionError(t *testing.T) {
 	SetClient(client)
 	defer SetClient(http.DefaultClient)
 
-	reqData := testRequest{Name: "test", Value: 42}
 	expectedError := errors.New("response function error")
-
 	respFunc := func(rsp *http.Response) error {
 		return expectedError
 	}
 
 	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", respFunc, reqData)
+	err := Request(ctx, http.MethodGet, "http://example.com/api", respFunc, nil)
 
 	if err == nil {
 		t.Fatal("expected error from response function")
 	}
-
 	if err != expectedError {
 		t.Errorf("expected error %v, got %v", expectedError, err)
 	}
 }
 
-// Test Post function - bytes.Buffer as request body
-func TestPost_BytesBufferRequest(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return nil, err
-			}
-
-			// Verify request body
-			expectedBody := `{"data":"bytes buffer"}`
-			if string(body) != expectedBody {
-				t.Errorf("expected body %s, got %s", expectedBody, string(body))
-			}
-
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"success":true}`)),
-			}, nil
-		},
-	}
-
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Use bytes.Buffer as request body
-	var buf bytes.Buffer
-	buf.WriteString(`{"data":"bytes buffer"}`)
-
-	var respData map[string]any
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, &buf)
-
-	if err != nil {
-		t.Fatalf("Post with bytes.Buffer failed: %v", err)
-	}
-
-	if success, ok := respData["success"].(bool); !ok || !success {
-		t.Errorf("unexpected response: %+v", respData)
-	}
-}
-
-// Test Post function - various status code error messages
-func TestPost_VariousStatusCodes(t *testing.T) {
+// Test Request function with various HTTP methods
+func TestRequest_VariousMethods(t *testing.T) {
 	testCases := []struct {
-		name        string
-		statusCode  int
-		body        string
-		expectErr   bool
-		errContains string
+		method string
 	}{
-		{
-			name:        "201 Created",
-			statusCode:  http.StatusCreated,
-			body:        `{"id":"123"}`,
-			expectErr:   true,
-			errContains: "statuscode=201",
-		},
-		{
-			name:        "204 No Content",
-			statusCode:  http.StatusNoContent,
-			body:        "",
-			expectErr:   true,
-			errContains: "statuscode=204",
-		},
-		{
-			name:        "404 Not Found",
-			statusCode:  http.StatusNotFound,
-			body:        `{"error":"not found"}`,
-			expectErr:   true,
-			errContains: "statuscode=404",
-		},
-		{
-			name:        "500 Internal Server Error",
-			statusCode:  http.StatusInternalServerError,
-			body:        `{"error":"server error"}`,
-			expectErr:   true,
-			errContains: "statuscode=500",
-		},
+		{http.MethodGet},
+		{http.MethodPost},
+		{http.MethodPut},
+		{http.MethodDelete},
+		{http.MethodPatch},
+		{http.MethodHead},
+		{http.MethodOptions},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.method, func(t *testing.T) {
 			client := &mockClient{
 				doFunc: func(req *http.Request) (*http.Response, error) {
+					if req.Method != tc.method {
+						t.Errorf("expected method %s, got %s", tc.method, req.Method)
+					}
 					return &http.Response{
-						StatusCode: tc.statusCode,
-						Body:       io.NopCloser(strings.NewReader(tc.body)),
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(strings.NewReader(`{"method":"` + tc.method + `"}`)),
 					}, nil
 				},
 			}
@@ -640,935 +764,43 @@ func TestPost_VariousStatusCodes(t *testing.T) {
 			SetClient(client)
 			defer SetClient(http.DefaultClient)
 
-			reqData := testRequest{Name: "test", Value: 42}
-			var respData testResponse
-
+			var resp map[string]string
 			ctx := context.Background()
-			err := Post(ctx, "http://example.com/api", &respData, reqData)
+			err := Request(ctx, tc.method, "http://example.com/api", &resp, nil)
 
-			if tc.expectErr {
-				if err == nil {
-					t.Error("expected error but got none")
-				} else if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
-					t.Errorf("expected error containing %q, got %v", tc.errContains, err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			if err != nil {
+				t.Fatalf("Request with method %s failed: %v", tc.method, err)
+			}
+			if resp["method"] != tc.method {
+				t.Errorf("expected response method %s, got %s", tc.method, resp["method"])
 			}
 		})
 	}
 }
 
-// Test _ClientError methods
-func TestClientError(t *testing.T) {
-	// Create a mock request and response
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	rsp := &http.Response{
-		StatusCode: http.StatusBadRequest,
-		Body:       io.NopCloser(strings.NewReader("error body")),
-	}
+// Test Request function with the debug logging
+func TestRequest_DebugLogging(t *testing.T) {
+	origLogger := slog.Default()
+	defer slog.SetDefault(origLogger)
 
-	// Test basic error creation
-	err := newClientError(req, rsp)
-	if err.StatusCode() != http.StatusBadRequest {
-		t.Errorf("expected status code %d, got %d", http.StatusBadRequest, err.StatusCode())
-	}
+	buf := new(bytes.Buffer)
+	logOptions := slog.HandlerOptions{Level: slog.LevelDebug}
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &logOptions)))
 
-	if err.Request() != req {
-		t.Error("Request() should return the original request")
-	}
+	SetClient(DoFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`test`)),
+		}, nil
+	}))
 
-	if err.Response() != rsp {
-		t.Error("Response() should return the original response")
-	}
-
-	if err.ResponseBody() != "" {
-		t.Errorf("expected empty response body, got %q", err.ResponseBody())
-	}
-
-	if err.Unwrap() != nil {
-		t.Error("Unwrap() should return nil when no error is set")
-	}
-
-	// Test WithBody method
-	body := []byte("test body")
-	errWithBody := err.WithBody(body)
-	if errWithBody.ResponseBody() != "test body" {
-		t.Errorf("expected response body %q, got %q", "test body", errWithBody.ResponseBody())
-	}
-
-	// Test WithError method
-	testErr := errors.New("test error")
-	errWithError := err.WithError(testErr)
-	if errWithError.Unwrap() != testErr {
-		t.Error("Unwrap() should return the wrapped error")
-	}
-
-	// Test Error() method with different combinations
-	t.Run("Error method combinations", func(t *testing.T) {
-		// Case 1: Only status code (no body, no error)
-		err1 := newClientError(req, &http.Response{StatusCode: 404})
-		expected1 := "statuscode=404"
-		if err1.Error() != expected1 {
-			t.Errorf("expected %q, got %q", expected1, err1.Error())
-		}
-
-		// Case 2: Status code with body
-		err2 := newClientError(req, &http.Response{StatusCode: 400}).WithBody([]byte("bad request"))
-		expected2 := "statuscode=400, body=bad request"
-		if err2.Error() != expected2 {
-			t.Errorf("expected %q, got %q", expected2, err2.Error())
-		}
-
-		// Case 3: Status code with error
-		err3 := newClientError(req, &http.Response{StatusCode: 500}).WithError(errors.New("server error"))
-		expected3 := "statuscode=500, err=server error"
-		if err3.Error() != expected3 {
-			t.Errorf("expected %q, got %q", expected3, err3.Error())
-		}
-
-		// Case 4: Status code with both body and error
-		err4 := newClientError(req, &http.Response{StatusCode: 503}).
-			WithBody([]byte("service unavailable")).
-			WithError(errors.New("timeout"))
-		expected4 := "statuscode=503, body=service unavailable, err=timeout"
-		if err4.Error() != expected4 {
-			t.Errorf("expected %q, got %q", expected4, err4.Error())
-		}
-	})
-
-	// Test that WithBody and WithError return new instances (immutability)
-	t.Run("Immutability", func(t *testing.T) {
-		baseErr := newClientError(req, &http.Response{StatusCode: 400})
-
-		// Apply WithBody
-		err1 := baseErr.WithBody([]byte("body1"))
-		if baseErr.ResponseBody() != "" {
-			t.Error("base error should not be modified by WithBody")
-		}
-		_ = err1 // Use the variable
-
-		// Apply WithError
-		err2 := baseErr.WithError(errors.New("error1"))
-		if baseErr.Unwrap() != nil {
-			t.Error("base error should not be modified by WithError")
-		}
-		_ = err2 // Use the variable
-
-		// Chain methods
-		err3 := baseErr.WithBody([]byte("body2")).WithError(errors.New("error2"))
-		if baseErr.ResponseBody() != "" || baseErr.Unwrap() != nil {
-			t.Error("base error should not be modified by chained methods")
-		}
-		if err3.ResponseBody() != "body2" || err3.Unwrap().Error() != "error2" {
-			t.Error("chained methods should work correctly")
-		}
-	})
-}
-
-func TestPost_DebugLogging(t *testing.T) {
-	// Create a buffer to capture log output
-	var buf bytes.Buffer
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})
-	logger := slog.New(handler)
-
-	// Save the original logger and restore it after the test
-	originalLogger := slog.Default()
-	slog.SetDefault(logger)
-	defer slog.SetDefault(originalLogger)
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify Content-Type header
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
-			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			var reqBody testRequest
-			if err := json.Unmarshal(body, &reqBody); err != nil {
-				t.Fatalf("failed to unmarshal request body: %v", err)
-			}
-
-			if reqBody.Name != "test" || reqBody.Value != 42 {
-				t.Errorf("unexpected request body: %+v", reqBody)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"123","name":"test","value":42}`)),
-				Header:     http.Header{"X-Test": []string{"value"}},
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
-
-	// Prepare request and response data
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
-	// Call Post function with context
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqData)
-
-	// Verify results
+	err := Request(context.Background(), http.MethodGet, "http://127.0.0.1", nil, nil)
 	if err != nil {
-		t.Fatalf("Post failed: %v", err)
+		t.Fatal(err)
 	}
 
-	if respData.ID != "123" || respData.Name != "test" || respData.Value != 42 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-
-	// Check that debug log was written
-	logOutput := buf.String()
-	if !strings.Contains(logOutput, "log http response") {
-		t.Error("expected debug log 'log http response' not found")
-	}
-
-	// Verify log contains expected fields
-	expectedFields := []string{
-		"method=POST",
-		"url=http://example.com/api",
-		"statuscode=200",
-		"reqbody=",
-		"respbody=",
-	}
-
-	for _, field := range expectedFields {
-		if !strings.Contains(logOutput, field) {
-			t.Errorf("expected log field '%s' not found in log output", field)
-		}
-	}
-}
-
-func TestPost_DebugLogging_WithReaderRequest(t *testing.T) {
-	// Create a buffer to capture log output
-	var buf bytes.Buffer
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})
-	logger := slog.New(handler)
-
-	// Save the original logger and restore it after the test
-	originalLogger := slog.Default()
-	slog.SetDefault(logger)
-	defer slog.SetDefault(originalLogger)
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// When request is io.Reader, Content-Type should still be set to application/json
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s for io.Reader request, got %s", MIMEApplicationJSON, contentType)
-			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			expectedBody := `{"test":"data"}`
-			if string(body) != expectedBody {
-				t.Errorf("unexpected request body: got %s, want %s", string(body), expectedBody)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"456","name":"reader-test","value":99}`)),
-				Header:     http.Header{"X-Reader-Test": []string{"reader-value"}},
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
-
-	// Prepare request as io.Reader and response data
-	reqData := strings.NewReader(`{"test":"data"}`)
-	var respData testResponse
-
-	// Call Post function with context
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/reader-api", &respData, reqData)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post failed: %v", err)
-	}
-
-	if respData.ID != "456" || respData.Name != "reader-test" || respData.Value != 99 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-
-	// Check that debug log was written
-	logOutput := buf.String()
-	if !strings.Contains(logOutput, "log http response") {
-		t.Error("expected debug log 'log http response' not found")
-	}
-
-	// When request is io.Reader, reqbody should be nil in the log
-	// Check that reqbody is logged as empty/nil
-	if !strings.Contains(logOutput, "reqbody=") {
-		t.Error("reqbody should be present in log even when request is io.Reader")
-	}
-}
-
-func TestPost_DebugLogging_Non200Response(t *testing.T) {
-	// Create a buffer to capture log output
-	var buf bytes.Buffer
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})
-	logger := slog.New(handler)
-
-	// Save the original logger and restore it after the test
-	originalLogger := slog.Default()
-	slog.SetDefault(logger)
-	defer slog.SetDefault(originalLogger)
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Return 404 response
-			return &http.Response{
-				StatusCode: http.StatusNotFound,
-				Body:       io.NopCloser(strings.NewReader(`{"error":"not found"}`)),
-				Header:     http.Header{"X-Error": []string{"true"}},
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
-
-	// Prepare request and response data
-	reqData := testRequest{Name: "test", Value: 42}
-	var respData testResponse
-
-	// Call Post function with context
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/not-found", &respData, reqData)
-
-	// Verify error is returned
-	if err == nil {
-		t.Fatal("expected error for non-200 response, got nil")
-	}
-
-	// Check that debug log was written even for error response
-	logOutput := buf.String()
-	if !strings.Contains(logOutput, "log http response") {
-		t.Error("expected debug log 'log http response' not found for non-200 response")
-	}
-
-	// Verify log contains status code 404
-	if !strings.Contains(logOutput, "statuscode=404") {
-		t.Error("expected statuscode=404 in log output")
-	}
-}
-
-func TestPost_NoDebugLogging(t *testing.T) {
-	// Create a buffer to capture log output
-	var buf bytes.Buffer
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelInfo, // Set to Info level, not Debug
-	})
-	logger := slog.New(handler)
-
-	// Save the original logger and restore it after the test
-	originalLogger := slog.Default()
-	slog.SetDefault(logger)
-	defer slog.SetDefault(originalLogger)
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"no-debug-test"}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Prepare request and response data
-	reqData := testRequest{Name: "no-debug", Value: 100}
-	var respData testResponse
-
-	// Call Post function with context
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/no-debug", &respData, reqData)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post failed: %v", err)
-	}
-
-	if respData.ID != "no-debug-test" {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-
-	// Check that no debug log was written (since level is Info)
-	logOutput := buf.String()
-	if strings.Contains(logOutput, "log http response") {
-		t.Error("debug log 'log http response' should not be written when log level is Info")
-	}
-}
-
-func TestPost_RequestFunction_Error(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// This should not be called since request function returns error
-			t.Error("mock client should not be called when request function returns error")
-			return nil, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create request function that returns error
-	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, error) {
-		return nil, fmt.Errorf("failed to create request")
-	}
-
-	var respData testResponse
-
-	// Call Post function with request function that returns error
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
-
-	// Verify error is returned
-	if err == nil {
-		t.Fatal("expected error from Post when request function returns error")
-	}
-
-	if !strings.Contains(err.Error(), "failed to create request") {
-		t.Errorf("expected error to contain 'failed to create request', got: %v", err)
-	}
-}
-
-func TestPost_RequestFunction(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify URL
-			if req.URL.String() != "http://example.com/api" {
-				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
-			}
-
-			// Verify custom header set by request function
-			customHeader := req.Header.Get("X-Custom-Header")
-			if customHeader != "custom-value" {
-				t.Errorf("expected X-Custom-Header=custom-value, got %s", customHeader)
-			}
-
-			// Verify Content-Type header
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
-			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			var reqBody testRequest
-			if err := json.Unmarshal(body, &reqBody); err != nil {
-				t.Fatalf("failed to unmarshal request body: %v", err)
-			}
-
-			if reqBody.Name != "function-test" || reqBody.Value != 100 {
-				t.Errorf("unexpected request body: %+v", reqBody)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"func-123","name":"function-test","value":100}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
-
-	// Create request function
-	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, error) {
-		// Create request with context
-		req, err := http.NewRequestWithContext(ctx, method, url, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		// Set custom header
-		req.Header.Set("X-Custom-Header", "custom-value")
-
-		// Create request body
-		reqBody := testRequest{Name: "function-test", Value: 100}
-		bodyBytes, err := json.Marshal(reqBody)
-		if err != nil {
-			return nil, fmt.Errorf("fail to encode request body: %w", err)
-		}
-
-		// Set request body
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-
-		// Set Content-Type header
-		SetContentType(req.Header, MIMEApplicationJSON)
-
-		return req, nil
-	}
-
-	var respData testResponse
-
-	// Call Post function with request function
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post with request function failed: %v", err)
-	}
-
-	if respData.ID != "func-123" || respData.Name != "function-test" || respData.Value != 100 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-}
-
-func TestPost_RequestFunctionWithCleanup_Error(t *testing.T) {
-	cleanupCalled := false
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// This should not be called since request function returns error
-			t.Error("mock client should not be called when request function returns error")
-			return nil, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create request function with cleanup that returns error
-	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, func(), error) {
-		// Return error, cleanup function should be called even in this case
-		cleanup := func() {
-			cleanupCalled = true
-		}
-		return nil, cleanup, fmt.Errorf("failed to create request with cleanup")
-	}
-
-	var respData testResponse
-
-	// Call Post function with request function that returns error
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
-
-	// Verify error is returned
-	if err == nil {
-		t.Fatal("expected error from Post when request function with cleanup returns error")
-	}
-
-	if !strings.Contains(err.Error(), "failed to create request with cleanup") {
-		t.Errorf("expected error to contain 'failed to create request with cleanup', got: %v", err)
-	}
-
-	// Verify cleanup function was called even when error is returned
-	if !cleanupCalled {
-		t.Error("cleanup function should be called even when request function returns error")
-	}
-}
-
-func TestPost_RequestFunctionWithCleanup(t *testing.T) {
-	cleanupCalled := false
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify URL
-			if req.URL.String() != "http://example.com/api" {
-				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
-			}
-
-			// Verify custom header set by request function
-			customHeader := req.Header.Get("X-Custom-Header")
-			if customHeader != "cleanup-test" {
-				t.Errorf("expected X-Custom-Header=cleanup-test, got %s", customHeader)
-			}
-
-			// Verify Content-Type header
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
-			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			var reqBody testRequest
-			if err := json.Unmarshal(body, &reqBody); err != nil {
-				t.Fatalf("failed to unmarshal request body: %v", err)
-			}
-
-			if reqBody.Name != "cleanup-test" || reqBody.Value != 200 {
-				t.Errorf("unexpected request body: %+v", reqBody)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"cleanup-456","name":"cleanup-test","value":200}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient) // Restore default client
-
-	// Create request function with cleanup
-	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, func(), error) {
-		// Create request with context
-		req, err := http.NewRequestWithContext(ctx, method, url, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Set custom header
-		req.Header.Set("X-Custom-Header", "cleanup-test")
-
-		// Create request body
-		reqBody := testRequest{Name: "cleanup-test", Value: 200}
-		bodyBytes, err := json.Marshal(reqBody)
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to encode request body: %w", err)
-		}
-
-		// Set request body
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-
-		// Set Content-Type header
-		SetContentType(req.Header, MIMEApplicationJSON)
-
-		// Return request and cleanup function
-		cleanup := func() {
-			cleanupCalled = true
-		}
-
-		return req, cleanup, nil
-	}
-
-	var respData testResponse
-
-	// Call Post function with request function that includes cleanup
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post with request function with cleanup failed: %v", err)
-	}
-
-	if respData.ID != "cleanup-456" || respData.Name != "cleanup-test" || respData.Value != 200 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-
-	// Verify cleanup function was called
-	if !cleanupCalled {
-		t.Error("cleanup function was not called")
-	}
-}
-
-func TestPost_InterfaceSimpleBuilder(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify URL
-			if req.URL.String() != "http://example.com/api" {
-				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
-			}
-
-			// Verify custom header from builder
-			customHeader := req.Header.Get("X-Simple-Builder")
-			if customHeader != "simple-value" {
-				t.Errorf("expected X-Simple-Builder=simple-value, got %s", customHeader)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"simple-789","name":"simple-test","value":300}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create simple request builder
-	builder := &simpleRequestBuilder{
-		customHeader: "simple-value",
-	}
-
-	var respData testResponse
-
-	// Call Post function with interface
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, builder)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post with simple interface builder failed: %v", err)
-	}
-
-	if respData.ID != "simple-789" || respData.Name != "simple-test" || respData.Value != 300 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-}
-
-func TestPost_InterfaceCleanupBuilder(t *testing.T) {
-	builder := &cleanupRequestBuilder{
-		customHeader:  "cleanup-value",
-		cleanupCalled: false,
-	}
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify URL
-			if req.URL.String() != "http://example.com/api" {
-				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
-			}
-
-			// Verify custom header from builder
-			customHeader := req.Header.Get("X-Cleanup-Builder")
-			if customHeader != "cleanup-value" {
-				t.Errorf("expected X-Cleanup-Builder=cleanup-value, got %s", customHeader)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"cleanup-999","name":"cleanup-test","value":400}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	var respData testResponse
-
-	// Call Post function with cleanup interface
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, builder)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post with cleanup interface builder failed: %v", err)
-	}
-
-	if respData.ID != "cleanup-999" || respData.Name != "cleanup-test" || respData.Value != 400 {
-		t.Errorf("unexpected response data: %+v", respData)
-	}
-
-	// Verify cleanup was called
-	if !builder.cleanupCalled {
-		t.Error("cleanup function was not called for cleanup builder")
-	}
-}
-
-func TestPost_InterfaceSimpleBuilder_Error(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// This should not be called
-			t.Error("mock client should not be called when builder returns error")
-			return nil, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create a builder that always returns error
-	errorBuilder := &errorRequestBuilder{}
-
-	var respData testResponse
-
-	// Call Post function with error builder
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, errorBuilder)
-
-	// Verify error is returned
-	if err == nil {
-		t.Fatal("expected error from Post when builder returns error")
-	}
-
-	if !strings.Contains(err.Error(), "builder error") {
-		t.Errorf("expected error to contain 'builder error', got: %v", err)
-	}
-}
-
-func TestPost_InterfaceCleanupBuilder_Error(t *testing.T) {
-	cleanupCalled := false
-
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// This should not be called
-			t.Error("mock client should not be called when builder returns error")
-			return nil, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create a builder that always returns error but has cleanup
-	builder := &errorCleanupRequestBuilder{
-		cleanupCalled: cleanupCalled,
-	}
-
-	var respData testResponse
-
-	// Call Post function with error builder
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, builder)
-
-	// Verify error is returned
-	if err == nil {
-		t.Fatal("expected error from Post when cleanup builder returns error")
-	}
-
-	if !strings.Contains(err.Error(), "cleanup builder error") {
-		t.Errorf("expected error to contain 'cleanup builder error', got: %v", err)
-	}
-
-	// Verify cleanup was called even on error
-	if !builder.cleanupCalled {
-		t.Error("cleanup function should be called even when builder returns error")
-	}
-}
-
-func TestPost_InterfaceWithRequestBody(t *testing.T) {
-	client := &mockClient{
-		doFunc: func(req *http.Request) (*http.Response, error) {
-			// Verify request method
-			if req.Method != http.MethodPost {
-				t.Errorf("expected method POST, got %s", req.Method)
-			}
-
-			// Verify Content-Type header
-			contentType := req.Header.Get("Content-Type")
-			if contentType != MIMEApplicationJSON {
-				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
-			}
-
-			// Read request body
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				t.Fatalf("failed to read request body: %v", err)
-			}
-
-			// Verify request body
-			var reqBody testRequest
-			if err := json.Unmarshal(body, &reqBody); err != nil {
-				t.Fatalf("failed to unmarshal request body: %v", err)
-			}
-
-			if reqBody.Name != "interface-body" || reqBody.Value != 500 {
-				t.Errorf("unexpected request body: %+v", reqBody)
-			}
-
-			// Return success response
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"id":"body-111","name":"interface-body","value":500}`)),
-			}, nil
-		},
-	}
-
-	// Set mock client
-	SetClient(client)
-	defer SetClient(http.DefaultClient)
-
-	// Create a builder that sets request body
-	bodyBuilder := &bodyRequestBuilder{}
-
-	var respData testResponse
-
-	// Call Post function with body builder
-	ctx := context.Background()
-	err := Post(ctx, "http://example.com/api", &respData, bodyBuilder)
-
-	// Verify results
-	if err != nil {
-		t.Fatalf("Post with interface body builder failed: %v", err)
-	}
-
-	if respData.ID != "body-111" || respData.Name != "interface-body" || respData.Value != 500 {
-		t.Errorf("unexpected response data: %+v", respData)
+	if s := buf.String(); !strings.Contains(s, "respbody=test") {
+		t.Errorf("log: expect to contain '%s', but got '%s'", "respbody=test", s)
 	}
 }
