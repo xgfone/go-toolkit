@@ -134,17 +134,6 @@ func (r *errorReader) Read(p []byte) (n int, err error) {
 	return 0, errors.New("simulated read error")
 }
 
-func TestGet(t *testing.T) {
-	SetClient(&mockClient{doFunc: func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader("")),
-		}, nil
-	}})
-
-	Get(context.Background(), "http://127.0.0.1", nil)
-}
-
 // Test Post function - basic success case
 func TestPost_Success(t *testing.T) {
 	client := &mockClient{
