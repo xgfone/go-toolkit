@@ -74,13 +74,13 @@ func ExampleGet() {
 
 func ExamplePost() {
 	// Mock Client
-	SetClient(&mockClient{doFunc: func(*http.Request) (*http.Response, error) {
+	SetClient(DoFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: 200,
 			Header:     make(http.Header),
 			Body:       io.NopCloser(strings.NewReader(`{"Status":"Success"}`)),
 		}, nil
-	}})
+	}))
 
 	type Request struct {
 		Action string
