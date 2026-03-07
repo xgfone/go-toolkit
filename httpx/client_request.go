@@ -79,7 +79,7 @@ func (e _ClientError) Error() string {
 //   - func(*http.Response) error: custom response handler function
 //   - any other type: response body is automatically decoded as JSON into the variable
 func Get(ctx context.Context, url string, respbody any) (err error) {
-	return request(ctx, http.MethodGet, url, respbody, nil)
+	return Request(ctx, http.MethodGet, url, respbody, nil)
 }
 
 // Post sends a POST request to the specified URL with the provided request body
@@ -99,12 +99,32 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 //   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, clean func(), err error) }
 //   - any other type: automatically encoded as JSON
 //
-// If reqbody is not nil, it will set the Content-Type header to "application/json".
+// If request body is not nil and Content-Type is not set,
+// it will set the Content-Type header to "application/json".
 func Post(ctx context.Context, url string, respbody any, reqbody any) (err error) {
-	return request(ctx, http.MethodPost, url, respbody, reqbody)
+	return Request(ctx, http.MethodPost, url, respbody, reqbody)
 }
 
-func request(ctx context.Context, method, url string, resp, req any) (err error) {
+// Request sends an HTTP request to the specified URL with the provided request body
+// and decodes the response body into the provided response object.
+//
+// The respbody parameter supports the following types:
+//   - nil: response body is ignored, only HTTP status code 200 is checked
+//   - func(*http.Response) error: custom response handler function
+//   - any other type: response body is automatically decoded as JSON into the variable
+//
+// The reqbody parameter supports the following types:
+//   - nil: no request body will be sent
+//   - io.Reader: used directly as the request body
+//   - func(ctx context.Context, method, url string) (req *http.Request, err error)
+//   - func(ctx context.Context, method, url string) (req *http.Request, clean func(), err error)
+//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, err error) }
+//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, clean func(), err error) }
+//   - any other type: automatically encoded as JSON
+//
+// If request body is not nil and Content-Type is not set,
+// it will set the Content-Type header to "application/json".
+func Request(ctx context.Context, method, url string, resp, req any) (err error) {
 	var _req *http.Request
 	switch r := req.(type) {
 	case nil:
