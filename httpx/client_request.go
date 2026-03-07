@@ -93,6 +93,8 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
 //   - io.Reader: used directly as the request body
+//   - func(ctx context.Context, method, url string) (req *http.Request, err error)
+//   - func(ctx context.Context, method, url string) (req *http.Request, clean func(), err error)
 //   - any other type: automatically encoded as JSON
 //
 // If reqbody is not nil, it will set the Content-Type header to "application/json".
@@ -101,12 +103,21 @@ func Post(ctx context.Context, url string, respbody any, reqbody any) (err error
 }
 
 func request(ctx context.Context, method, url string, resp, req any) (err error) {
-	var body io.Reader
+	var _req *http.Request
 	switch r := req.(type) {
 	case nil:
+		_req, err = http.NewRequestWithContext(ctx, method, url, nil)
 
 	case io.Reader:
-		body = r
+		_req, err = http.NewRequestWithContext(ctx, method, url, r)
+
+	case func(ctx context.Context, method string, url string) (*http.Request, error):
+		_req, err = r(ctx, method, url)
+
+	case func(ctx context.Context, method string, url string) (*http.Request, func(), error):
+		var clean func()
+		_req, clean, err = r(ctx, method, url)
+		defer clean()
 
 	default:
 		pool, buf := pools.GetBuffer(1024)
@@ -116,15 +127,13 @@ func request(ctx context.Context, method, url string, resp, req any) (err error)
 			return fmt.Errorf("fail to encode request body: %w", err)
 		}
 
-		body = buf
+		_req, err = http.NewRequestWithContext(ctx, method, url, buf)
 	}
-
-	_req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return
 	}
 
-	if req != nil {
+	if _req.Body != nil && _req.Header.Get(HeaderContentType) == "" {
 		SetContentType(_req.Header, MIMEApplicationJSON)
 	}
 

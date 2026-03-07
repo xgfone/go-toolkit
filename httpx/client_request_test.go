@@ -984,3 +984,286 @@ func TestPost_NoDebugLogging(t *testing.T) {
 		t.Error("debug log 'log http response' should not be written when log level is Info")
 	}
 }
+
+func TestPost_RequestFunction_Error(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// This should not be called since request function returns error
+			t.Error("mock client should not be called when request function returns error")
+			return nil, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create request function that returns error
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, error) {
+		return nil, fmt.Errorf("failed to create request")
+	}
+
+	var respData testResponse
+
+	// Call Post function with request function that returns error
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
+
+	// Verify error is returned
+	if err == nil {
+		t.Fatal("expected error from Post when request function returns error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to create request") {
+		t.Errorf("expected error to contain 'failed to create request', got: %v", err)
+	}
+}
+
+func TestPost_RequestFunction(t *testing.T) {
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify URL
+			if req.URL.String() != "http://example.com/api" {
+				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
+			}
+
+			// Verify custom header set by request function
+			customHeader := req.Header.Get("X-Custom-Header")
+			if customHeader != "custom-value" {
+				t.Errorf("expected X-Custom-Header=custom-value, got %s", customHeader)
+			}
+
+			// Verify Content-Type header
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			// Read request body
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			// Verify request body
+			var reqBody testRequest
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+
+			if reqBody.Name != "function-test" || reqBody.Value != 100 {
+				t.Errorf("unexpected request body: %+v", reqBody)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"func-123","name":"function-test","value":100}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient) // Restore default client
+
+	// Create request function
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, error) {
+		// Create request with context
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set custom header
+		req.Header.Set("X-Custom-Header", "custom-value")
+
+		// Create request body
+		reqBody := testRequest{Name: "function-test", Value: 100}
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("fail to encode request body: %w", err)
+		}
+
+		// Set request body
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		req.ContentLength = int64(len(bodyBytes))
+
+		// Set Content-Type header
+		SetContentType(req.Header, MIMEApplicationJSON)
+
+		return req, nil
+	}
+
+	var respData testResponse
+
+	// Call Post function with request function
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post with request function failed: %v", err)
+	}
+
+	if respData.ID != "func-123" || respData.Name != "function-test" || respData.Value != 100 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+}
+
+func TestPost_RequestFunctionWithCleanup_Error(t *testing.T) {
+	cleanupCalled := false
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// This should not be called since request function returns error
+			t.Error("mock client should not be called when request function returns error")
+			return nil, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient)
+
+	// Create request function with cleanup that returns error
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, func(), error) {
+		// Return error, cleanup function should be called even in this case
+		cleanup := func() {
+			cleanupCalled = true
+		}
+		return nil, cleanup, fmt.Errorf("failed to create request with cleanup")
+	}
+
+	var respData testResponse
+
+	// Call Post function with request function that returns error
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
+
+	// Verify error is returned
+	if err == nil {
+		t.Fatal("expected error from Post when request function with cleanup returns error")
+	}
+
+	if !strings.Contains(err.Error(), "failed to create request with cleanup") {
+		t.Errorf("expected error to contain 'failed to create request with cleanup', got: %v", err)
+	}
+
+	// Verify cleanup function was called even when error is returned
+	if !cleanupCalled {
+		t.Error("cleanup function should be called even when request function returns error")
+	}
+}
+
+func TestPost_RequestFunctionWithCleanup(t *testing.T) {
+	cleanupCalled := false
+	client := &mockClient{
+		doFunc: func(req *http.Request) (*http.Response, error) {
+			// Verify request method
+			if req.Method != http.MethodPost {
+				t.Errorf("expected method POST, got %s", req.Method)
+			}
+
+			// Verify URL
+			if req.URL.String() != "http://example.com/api" {
+				t.Errorf("expected URL http://example.com/api, got %s", req.URL.String())
+			}
+
+			// Verify custom header set by request function
+			customHeader := req.Header.Get("X-Custom-Header")
+			if customHeader != "cleanup-test" {
+				t.Errorf("expected X-Custom-Header=cleanup-test, got %s", customHeader)
+			}
+
+			// Verify Content-Type header
+			contentType := req.Header.Get("Content-Type")
+			if contentType != MIMEApplicationJSON {
+				t.Errorf("expected Content-Type %s, got %s", MIMEApplicationJSON, contentType)
+			}
+
+			// Read request body
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body: %v", err)
+			}
+
+			// Verify request body
+			var reqBody testRequest
+			if err := json.Unmarshal(body, &reqBody); err != nil {
+				t.Fatalf("failed to unmarshal request body: %v", err)
+			}
+
+			if reqBody.Name != "cleanup-test" || reqBody.Value != 200 {
+				t.Errorf("unexpected request body: %+v", reqBody)
+			}
+
+			// Return success response
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"id":"cleanup-456","name":"cleanup-test","value":200}`)),
+			}, nil
+		},
+	}
+
+	// Set mock client
+	SetClient(client)
+	defer SetClient(http.DefaultClient) // Restore default client
+
+	// Create request function with cleanup
+	reqFunc := func(ctx context.Context, method string, url string) (*http.Request, func(), error) {
+		// Create request with context
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Set custom header
+		req.Header.Set("X-Custom-Header", "cleanup-test")
+
+		// Create request body
+		reqBody := testRequest{Name: "cleanup-test", Value: 200}
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, nil, fmt.Errorf("fail to encode request body: %w", err)
+		}
+
+		// Set request body
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		req.ContentLength = int64(len(bodyBytes))
+
+		// Set Content-Type header
+		SetContentType(req.Header, MIMEApplicationJSON)
+
+		// Return request and cleanup function
+		cleanup := func() {
+			cleanupCalled = true
+		}
+
+		return req, cleanup, nil
+	}
+
+	var respData testResponse
+
+	// Call Post function with request function that includes cleanup
+	ctx := context.Background()
+	err := Post(ctx, "http://example.com/api", &respData, reqFunc)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("Post with request function with cleanup failed: %v", err)
+	}
+
+	if respData.ID != "cleanup-456" || respData.Name != "cleanup-test" || respData.Value != 200 {
+		t.Errorf("unexpected response data: %+v", respData)
+	}
+
+	// Verify cleanup function was called
+	if !cleanupCalled {
+		t.Error("cleanup function was not called")
+	}
+}
