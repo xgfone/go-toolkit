@@ -93,14 +93,9 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
 //   - io.Reader: used directly as the request body
-//   - func(ctx context.Context, method, url string) (req *http.Request, err error)
-//   - func(ctx context.Context, method, url string) (req *http.Request, clean func(), err error)
-//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, err error) }
-//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, clean func(), err error) }
 //   - any other type: automatically encoded as JSON
 //
-// If request body is not nil and Content-Type is not set,
-// it will set the Content-Type header to "application/json".
+// If request body is not nil, it will set the Content-Type header to "application/json".
 func Post(ctx context.Context, url string, respbody any, reqbody any) (err error) {
 	return Request(ctx, http.MethodPost, url, respbody, reqbody)
 }
@@ -116,14 +111,9 @@ func Post(ctx context.Context, url string, respbody any, reqbody any) (err error
 // The req parameter supports the following types:
 //   - nil: no request body will be sent
 //   - io.Reader: used directly as the request body
-//   - func(ctx context.Context, method, url string) (req *http.Request, err error)
-//   - func(ctx context.Context, method, url string) (req *http.Request, clean func(), err error)
-//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, err error) }
-//   - interface { NewRequest(ctx context.Context, method, url string) (req *http.Request, clean func(), err error) }
 //   - any other type: automatically encoded as JSON
 //
-// If request body is not nil and Content-Type is not set,
-// it will set the Content-Type header to "application/json".
+// If request body is not nil, it will set the Content-Type header to "application/json".
 func Request(ctx context.Context, method, url string, resp, req any) (err error) {
 	var _req *http.Request
 	switch r := req.(type) {
@@ -132,26 +122,6 @@ func Request(ctx context.Context, method, url string, resp, req any) (err error)
 
 	case io.Reader:
 		_req, err = http.NewRequestWithContext(ctx, method, url, r)
-
-	case func(ctx context.Context, method string, url string) (*http.Request, error):
-		_req, err = r(ctx, method, url)
-
-	case func(ctx context.Context, method string, url string) (*http.Request, func(), error):
-		var clean func()
-		_req, clean, err = r(ctx, method, url)
-		defer clean()
-
-	case interface {
-		NewRequest(ctx context.Context, method string, url string) (*http.Request, error)
-	}:
-		_req, err = r.NewRequest(ctx, method, url)
-
-	case interface {
-		NewRequest(ctx context.Context, method string, url string) (*http.Request, func(), error)
-	}:
-		var clean func()
-		_req, clean, err = r.NewRequest(ctx, method, url)
-		defer clean()
 
 	default:
 		pool, buf := pools.GetBuffer(1024)
@@ -167,7 +137,7 @@ func Request(ctx context.Context, method, url string, resp, req any) (err error)
 		return
 	}
 
-	if _req.Body != nil && _req.Header.Get(HeaderContentType) == "" {
+	if _req.Body != nil {
 		SetContentType(_req.Header, MIMEApplicationJSON)
 	}
 
