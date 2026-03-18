@@ -510,3 +510,196 @@ func TestRequest_DebugLogging(t *testing.T) {
 		t.Errorf("log: expect to contain '%s', but got '%s'", "respbody=test", s)
 	}
 }
+
+func TestReadRequestBody(t *testing.T) {
+	testCases := []struct {
+		name        string
+		reqBody     io.ReadCloser
+		contentType string
+		expected    any
+	}{
+		{
+			name:        "nil body",
+			reqBody:     nil,
+			contentType: "",
+			expected:    nil,
+		},
+		{
+			name: "stringer body",
+			reqBody: &stringerReader{
+				content: "test string",
+			},
+			contentType: "",
+			expected:    "test string",
+		},
+		{
+			name: "size seeker body",
+			reqBody: &sizeSeekerReader{
+				content: "test size seeker",
+			},
+			contentType: "",
+			expected:    "test size seeker",
+		},
+		{
+			name: "read seeker body",
+			reqBody: &readSeekerReader{
+				content: "test read seeker",
+			},
+			contentType: "",
+			expected:    "test read seeker",
+		},
+		{
+			name: "json body",
+			reqBody: &stringerReader{
+				content: `{"key":"value"}`,
+			},
+			contentType: MIMEApplicationJSON,
+			expected:    _JSONBody(`{"key":"value"}`),
+		},
+		{
+			name: "non-json body with json content type",
+			reqBody: &stringerReader{
+				content: "not json",
+			},
+			contentType: MIMEApplicationJSON,
+			expected:    "not json",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, "http://example.com", tc.reqBody)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			if tc.contentType != "" {
+				req.Header.Set("Content-Type", tc.contentType)
+			}
+
+			result := readRequestBody(req)
+			if tc.expected == nil {
+				if result != nil {
+					t.Errorf("expected nil, got %v", result)
+				}
+			} else {
+				switch expected := tc.expected.(type) {
+				case _JSONBody:
+					if resultStr, ok := result.(_JSONBody); !ok {
+						t.Errorf("expected _JSONBody, got %T", result)
+					} else if resultStr != expected {
+						t.Errorf("expected %s, got %s", expected, resultStr)
+					}
+				case string:
+					if resultStr, ok := result.(string); !ok {
+						t.Errorf("expected string, got %T", result)
+					} else if resultStr != expected {
+						t.Errorf("expected %s, got %s", expected, resultStr)
+					}
+				default:
+					t.Errorf("unexpected expected type: %T", expected)
+				}
+			}
+		})
+	}
+}
+
+// stringerReader implements fmt.Stringer
+type stringerReader struct {
+	content string
+}
+
+func (r *stringerReader) Read(p []byte) (n int, err error) {
+	return strings.NewReader(r.content).Read(p)
+}
+
+func (r *stringerReader) Close() error {
+	return nil
+}
+
+func (r *stringerReader) String() string {
+	return r.content
+}
+
+// sizeSeekerReader implements SizeSeeker interface
+type sizeSeekerReader struct {
+	content string
+	pos     int64
+}
+
+func (r *sizeSeekerReader) Read(p []byte) (n int, err error) {
+	reader := strings.NewReader(r.content)
+	if r.pos > 0 {
+		_, err = reader.Seek(r.pos, io.SeekStart)
+		if err != nil {
+			return 0, err
+		}
+	}
+	n, err = reader.Read(p)
+	r.pos += int64(n)
+	return
+}
+
+func (r *sizeSeekerReader) Close() error {
+	return nil
+}
+
+func (r *sizeSeekerReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		r.pos = offset
+	case io.SeekCurrent:
+		r.pos += offset
+	case io.SeekEnd:
+		r.pos = int64(len(r.content)) + offset
+	}
+	return r.pos, nil
+}
+
+func (r *sizeSeekerReader) Size() int64 {
+	return int64(len(r.content))
+}
+
+// readSeekerReader implements io.ReadSeeker
+type readSeekerReader struct {
+	content string
+	pos     int64
+}
+
+func (r *readSeekerReader) Read(p []byte) (n int, err error) {
+	reader := strings.NewReader(r.content)
+	if r.pos > 0 {
+		_, err = reader.Seek(r.pos, io.SeekStart)
+		if err != nil {
+			return 0, err
+		}
+	}
+	n, err = reader.Read(p)
+	r.pos += int64(n)
+	return
+}
+
+func (r *readSeekerReader) Close() error {
+	return nil
+}
+
+func (r *readSeekerReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		r.pos = offset
+	case io.SeekCurrent:
+		r.pos += offset
+	case io.SeekEnd:
+		r.pos = int64(len(r.content)) + offset
+	}
+	return r.pos, nil
+}
+
+func TestJSONBodyMarshalJSON(t *testing.T) {
+	jsonBody := _JSONBody(`{"key":"value"}`)
+	data, err := json.Marshal(jsonBody)
+	if err != nil {
+		t.Fatalf("failed to marshal json body: %v", err)
+	} else if _JSONBody(data) != jsonBody {
+		t.Errorf("expected %s, got %s", jsonBody, _JSONBody(data))
+	}
+}
