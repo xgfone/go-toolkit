@@ -163,11 +163,12 @@ func TestValidate_ContextPropagation(t *testing.T) {
 	originalValidate := _validate
 	defer func() { _validate = originalValidate }()
 
+	type _Key string
 	ctx := context.Background()
-	ctxWithValue := context.WithValue(ctx, "test-key", "test-value")
+	ctxWithValue := context.WithValue(ctx, _Key("test-key"), "test-value")
 
 	SetValidateFunc(func(ctx context.Context, value any) error {
-		if ctx.Value("test-key") != "test-value" {
+		if ctx.Value(_Key("test-key")) != "test-value" {
 			t.Error("context value not propagated to validation function")
 		}
 		return nil
@@ -191,7 +192,7 @@ func TestSetValidateFunc_OverridesPreviousFunction(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	Validate(ctx, "test")
+	_ = Validate(ctx, "test")
 
 	if !firstCalled {
 		t.Error("first validation function should have been called")
