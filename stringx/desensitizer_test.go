@@ -39,17 +39,17 @@ func TestDesensitizer(t *testing.T) {
 		t.Errorf("expect '%s', but got '%s'", "123****7890", s)
 	}
 
-	denamer1 := NewDesensitizer(1, 0).WithChars("**")
+	denamer1 := dephoner.WithLeft(1).WithRight(0).WithChars("**")
 	if s := denamer1.Desensitize("谢1谢2"); s != "谢**" {
 		t.Errorf("expect '%s', but got '%s'", "谢**", s)
 	}
 
-	denamer2 := NewDesensitizer(0, 1).WithChars("**")
+	denamer2 := dephoner.WithLeft(0).WithRight(1).WithChars("**")
 	if s := denamer2.Desensitize("1谢2谢"); s != "**谢" {
 		t.Errorf("expect '%s', but got '%s'", "**谢", s)
 	}
 
-	denamer3 := NewDesensitizer(0, 0).WithChars("**")
+	denamer3 := dephoner.WithLeft(0).WithRight(0).WithChars("**")
 	if s := denamer3.Desensitize("1谢2谢"); s != "**" {
 		t.Errorf("expect '%s', but got '%s'", "**", s)
 	}

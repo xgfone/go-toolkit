@@ -27,6 +27,7 @@ var (
 	DefaultDesensitizer = NewDesensitizer(4, 4)
 )
 
+// Desensitizer is used to desensitize a string.
 type Desensitizer struct {
 	// The length of the left undesensitized characters.
 	Left int
@@ -40,8 +41,21 @@ type Desensitizer struct {
 	Chars string
 }
 
+// NewDesensitizer returns a new string desensitizer.
 func NewDesensitizer(left, right int) Desensitizer {
 	return Desensitizer{Left: left, Right: right, Chars: "****"}
+}
+
+// WithLeft returns a new string desensitizer with the left length.
+func (d Desensitizer) WithLeft(left int) Desensitizer {
+	d.Left = left
+	return d
+}
+
+// WithRight returns a new string desensitizer with the right length.
+func (d Desensitizer) WithRight(right int) Desensitizer {
+	d.Right = right
+	return d
 }
 
 // WithChars returns a new string desensitizer with the new desensitization chars.
