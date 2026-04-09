@@ -87,3 +87,28 @@ func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[
 	}
 	return maps
 }
+
+// Merge concatenates multiple slices into a single slice.
+//
+// If no slices are provided, it returns nil.
+// If all input slices are empty or nil, it returns an empty slice of type S.
+func Merge[S ~[]E, E any](ss ...S) S {
+	if len(ss) == 0 {
+		return nil
+	}
+
+	var _len int
+	for i := range ss {
+		_len += len(ss[i])
+	}
+
+	if _len == 0 {
+		return S{}
+	}
+
+	vs := make(S, 0, _len)
+	for i := range ss {
+		vs = append(vs, ss[i]...)
+	}
+	return vs
+}

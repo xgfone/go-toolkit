@@ -116,3 +116,44 @@ func ExampleMap() {
 	// Output:
 	// map[1:a 2:b]
 }
+
+func ExampleMerge() {
+	type Ints []int
+
+	// Test with no arguments
+	fmt.Println(Merge[Ints]() == nil)
+
+	// Test with single empty slice
+	fmt.Println(Merge(Ints{}))
+
+	// Test with multiple empty slices
+	fmt.Println(Merge(Ints{}, Ints{}, Ints{}))
+
+	// Test with single non-empty slice
+	fmt.Println(Merge(Ints{1, 2, 3}))
+
+	// Test with multiple non-empty slices
+	fmt.Println(Merge(Ints{1, 2}, Ints{3, 4}, Ints{5, 6}))
+
+	// Test with mixed empty and non-empty slices
+	fmt.Println(Merge(Ints{}, Ints{1, 2}, Ints{}, Ints{3, 4}, Ints{}))
+
+	// Test with nil slices
+	var nilSlice Ints
+	fmt.Println(Merge(nilSlice))
+	fmt.Println(Merge(nilSlice, Ints{1, 2}, nilSlice))
+
+	// Test with different slice types
+	fmt.Println(Merge([]string{"a", "b"}, []string{"c", "d"}))
+
+	// Output:
+	// true
+	// []
+	// []
+	// [1 2 3]
+	// [1 2 3 4 5 6]
+	// [1 2 3 4]
+	// []
+	// [1 2]
+	// [a b c d]
+}
