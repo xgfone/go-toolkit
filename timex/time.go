@@ -1,4 +1,4 @@
-// Copyright 2024~2025 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,14 +25,65 @@ const (
 // Some variables.
 var (
 	// Default: time.RFC3339Nano
+	//
+	// Deprecated: use GetFormat and SetFormat instead.
 	Format = time.RFC3339Nano
 
 	// Defaults: []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
+	//
+	// Deprecated: use GetFormats and SetFormats instead.
 	Formats = []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
 
 	// Default: time.UTC
+	//
+	// Deprecated: use GetLocation and SetLocation instead.
 	Location = time.UTC
 )
+
+// SetLocation resets the time location.
+//
+// Default: time.UTC
+func SetLocation(loc *time.Location) {
+	if loc == nil {
+		panic("timex.SetLocation: location is nil")
+	}
+	Location = loc
+}
+
+// GetLocation returns the current time location.
+//
+// Default: time.UTC
+func GetLocation() *time.Location {
+	return Location
+}
+
+// SetFormats sets the time formats.
+//
+// Default: []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
+func SetFormats(formats []string) {
+	if len(formats) == 0 {
+		panic("timex.SetFormats: formats is empty")
+	}
+	Formats = formats
+}
+
+// GetFormats returns the time formats.
+func GetFormats() []string {
+	return Formats
+}
+
+// SetFormat sets the time format.
+func SetFormat(format string) {
+	if format == "" {
+		panic("timex.SetFormat: format is empty")
+	}
+	Format = format
+}
+
+// GetFormat returns the time format.
+func GetFormat() string {
+	return Format
+}
 
 var _now func() time.Time
 
