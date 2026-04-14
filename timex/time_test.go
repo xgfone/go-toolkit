@@ -19,10 +19,31 @@ import (
 	"time"
 )
 
+func TestSetNowFunc(t *testing.T) {
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("unexpected panic: %v", r)
+			}
+		}()
+		SetNowFunc(time.Now)
+	}()
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic, but got none")
+			}
+		}()
+		SetNowFunc(nil)
+	}()
+}
+
 func TestToday(t *testing.T) {
 	Location = time.Local
+	SetNowFunc(nowloc)
 
-	now := time.Now()
+	now := Now()
 	nowdate := now.Format(time.DateOnly)
 
 	today := Today()

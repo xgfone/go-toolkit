@@ -34,12 +34,24 @@ var (
 	Location = time.UTC
 )
 
-// Now is used to customize the now time.
+var _now func() time.Time
+
+// SetNowFunc sets the now function.
 //
 // Default: time.Now().In(Location)
-var Now func() time.Time
+func SetNowFunc(now func() time.Time) {
+	if now == nil {
+		panic("timex.SetNowFunc: now function is nil")
+	}
+	_now = now
+}
 
-func init()             { Now = nowloc }
+// Now returns the now time by use the now function set by SetNowFunc.
+func Now() time.Time {
+	return _now()
+}
+
+func init()             { SetNowFunc(nowloc) }
 func nowloc() time.Time { return time.Now().In(Location) }
 
 // Unix is the same as time.Unix, but set the location with Location.
