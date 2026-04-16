@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.23
-
 package slicex
 
-import "iter"
+import (
+	"fmt"
+	"slices"
+)
 
-// ValuesFunc returns an iterator that yields the slice elements in order.
-func ValuesFunc[Slice ~[]E, E, V any](s Slice, f func(E) V) iter.Seq[V] {
-	return func(yield func(V) bool) {
-		for _, v := range s {
-			if !yield(f(v)) {
-				return
-			}
-		}
+func ExampleValuesFunc() {
+	seq := ValuesFunc([]int{1, 2, 3}, func(i int) string {
+		return fmt.Sprintf("v%d", i)
+	})
+
+	fmt.Println(slices.Collect(seq))
+
+	for v := range seq {
+		fmt.Println(v)
+		break
 	}
+
+	// Output:
+	// [v1 v2 v3]
+	// v1
 }
