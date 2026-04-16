@@ -92,9 +92,16 @@ func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[
 //
 // If no slices are provided, it returns nil.
 // If all input slices are empty or nil, it returns an empty slice of type S.
+//
+// Note: If there is only one slice, it will return that slice directly
+// without cloning as the performance optimization.
 func Merge[S ~[]E, E any](ss ...S) S {
-	if len(ss) == 0 {
+	switch len(ss) {
+	case 0:
 		return nil
+
+	case 1:
+		return ss[0]
 	}
 
 	var _len int
