@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,47 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package httpx
+package render
 
 import (
 	"encoding/xml"
-	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
-
-func TestHandler(t *testing.T) {
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	Handler201.ServeHTTP(rec, req)
-	if rec.Code != 201 {
-		t.Errorf("expect status code %d, but got %d", 201, rec.Code)
-	}
-
-	rec = httptest.NewRecorder()
-	Handler404.ServeHTTP(rec, req)
-	if rec.Code != 404 {
-		t.Errorf("expect status code %d, but got %d", 404, rec.Code)
-	}
-}
-
-func TestJSON(t *testing.T) {
-	rec := httptest.NewRecorder()
-	if err := JSON(rec, 200, nil); err != nil {
-		t.Fatal(err)
-	} else if s := rec.Body.String(); s != "" {
-		t.Errorf("expect response body '%s', but got '%s'", "", s)
-	}
-
-	rec = httptest.NewRecorder()
-	expectbody := `{"a":"b"}`
-	if err := JSON(rec, 200, map[string]string{"a": "b"}); err != nil {
-		t.Fatal(err)
-	} else if body := strings.TrimSpace(rec.Body.String()); body != expectbody {
-		t.Errorf("expect response body '%s', but got '%s'", expectbody, body)
-	}
-}
 
 func TestXML(t *testing.T) {
 	var req struct {
@@ -69,10 +35,14 @@ func TestXML(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	if err := XML(rec, 200, req); err != nil {
+	if err := XML(rec, 400, req); err != nil {
 		t.Fatal(err)
 	} else if s := rec.Body.String(); s == "" {
 		t.Error("unexpected empty response body")
+	}
+
+	if rec.Code != 400 {
+		t.Errorf("expect status code %d, but got %d", 400, rec.Code)
 	}
 
 	expectbody := `<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<outer><a>b</a></outer>`

@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/xgfone/go-toolkit/httpx"
+	"github.com/xgfone/go-toolkit/internal/render"
 )
 
 var respond func(responder any, response Response) = defaultRespond
@@ -69,7 +69,7 @@ func defaultRespond(responder any, response Response) {
 		if response.IsZero() {
 			resp.WriteHeader(response.StatusCode())
 		} else {
-			_ = httpx.JSON(resp, response.StatusCode(), response)
+			_ = render.JSON(resp, response.StatusCode(), response)
 		}
 
 	default:

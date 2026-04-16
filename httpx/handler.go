@@ -15,14 +15,9 @@
 package httpx
 
 import (
-	"bytes"
-	"encoding/xml"
-	"io"
 	"net/http"
 
-	"github.com/xgfone/go-toolkit/internal/pools"
-	"github.com/xgfone/go-toolkit/jsonx"
-	"github.com/xgfone/go-toolkit/unsafex"
+	"github.com/xgfone/go-toolkit/internal/render"
 )
 
 // Pre-define some http handlers.
@@ -51,47 +46,10 @@ func handler(code int) http.Handler {
 
 // JSON sends the response by the json format to the client.
 func JSON(w http.ResponseWriter, code int, v any) (err error) {
-	if v == nil {
-		w.WriteHeader(code)
-		return
-	}
-
-	pool, buf := pools.GetBuffer(64 * 1024) // 64KB
-	defer pools.PutBuffer(pool, buf)
-
-	if err = jsonx.MarshalWriter(buf, v); err == nil {
-		w.Header().Set(HeaderContentType, MIMEApplicationJSONCharsetUTF8)
-		w.WriteHeader(code)
-		err = write(w, buf)
-	}
-
-	return
+	return render.JSON(w, code, v)
 }
 
 // XML sends the response by the xml format to the client.
 func XML(w http.ResponseWriter, code int, v any) (err error) {
-	if v == nil {
-		w.WriteHeader(code)
-		return
-	}
-
-	pool, buf := pools.GetBuffer(64 * 1024) // 64KB
-	defer pools.PutBuffer(pool, buf)
-
-	_, _ = buf.WriteString(xml.Header)
-	if err = xml.NewEncoder(buf).Encode(v); err == nil {
-		w.Header().Set(HeaderContentType, MIMEApplicationXMLCharsetUTF8)
-		w.WriteHeader(code)
-		err = write(w, buf)
-	}
-
-	return
-}
-
-func write(w http.ResponseWriter, b *bytes.Buffer) (err error) {
-	n, err := w.Write(unsafex.Bytes(b.String()))
-	if err == nil && n != b.Len() {
-		err = io.ErrShortWrite
-	}
-	return
+	return render.XML(w, code, v)
 }

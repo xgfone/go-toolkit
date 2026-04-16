@@ -17,7 +17,7 @@ package codeint
 import (
 	"net/http"
 
-	"github.com/xgfone/go-toolkit/httpx"
+	"github.com/xgfone/go-toolkit/internal/render"
 )
 
 // Pre-define some errors with the status code.
@@ -55,5 +55,5 @@ func (e Error) StatusCode() int {
 
 // ServeHTTP implements the interface http.Handler.
 func (e Error) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	_ = httpx.JSON(w, e.StatusCode(), e)
+	_ = render.JSON(w, e.StatusCode(), e)
 }
