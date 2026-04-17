@@ -15,6 +15,7 @@
 package stringx
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -51,6 +52,12 @@ func TestBuilder(t *testing.T) {
 		}
 	}()
 	b4.WithGenerator(nil)
+
+	if s := b4.Build(28); len(s) != 28 {
+		t.Errorf("expected length 28, got %d", len(s))
+	} else if !strings.HasPrefix(s, "prefix") || !strings.HasSuffix(s, "suffix") {
+		t.Errorf("expected prefix 'prefix' and suffix 'suffix', got %s", s)
+	}
 }
 
 func TestBuilderBuild(t *testing.T) {
@@ -112,11 +119,14 @@ func TestNewGenerator(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	for i := 10; i < 20; i++ {
+	for i := 10; i < 50; i++ {
 		buf := Generate(nil, i, func(b []byte, _ time.Time) []byte {
 			return append(b, []byte("test")...)
 		})
-		if len(buf) < i {
+		if !strings.HasPrefix(string(buf), "test") {
+			t.Errorf("expected prefix 'test', got %s", string(buf))
+		}
+		if len(buf) != i {
 			t.Errorf("expected length at least %d, but got %d", i, len(buf))
 		}
 	}
