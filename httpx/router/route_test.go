@@ -255,6 +255,36 @@ func TestRoute_HTTPMethodFuncs(t *testing.T) {
 	}
 }
 
+func TestRoute_HTTPMethodContexts(t *testing.T) {
+	router := New()
+	handler := func(c *httpx.Context) error {
+		c.WriteHeader(http.StatusOK)
+		return nil
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		route  func() Route
+	}{
+		{"PutFunc", "PUT", func() Route { return router.Path("/put").PutContext(handler) }},
+		{"GetFunc", "GET", func() Route { return router.Path("/get").GetContext(handler) }},
+		{"PostFunc", "POST", func() Route { return router.Path("/post").PostContext(handler) }},
+		{"HeadFunc", "HEAD", func() Route { return router.Path("/head").HeadContext(handler) }},
+		{"PatchFunc", "PATCH", func() Route { return router.Path("/patch").PatchContext(handler) }},
+		{"DeleteFunc", "DELETE", func() Route { return router.Path("/delete").DeleteContext(handler) }},
+		{"OptionsFunc", "OPTIONS", func() Route { return router.Path("/options").OptionsContext(handler) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test that the method doesn't panic with nil handler
+			// (actual registration will panic, but we're testing method chaining)
+			_ = tt.route()
+		})
+	}
+}
+
 func TestRoute_EmptyPathDefaultsToRoot(t *testing.T) {
 	router := New()
 

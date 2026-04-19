@@ -256,3 +256,38 @@ func (r Route) DeleteFunc(handler http.HandlerFunc) Route {
 func (r Route) OptionsFunc(handler http.HandlerFunc) Route {
 	return r.Method(http.MethodOptions).Handler(handler)
 }
+
+// PutContext registers a PUT route with the context handler.
+func (r Route) PutContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodPut).Handler(handler)
+}
+
+// GetContext registers a GET route with the context handler.
+func (r Route) GetContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodGet).Handler(handler)
+}
+
+// PostContext registers a POST route with the context handler.
+func (r Route) PostContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodPost).Handler(handler)
+}
+
+// HeadContext registers a HEAD route with the context handler.
+func (r Route) HeadContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodHead).Handler(handler)
+}
+
+// PatchContext registers a PATCH route with the context handler.
+func (r Route) PatchContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodPatch).Handler(handler)
+}
+
+// DeleteContext registers a DELETE route with the context handler.
+func (r Route) DeleteContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodDelete).Handler(handler)
+}
+
+// OptionsContext registers an OPTIONS route with the context handler.
+func (r Route) OptionsContext(handler httpx.ContextHandler) Route {
+	return r.Method(http.MethodOptions).Handler(handler)
+}
