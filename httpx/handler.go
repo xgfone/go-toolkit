@@ -53,3 +53,14 @@ func JSON(w http.ResponseWriter, code int, v any) (err error) {
 func XML(w http.ResponseWriter, code int, v any) (err error) {
 	return render.XML(w, code, v)
 }
+
+// ContextHandler is the handler function for the request context.
+type ContextHandler func(c *Context) error
+
+// ServeHTTP implements the http.Handler interface.
+//
+// Note: a Context must be got by GetContext from the request context.
+func (h ContextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := GetContext(r.Context())
+	c.AppendError(h(c))
+}

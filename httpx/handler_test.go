@@ -80,3 +80,25 @@ func TestXML(t *testing.T) {
 		t.Errorf("expect response body '%s', but got '%s'", expectbody, body)
 	}
 }
+
+func TestContextHandler(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+
+	ContextHandler(func(c *Context) error {
+		if c != nil {
+			t.Error("expect a nil, but got a Context")
+		}
+		return nil
+	}).ServeHTTP(rec, req)
+
+	_c := new(Context)
+	req = req.WithContext(SetContext(req.Context(), _c))
+	ContextHandler(func(c *Context) error {
+		if c != _c {
+			t.Error("context is inconsistent")
+		}
+		return nil
+	}).ServeHTTP(rec, req)
+
+}
