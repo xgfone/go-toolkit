@@ -94,32 +94,36 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test inline disposition
 	ctx.SetContentDisposition("inline", "")
-	if disp := rec.Header().Get("Content-Disposition"); disp != "Content-Disposition: inline" {
-		t.Errorf("expected 'Content-Disposition: inline', got '%s'", disp)
+	const expectedInline = "Content-Disposition: inline"
+	if disp := rec.Header().Get("Content-Disposition"); disp != expectedInline {
+		t.Errorf("expected '%s', got '%s'", expectedInline, disp)
 	}
 
 	// Test attachment disposition without filename
 	rec = httptest.NewRecorder()
 	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "")
-	if disp := rec.Header().Get("Content-Disposition"); disp != "Content-Disposition: attachment" {
-		t.Errorf("expected 'Content-Disposition: attachment', got '%s'", disp)
+	const expectedAttachment = "Content-Disposition: attachment"
+	if disp := rec.Header().Get("Content-Disposition"); disp != expectedAttachment {
+		t.Errorf("expected '%s', got '%s'", expectedAttachment, disp)
 	}
 
 	// Test attachment disposition with filename
 	rec = httptest.NewRecorder()
 	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "test.jpg")
-	if disp := rec.Header().Get("Content-Disposition"); disp != "attachment; filename=test.jpg" {
-		t.Errorf("expected 'attachment; filename=test.jpg', got '%s'", disp)
+	const expectedAttachmentFilename = "attachment; filename=test.jpg"
+	if disp := rec.Header().Get("Content-Disposition"); disp != expectedAttachmentFilename {
+		t.Errorf("expected '%s', got '%s'", expectedAttachmentFilename, disp)
 	}
 
 	// Test attachment disposition with filename containing special characters
 	rec = httptest.NewRecorder()
 	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "test file with spaces.jpg")
-	if disp := rec.Header().Get("Content-Disposition"); disp != "attachment; filename=\"test file with spaces.jpg\"" {
-		t.Errorf("expected 'attachment; filename=\"test file with spaces.jpg\"', got '%s'", disp)
+	const expected = "attachment; filename=\"test file with spaces.jpg\""
+	if disp := rec.Header().Get("Content-Disposition"); disp != expected {
+		t.Errorf("expected '%s', got '%s'", expected, disp)
 	}
 
 	// Test panic with invalid disposition type
