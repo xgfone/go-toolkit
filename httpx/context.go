@@ -24,13 +24,14 @@ import (
 	"sync"
 
 	"github.com/xgfone/go-toolkit/codeint"
+	"github.com/xgfone/go-toolkit/mapx"
 	"github.com/xgfone/go-toolkit/result"
 )
 
 var _ctxpool = sync.Pool{
 	New: func() any {
 		return &Context{
-			Data: make(map[string]any, 4),
+			Data: mapx.NewSMap[any](4),
 		}
 	},
 }
@@ -62,7 +63,7 @@ type Context struct {
 	*http.Request
 
 	Auth any
-	Data map[string]any
+	Data mapx.SMap[any]
 
 	Error error
 }
