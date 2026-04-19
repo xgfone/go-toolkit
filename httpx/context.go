@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ func NewContext(w http.ResponseWriter, r *http.Request) *Context {
 
 // Context is the context of the request.
 type Context struct {
+	context.Context
 	ResponseWriter
 	*http.Request
 
@@ -42,7 +44,16 @@ type Context struct {
 
 // Reset resets the request context.
 func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
-	*c = Context{ResponseWriter: NewResponseWriter(w), Request: r}
+	ctx := context.Background()
+	if r != nil {
+		ctx = r.Context()
+	}
+
+	*c = Context{
+		Context:        ctx,
+		Request:        r,
+		ResponseWriter: NewResponseWriter(w),
+	}
 }
 
 // AppendError appends the error err into c.Error.
