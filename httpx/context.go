@@ -25,12 +25,24 @@ import (
 	"github.com/xgfone/go-toolkit/result"
 )
 
+// NewContext returns a new request context.
+func NewContext(w http.ResponseWriter, r *http.Request) *Context {
+	c := new(Context)
+	c.Reset(w, r)
+	return c
+}
+
 // Context is the context of the request.
 type Context struct {
-	http.ResponseWriter
+	ResponseWriter
 	*http.Request
 
 	Error error
+}
+
+// Reset resets the request context.
+func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
+	*c = Context{ResponseWriter: NewResponseWriter(w), Request: r}
 }
 
 // AppendError appends the error err into c.Error.

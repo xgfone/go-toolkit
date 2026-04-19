@@ -27,10 +27,7 @@ import (
 func TestContext_AppendError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test appending first error
 	err1 := errors.New("error1")
@@ -56,10 +53,7 @@ func TestContext_AppendError(t *testing.T) {
 func TestContext_SetContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	ctx.SetContentType("application/json")
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
@@ -70,10 +64,7 @@ func TestContext_SetContentType(t *testing.T) {
 func TestContext_SetContentDisposition(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test inline disposition
 	ctx.SetContentDisposition("inline", "")
@@ -83,7 +74,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition without filename
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "")
 	if disp := rec.Header().Get("Content-Disposition"); disp != "Content-Disposition: attachment" {
 		t.Errorf("expected 'Content-Disposition: attachment', got '%s'", disp)
@@ -91,7 +82,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition with filename
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "test.jpg")
 	if disp := rec.Header().Get("Content-Disposition"); disp != "attachment; filename=test.jpg" {
 		t.Errorf("expected 'attachment; filename=test.jpg', got '%s'", disp)
@@ -99,7 +90,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition with filename containing special characters
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	ctx.SetContentDisposition("attachment", "test file with spaces.jpg")
 	if disp := rec.Header().Get("Content-Disposition"); disp != "attachment; filename=\"test file with spaces.jpg\"" {
 		t.Errorf("expected 'attachment; filename=\"test file with spaces.jpg\"', got '%s'", disp)
@@ -117,10 +108,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 func TestContext_Redirect(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test valid redirect
 	ctx.Redirect(301, "https://example.com")
@@ -151,7 +139,7 @@ func TestContext_Redirect(t *testing.T) {
 	validCodes := []int{300, 301, 302, 303, 304, 305, 306, 307, 308}
 	for _, code := range validCodes {
 		rec = httptest.NewRecorder()
-		ctx.ResponseWriter = rec
+		ctx.ResponseWriter = NewResponseWriter(rec)
 		ctx.Redirect(code, "https://example.com")
 		if rec.Code != code {
 			t.Errorf("expected status code %d, got %d", code, rec.Code)
@@ -165,10 +153,7 @@ func TestContext_Redirect(t *testing.T) {
 func TestContext_NoContent(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	ctx.NoContent(204)
 	if rec.Code != 204 {
@@ -179,10 +164,7 @@ func TestContext_NoContent(t *testing.T) {
 func TestContext_JSON(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test successful JSON response
 	data := map[string]string{"message": "test"}
@@ -201,10 +183,7 @@ func TestContext_JSON(t *testing.T) {
 func TestContext_Stream(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test streaming response
 	data := "streaming data"
@@ -221,10 +200,7 @@ func TestContext_Stream(t *testing.T) {
 func TestContext_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test Success method
 	data := "success data"
@@ -240,10 +216,7 @@ func TestContext_Success(t *testing.T) {
 func TestContext_Respond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test Respond with data
 	response := result.Ok("test data")
@@ -257,7 +230,7 @@ func TestContext_Respond(t *testing.T) {
 
 	// Test Respond with error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	response = result.Err(codeint.NewError(404))
 	ctx.Respond(response)
 	if rec.Code != 404 {
@@ -266,7 +239,7 @@ func TestContext_Respond(t *testing.T) {
 
 	// Test Respond with no content
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	response = result.Response{}
 	ctx.Respond(response)
 	if rec.Code != 200 {
@@ -277,10 +250,7 @@ func TestContext_Respond(t *testing.T) {
 func TestSetRespond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test custom respond function
 	called := false
@@ -314,10 +284,7 @@ func TestSetRespond(t *testing.T) {
 func TestDefaultRespond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test default respond with data
 	response := result.Ok("test data")
@@ -331,7 +298,7 @@ func TestDefaultRespond(t *testing.T) {
 
 	// Test default respond with error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	response = result.Err(errors.New("test error"))
 	defaultRespond(ctx, response)
 	if rec.Code != 500 {
@@ -340,7 +307,7 @@ func TestDefaultRespond(t *testing.T) {
 
 	// Test default respond with no content
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	response = result.Response{}
 	defaultRespond(ctx, response)
 	if rec.Code != 200 {
@@ -351,10 +318,7 @@ func TestDefaultRespond(t *testing.T) {
 func TestRespondError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Test with codeint.Error
 	response := result.Response{Error: codeint.NewError(404)}
@@ -365,7 +329,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with *codeint.Error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	err := codeint.NewError(400)
 	response = result.Response{Error: &err}
 	respondError(ctx, response)
@@ -375,7 +339,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with error implementing StatusCode()
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	customErr := &statusCodeError{code: 403}
 	response = result.Response{Error: customErr}
 	respondError(ctx, response)
@@ -391,7 +355,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with generic error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = rec
+	ctx.ResponseWriter = NewResponseWriter(rec)
 	response = result.Response{Error: errors.New("generic error")}
 	respondError(ctx, response)
 	if rec.Code != 500 {
@@ -415,10 +379,7 @@ func (e *statusCodeError) StatusCode() int {
 func TestRespondError_Wrapping(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := &Context{
-		ResponseWriter: rec,
-		Request:        req,
-	}
+	ctx := NewContext(rec, req)
 
 	// Create a custom error type that implements both error and StatusCode()
 	type customError struct {
