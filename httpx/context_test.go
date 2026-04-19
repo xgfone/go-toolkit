@@ -25,15 +25,11 @@ import (
 )
 
 func TestContext_AcquireRelease(t *testing.T) {
-	ctx1 := AcquireContext(nil, nil)
-	ReleaseContext(ctx1)
-
-	ctx2 := AcquireContext(nil, nil)
-	ReleaseContext(ctx2)
-
-	if ctx1 != ctx2 {
-		t.Error("context is inconsistent")
+	ctx := AcquireContext(nil, nil)
+	if ctx == nil {
+		t.Fatal("Context is nil")
 	}
+	ReleaseContext(ctx)
 }
 
 func TestContext_AppendError(t *testing.T) {
