@@ -21,10 +21,32 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"sync"
 
 	"github.com/xgfone/go-toolkit/codeint"
 	"github.com/xgfone/go-toolkit/result"
 )
+
+var _ctxpool = sync.Pool{
+	New: func() any {
+		return &Context{
+			Data: make(map[string]any, 4),
+		}
+	},
+}
+
+// AcquireContext acquires a context from the pool and resets it with the given request.
+func AcquireContext(w http.ResponseWriter, r *http.Request) *Context {
+	c := _ctxpool.Get().(*Context)
+	c.Reset(w, r)
+	return c
+}
+
+// ReleaseContext releases the context back to the pool.
+func ReleaseContext(c *Context) {
+	c.Reset(nil, nil)
+	_ctxpool.Put(c)
+}
 
 // NewContext returns a new request context.
 func NewContext(w http.ResponseWriter, r *http.Request) *Context {

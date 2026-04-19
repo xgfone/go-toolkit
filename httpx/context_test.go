@@ -24,6 +24,18 @@ import (
 	"github.com/xgfone/go-toolkit/result"
 )
 
+func TestContext_AcquireRelease(t *testing.T) {
+	ctx1 := AcquireContext(nil, nil)
+	ReleaseContext(ctx1)
+
+	ctx2 := AcquireContext(nil, nil)
+	ReleaseContext(ctx2)
+
+	if ctx1 != ctx2 {
+		t.Error("context is inconsistent")
+	}
+}
+
 func TestContext_AppendError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
