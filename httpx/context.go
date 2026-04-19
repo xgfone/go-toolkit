@@ -39,20 +39,31 @@ type Context struct {
 	ResponseWriter
 	*http.Request
 
+	Auth any
+	Data map[string]any
+
 	Error error
 }
 
 // Reset resets the request context.
 func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	var ctx context.Context
 	if r != nil {
 		ctx = r.Context()
 	}
 
+	var rw ResponseWriter
+	if w != nil {
+		rw = NewResponseWriter(w)
+	}
+
+	clear(c.Data)
 	*c = Context{
 		Context:        ctx,
 		Request:        r,
-		ResponseWriter: NewResponseWriter(w),
+		ResponseWriter: rw,
+
+		Data: c.Data,
 	}
 }
 
