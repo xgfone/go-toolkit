@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -37,6 +38,16 @@ func TestContext_AcquireRelease(t *testing.T) {
 		t.Fatal("Context is nil")
 	}
 	ReleaseContext(ctx)
+}
+
+func TestContext_Context(t *testing.T) {
+	c1 := new(Context)
+	ctx := SetContext(context.Background(), c1)
+	c2 := GetContext(ctx)
+
+	if c1 != c2 {
+		t.Error("context is inconsistent")
+	}
 }
 
 func TestContext_AppendError(t *testing.T) {

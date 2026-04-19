@@ -49,6 +49,21 @@ func ReleaseContext(c *Context) {
 	_ctxpool.Put(c)
 }
 
+// GetContext returns the Context from the context.Context.
+//
+// Return nil if the context.Context does not contain a Context.
+func GetContext(ctx context.Context) *Context {
+	c, _ := ctx.Value(_CtxKeyType(1)).(*Context)
+	return c
+}
+
+// SetContext sets the Context into the context.Context and returns a new context.Context.
+func SetContext(ctx context.Context, c *Context) context.Context {
+	return context.WithValue(ctx, _CtxKeyType(1), c)
+}
+
+type _CtxKeyType int
+
 // Context is the context of the request.
 type Context struct {
 	context.Context
