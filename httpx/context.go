@@ -49,13 +49,6 @@ func ReleaseContext(c *Context) {
 	_ctxpool.Put(c)
 }
 
-// NewContext returns a new request context.
-func NewContext(w http.ResponseWriter, r *http.Request) *Context {
-	c := new(Context)
-	c.Reset(w, r)
-	return c
-}
-
 // Context is the context of the request.
 type Context struct {
 	context.Context

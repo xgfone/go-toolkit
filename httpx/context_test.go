@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -23,6 +24,12 @@ import (
 	"github.com/xgfone/go-toolkit/codeint"
 	"github.com/xgfone/go-toolkit/result"
 )
+
+func newContext(w http.ResponseWriter, r *http.Request) *Context {
+	c := new(Context)
+	c.Reset(w, r)
+	return c
+}
 
 func TestContext_AcquireRelease(t *testing.T) {
 	ctx := AcquireContext(nil, nil)
@@ -35,7 +42,7 @@ func TestContext_AcquireRelease(t *testing.T) {
 func TestContext_AppendError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test appending first error
 	err1 := errors.New("error1")
@@ -61,7 +68,7 @@ func TestContext_AppendError(t *testing.T) {
 func TestContext_SetContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	ctx.SetContentType("application/json")
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
@@ -72,7 +79,7 @@ func TestContext_SetContentType(t *testing.T) {
 func TestContext_SetContentDisposition(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test inline disposition
 	ctx.SetContentDisposition("inline", "")
@@ -116,7 +123,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 func TestContext_Redirect(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test valid redirect
 	ctx.Redirect(301, "https://example.com")
@@ -161,7 +168,7 @@ func TestContext_Redirect(t *testing.T) {
 func TestContext_NoContent(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	ctx.NoContent(204)
 	if rec.Code != 204 {
@@ -172,7 +179,7 @@ func TestContext_NoContent(t *testing.T) {
 func TestContext_JSON(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test successful JSON response
 	data := map[string]string{"message": "test"}
@@ -191,7 +198,7 @@ func TestContext_JSON(t *testing.T) {
 func TestContext_Stream(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test streaming response
 	data := "streaming data"
@@ -208,7 +215,7 @@ func TestContext_Stream(t *testing.T) {
 func TestContext_Success(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test Success method
 	data := "success data"
@@ -224,7 +231,7 @@ func TestContext_Success(t *testing.T) {
 func TestContext_Respond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test Respond with data
 	response := result.Ok("test data")
@@ -258,7 +265,7 @@ func TestContext_Respond(t *testing.T) {
 func TestSetRespond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test custom respond function
 	called := false
@@ -292,7 +299,7 @@ func TestSetRespond(t *testing.T) {
 func TestDefaultRespond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test default respond with data
 	response := result.Ok("test data")
@@ -326,7 +333,7 @@ func TestDefaultRespond(t *testing.T) {
 func TestRespondError(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Test with codeint.Error
 	response := result.Response{Error: codeint.NewError(404)}
@@ -387,7 +394,7 @@ func (e *statusCodeError) StatusCode() int {
 func TestRespondError_Wrapping(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := NewContext(rec, req)
+	ctx := newContext(rec, req)
 
 	// Create a custom error type that implements both error and StatusCode()
 	type customError struct {
