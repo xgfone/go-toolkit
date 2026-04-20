@@ -17,7 +17,6 @@ package httpx
 import (
 	"net"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 )
@@ -50,28 +49,22 @@ func TestSetServeFunc(t *testing.T) {
 }
 
 func TestStartServerNetworkError(t *testing.T) {
-	originalServe := serve
 	SetServeFunc(func(net.Listener, *http.Server) {})
-	defer SetServeFunc(originalServe)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	go StartServer("invalid-address-format", handler)
-	time.Sleep(100 * time.Millisecond)
+	StartServer("invalid-address-format", handler)
 }
 
 func TestStartServerRegularHandler(t *testing.T) {
 	serveCalled := false
-	originalServe := serve
 	SetServeFunc(func(net.Listener, *http.Server) {
 		serveCalled = true
 	})
-	defer SetServeFunc(originalServe)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	go StartServer(":0", handler)
-	time.Sleep(100 * time.Millisecond)
+	StartServer(":0", handler)
 
 	if !serveCalled {
 		t.Error("serve function should have been called")
@@ -89,23 +82,16 @@ func TestStartServerAddressParsing(t *testing.T) {
 		{"URL with scheme", "tcp://localhost:0"},
 	}
 
-	lock := new(sync.Mutex)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lock.Lock()
-			defer lock.Unlock()
-
 			serveCalled := false
-			originalServe := serve
 			SetServeFunc(func(net.Listener, *http.Server) {
 				serveCalled = true
 			})
-			defer SetServeFunc(originalServe)
 
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-			go StartServer(tt.addr, handler)
-			time.Sleep(100 * time.Millisecond)
+			StartServer(tt.addr, handler)
 
 			if !serveCalled {
 				t.Error("serve function should have been called")
@@ -117,15 +103,8 @@ func TestStartServerAddressParsing(t *testing.T) {
 func TestStartServerWithStartInterface(t *testing.T) {
 	handler := &mockHandlerWithStart{}
 
-	originalServe := serve
 	SetServeFunc(func(net.Listener, *http.Server) {})
-	defer SetServeFunc(originalServe)
-
-	go StartServer(":8080", handler)
-	time.Sleep(100 * time.Millisecond)
-
-	handler.lock.Lock()
-	defer handler.lock.Unlock()
+	StartServer(":8080", handler)
 
 	if !handler.startCalled {
 		t.Error("handler.Start should have been called")
@@ -138,14 +117,11 @@ func TestStartServerWithStartInterface(t *testing.T) {
 type mockHandlerWithStart struct {
 	startCalled bool
 	startAddr   string
-	lock        sync.Mutex
 }
 
 func (m *mockHandlerWithStart) ServeHTTP(w http.ResponseWriter, r *http.Request) {}
 
 func (m *mockHandlerWithStart) Start(addr string) {
-	m.lock.Lock()
 	m.startCalled = true
 	m.startAddr = addr
-	m.lock.Unlock()
 }
