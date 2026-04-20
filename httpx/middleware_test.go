@@ -97,39 +97,23 @@ func TestMiddlewaresEmpty(t *testing.T) {
 	}
 }
 
-// priorityMiddleware is a test type that implements both Middleware and Priority
-type priorityMiddleware struct {
-	priority int
-	Middleware
-}
-
-func (p *priorityMiddleware) Priority() int {
-	return p.priority
-}
-
 // TestMiddlewaresSort tests Sort method
 func TestMiddlewaresSort(t *testing.T) {
 	order := ""
 
-	low := &priorityMiddleware{
-		priority: 1,
-		Middleware: MiddlewareFunc(func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				order += "L"
-				next.ServeHTTP(w, r)
-			})
-		}),
-	}
+	low := PriorityMiddlewareFunc(1, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			order += "L"
+			next.ServeHTTP(w, r)
+		})
+	})
 
-	high := &priorityMiddleware{
-		priority: 10,
-		Middleware: MiddlewareFunc(func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				order += "H"
-				next.ServeHTTP(w, r)
-			})
-		}),
-	}
+	high := PriorityMiddlewareFunc(10, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			order += "H"
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	// Unsorted order: low, high
 	middlewares := Middlewares{low, high}
@@ -157,15 +141,12 @@ func TestMiddlewaresSort(t *testing.T) {
 func TestMiddlewaresSortWithDefaultPriority(t *testing.T) {
 	order := ""
 
-	priority := &priorityMiddleware{
-		priority: 100,
-		Middleware: MiddlewareFunc(func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				order += "P"
-				next.ServeHTTP(w, r)
-			})
-		}),
-	}
+	priority := PriorityMiddlewareFunc(100, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			order += "P"
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	// Middleware without priority (default 1)
 	normal := MiddlewareFunc(func(next http.Handler) http.Handler {

@@ -56,6 +56,25 @@ func (ms Middlewares) Sort() {
 	})
 }
 
+// PriorityMiddleware returns a middleware with the given priority.
+func PriorityMiddleware(priority int, m Middleware) Middleware {
+	return _PriorityMiddleware{Middleware: m, priority: priority}
+}
+
+// PriorityMiddlewareFunc returns a middleware with the given priority.
+func PriorityMiddlewareFunc(priority int, m MiddlewareFunc) Middleware {
+	return PriorityMiddleware(priority, m)
+}
+
+type _PriorityMiddleware struct {
+	Middleware
+	priority int
+}
+
+func (m _PriorityMiddleware) Priority() int {
+	return m.priority
+}
+
 func getPriority(m Middleware) int {
 	if p, ok := m.(_Priority); ok {
 		return p.Priority()
