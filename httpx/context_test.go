@@ -243,6 +243,21 @@ func TestContext_Success(t *testing.T) {
 	}
 }
 
+func TestContext_Failure(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	ctx := newContext(rec, req)
+
+	// Test Success method
+	ctx.Failure(errors.New("failure"))
+	if rec.Code != 500 {
+		t.Errorf("expected status code 200, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("expected Content-Type containing 'application/json', got '%s'", ct)
+	}
+}
+
 func TestContext_Respond(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()

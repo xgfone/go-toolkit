@@ -190,6 +190,11 @@ func (c *Context) Success(data any) {
 	result.Success(c, data)
 }
 
+// Failure sends the failure response with error.
+func (c *Context) Failure(err error) {
+	result.Failure(c, err)
+}
+
 // Respond implements the interface result.Responder.
 func (c *Context) Respond(response result.Response) {
 	respond(c, response)
