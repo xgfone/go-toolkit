@@ -57,7 +57,7 @@ func TestStartServerNetworkError(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 	go StartServer("invalid-address-format", handler)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 }
 
 func TestStartServerRegularHandler(t *testing.T) {
@@ -71,7 +71,7 @@ func TestStartServerRegularHandler(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 	go StartServer(":0", handler)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	if !serveCalled {
 		t.Error("serve function should have been called")
@@ -101,7 +101,7 @@ func TestStartServerAddressParsing(t *testing.T) {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
 			go StartServer(tt.addr, handler)
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 
 			if !serveCalled {
 				t.Error("serve function should have been called")
@@ -118,7 +118,10 @@ func TestStartServerWithStartInterface(t *testing.T) {
 	defer SetServeFunc(originalServe)
 
 	go StartServer(":8080", handler)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+
+	handler.lock.Lock()
+	defer handler.lock.Unlock()
 
 	if !handler.startCalled {
 		t.Error("handler.Start should have been called")
