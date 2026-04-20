@@ -17,6 +17,7 @@ package httpx
 import (
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 )
@@ -130,11 +131,14 @@ func TestStartServerWithStartInterface(t *testing.T) {
 type mockHandlerWithStart struct {
 	startCalled bool
 	startAddr   string
+	lock        sync.Mutex
 }
 
 func (m *mockHandlerWithStart) ServeHTTP(w http.ResponseWriter, r *http.Request) {}
 
 func (m *mockHandlerWithStart) Start(addr string) {
+	m.lock.Lock()
 	m.startCalled = true
 	m.startAddr = addr
+	m.lock.Unlock()
 }
