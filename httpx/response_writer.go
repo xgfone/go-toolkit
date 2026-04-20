@@ -22,47 +22,46 @@ import (
 // ResponseWriter is an extended http.ResponseWriter.
 type ResponseWriter interface {
 	http.ResponseWriter
-	WroteHeader() bool
+
+	// StatusCode returns the written status code.
+	//
+	// Return 0 if the response header has not been written yet.
 	StatusCode() int
 }
 
-// NewResponseWriter returns a ResponseWriter.
-//
-// Note: If w has implemented ResponseWriter, return it directly.
-func NewResponseWriter(w http.ResponseWriter) ResponseWriter {
-	if rw, ok := w.(ResponseWriter); ok {
-		return rw
-	}
-	return &_ResponseWriter{ResponseWriter: w}
+type _ContextResponseWriter struct {
+	w http.ResponseWriter
+	c *Context
 }
 
-type _ResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
+func newContextResponseWriter(c *Context, w http.ResponseWriter) ResponseWriter {
+	return _ContextResponseWriter{c: c, w: w}
 }
 
-func (r *_ResponseWriter) Unwrap() http.ResponseWriter {
-	return r.ResponseWriter
+func (w _ContextResponseWriter) Unwrap() http.ResponseWriter {
+	return w.w
 }
 
-func (r *_ResponseWriter) StatusCode() int {
-	if r.statusCode == 0 {
-		return 200
-	}
-	return r.statusCode
+func (w _ContextResponseWriter) Header() http.Header {
+	return w.w.Header()
 }
 
-func (r *_ResponseWriter) WroteHeader() bool {
-	return r.statusCode > 0
+func (w _ContextResponseWriter) Write(p []byte) (int, error) {
+	w.WriteHeader(200)
+	return w.w.Write(p)
 }
 
-func (r *_ResponseWriter) WriteHeader(code int) {
+func (w _ContextResponseWriter) WriteHeader(code int) {
 	if code < 100 {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
-	if r.statusCode == 0 {
-		r.statusCode = code
-		r.ResponseWriter.WriteHeader(code)
+	if w.c.Code == 0 {
+		w.c.Code = code
+		w.w.WriteHeader(code)
 	}
+}
+
+func (w _ContextResponseWriter) StatusCode() int {
+	return w.c.Code
 }

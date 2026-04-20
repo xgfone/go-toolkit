@@ -67,9 +67,10 @@ type _CtxKeyType int
 // Context is the context of the request.
 type Context struct {
 	context.Context
-	ResponseWriter
+	http.ResponseWriter
 	*http.Request
 
+	Code int // StatusCode
 	Auth any
 	Data mapx.SMap[any]
 
@@ -84,8 +85,14 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rw ResponseWriter
-	if w != nil {
-		rw = NewResponseWriter(w)
+	switch _w := w.(type) {
+	case nil:
+
+	case ResponseWriter:
+		rw = _w
+
+	default:
+		rw = newContextResponseWriter(c, w)
 	}
 
 	clear(c.Data)
@@ -96,6 +103,21 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 
 		Data: c.Data,
 	}
+}
+
+// StatusCode returns the written status code.
+//
+// Return 0 if the response header has not been written yet.
+func (c *Context) StatusCode() int {
+	if c.Code > 0 {
+		return c.Code
+	}
+
+	if rw, ok := c.ResponseWriter.(ResponseWriter); ok {
+		return rw.StatusCode()
+	}
+
+	return 0
 }
 
 // AppendError appends the error err into c.Error.

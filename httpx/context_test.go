@@ -101,7 +101,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition without filename
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	ctx.SetContentDisposition("attachment", "")
 	const expectedAttachment = "Content-Disposition: attachment"
 	if disp := rec.Header().Get("Content-Disposition"); disp != expectedAttachment {
@@ -110,7 +110,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition with filename
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	ctx.SetContentDisposition("attachment", "test.jpg")
 	const expectedAttachmentFilename = "attachment; filename=test.jpg"
 	if disp := rec.Header().Get("Content-Disposition"); disp != expectedAttachmentFilename {
@@ -119,7 +119,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test attachment disposition with filename containing special characters
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	ctx.SetContentDisposition("attachment", "test file with spaces.jpg")
 	const expected = "attachment; filename=\"test file with spaces.jpg\""
 	if disp := rec.Header().Get("Content-Disposition"); disp != expected {
@@ -169,7 +169,7 @@ func TestContext_Redirect(t *testing.T) {
 	validCodes := []int{300, 301, 302, 303, 304, 305, 306, 307, 308}
 	for _, code := range validCodes {
 		rec = httptest.NewRecorder()
-		ctx.ResponseWriter = NewResponseWriter(rec)
+		ctx.Reset(rec, req)
 		ctx.Redirect(code, "https://example.com")
 		if rec.Code != code {
 			t.Errorf("expected status code %d, got %d", code, rec.Code)
@@ -260,7 +260,7 @@ func TestContext_Respond(t *testing.T) {
 
 	// Test Respond with error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	response = result.Err(codeint.NewError(404))
 	ctx.Respond(response)
 	if rec.Code != 404 {
@@ -269,7 +269,7 @@ func TestContext_Respond(t *testing.T) {
 
 	// Test Respond with no content
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	response = result.Response{}
 	ctx.Respond(response)
 	if rec.Code != 200 {
@@ -328,7 +328,7 @@ func TestDefaultRespond(t *testing.T) {
 
 	// Test default respond with error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	response = result.Err(errors.New("test error"))
 	defaultRespond(ctx, response)
 	if rec.Code != 500 {
@@ -337,7 +337,7 @@ func TestDefaultRespond(t *testing.T) {
 
 	// Test default respond with no content
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	response = result.Response{}
 	defaultRespond(ctx, response)
 	if rec.Code != 200 {
@@ -359,7 +359,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with *codeint.Error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	err := codeint.NewError(400)
 	response = result.Response{Error: &err}
 	respondError(ctx, response)
@@ -369,7 +369,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with error implementing StatusCode()
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	customErr := &statusCodeError{code: 403}
 	response = result.Response{Error: customErr}
 	respondError(ctx, response)
@@ -385,7 +385,7 @@ func TestRespondError(t *testing.T) {
 
 	// Test with generic error
 	rec = httptest.NewRecorder()
-	ctx.ResponseWriter = NewResponseWriter(rec)
+	ctx.Reset(rec, req)
 	response = result.Response{Error: errors.New("generic error")}
 	respondError(ctx, response)
 	if rec.Code != 500 {
@@ -405,49 +405,90 @@ func (e *statusCodeError) StatusCode() int {
 	return e.code
 }
 
-// Test that errors with StatusCode() method are properly wrapped
-func TestRespondError_Wrapping(t *testing.T) {
-	req := httptest.NewRequest("GET", "/", nil)
-	rec := httptest.NewRecorder()
-	ctx := newContext(rec, req)
+func TestContext_Reset(t *testing.T) {
+	t.Run("WithResponseWriterInterface", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		rec := httptest.NewRecorder()
+		ctx := &Context{}
+		customRW := &customResponseWriter{recorder: rec}
 
-	// Create a custom error type that implements both error and StatusCode()
-	type customError struct {
-		msg  string
-		code int
-	}
+		ctx.Reset(customRW, req)
 
-	// Test with a concrete type that implements the interface
-	err := &customErrorWithStatusCode{
-		msg:  "custom error message",
-		code: 418,
-	}
-
-	response := result.Response{Error: err}
-	respondError(ctx, response)
-
-	// Should use the status code from the error
-	if rec.Code != 418 {
-		t.Errorf("expected status code 418, got %d", rec.Code)
-	}
-
-	// The error should be wrapped as codeint.ErrInternalServerError
-	// Check that the response contains the wrapped error
-	body := rec.Body.String()
-	if !strings.Contains(body, "Internal Server Error") {
-		t.Errorf("expected error to be wrapped as internal server error, got body: %s", body)
-	}
+		// Should reuse existing ResponseWriter
+		if ctx.ResponseWriter != customRW {
+			t.Error("Reset should reuse existing ResponseWriter")
+		}
+	})
 }
 
-type customErrorWithStatusCode struct {
-	msg  string
-	code int
+func TestContext_StatusCode(t *testing.T) {
+	t.Run("WithContextResponseWriter", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		rec := httptest.NewRecorder()
+		ctx := &Context{}
+		ctx.Reset(rec, req)
+
+		// Test before WriteHeader
+		if code := ctx.StatusCode(); code != 0 {
+			t.Errorf("StatusCode should be 0 before WriteHeader, got %d", code)
+		}
+
+		// Test after WriteHeader
+		ctx.WriteHeader(201)
+		if code := ctx.StatusCode(); code != 201 {
+			t.Errorf("StatusCode should be 201 after WriteHeader, got %d", code)
+		}
+	})
+
+	t.Run("WithCustomResponseWriter", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		rec := httptest.NewRecorder()
+		ctx := &Context{}
+		ctx.Reset(&customResponseWriter{recorder: rec}, req)
+
+		// Test before WriteHeader
+		if code := ctx.StatusCode(); code != 200 {
+			t.Errorf("StatusCode should be 200 before WriteHeader with custom RW, got %d", code)
+		}
+
+		// Test after WriteHeader
+		ctx.WriteHeader(404)
+		if code := ctx.StatusCode(); code != 404 {
+			t.Errorf("StatusCode should be 404 after WriteHeader, got %d", code)
+		}
+	})
+
+	t.Run("WithNilResponseWriter", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		ctx := &Context{}
+		ctx.Reset(nil, req)
+
+		// Test before WriteHeader
+		if code := ctx.StatusCode(); code != 0 {
+			t.Errorf("StatusCode should be 200 before WriteHeader with custom RW, got %d", code)
+		}
+	})
 }
 
-func (e *customErrorWithStatusCode) Error() string {
-	return e.msg
+type customResponseWriter struct {
+	recorder *httptest.ResponseRecorder
 }
 
-func (e *customErrorWithStatusCode) StatusCode() int {
-	return e.code
+func (c *customResponseWriter) Header() http.Header {
+	return c.recorder.Header()
+}
+
+func (c *customResponseWriter) Write(data []byte) (int, error) {
+	return c.recorder.Write(data)
+}
+
+func (c *customResponseWriter) WriteHeader(statusCode int) {
+	c.recorder.WriteHeader(statusCode)
+}
+
+func (c *customResponseWriter) StatusCode() int {
+	if c.recorder.Code == 0 {
+		return 200
+	}
+	return c.recorder.Code
 }
