@@ -89,8 +89,12 @@ func TestStartServerAddressParsing(t *testing.T) {
 		{"URL with scheme", "tcp://localhost:0"},
 	}
 
+	lock := new(sync.Mutex)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			lock.Lock()
+			defer lock.Unlock()
+
 			serveCalled := false
 			originalServe := serve
 			SetServeFunc(func(net.Listener, *http.Server) {
