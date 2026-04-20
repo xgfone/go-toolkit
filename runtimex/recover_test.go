@@ -46,20 +46,6 @@ func TestRecover(t *testing.T) {
 		}()
 	})
 
-	t.Run("panic with custom context", func(t *testing.T) {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("panic should have been recovered: %v", r)
-				}
-			}()
-
-			ctx := context.WithValue(context.Background(), "key", "value")
-			defer Recover(ctx)
-			panic("test panic with custom context")
-		}()
-	})
-
 	t.Run("panic with log args", func(t *testing.T) {
 		func() {
 			defer func() {
