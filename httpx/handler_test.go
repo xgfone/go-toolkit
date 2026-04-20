@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -101,4 +102,81 @@ func TestContextHandler(t *testing.T) {
 		return nil
 	}).ServeHTTP(rec, req)
 
+}
+
+func TestContextHandler_HTTPHandler(t *testing.T) {
+	// Test case 1: No context in request
+	t.Run("NoContext", func(t *testing.T) {
+		handler := ContextHandler(func(c *Context) error { return nil })
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("next handler should not be called when there's no context")
+		})
+
+		wrapped := handler.HTTPHandler(next)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/", nil)
+		wrapped.ServeHTTP(rec, req)
+
+		if rec.Code != 500 {
+			t.Errorf("expected status code 500, got %d", rec.Code)
+		}
+		if body := rec.Body.String(); body != "missing httpx.Context" {
+			t.Errorf("expected body 'missing httpx.Context', got '%s'", body)
+		}
+	})
+
+	// Test case 2: ContextHandler returns error
+	t.Run("HandlerError", func(t *testing.T) {
+		expectedErr := "test error"
+		handler := ContextHandler(func(c *Context) error { return fmt.Errorf(expectedErr) })
+
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("next handler should not be called when ContextHandler returns error")
+		})
+
+		wrapped := handler.HTTPHandler(next)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/", nil)
+
+		ctx := AcquireContext()
+		defer ReleaseContext(ctx)
+		req = req.WithContext(SetContext(req.Context(), ctx))
+
+		wrapped.ServeHTTP(rec, req)
+
+		if ctx.Error == nil {
+			t.Error("expected error to be appended to context")
+		} else if ctx.Error.Error() != expectedErr {
+			t.Errorf("expected error '%s', got '%s'", expectedErr, ctx.Error.Error())
+		}
+	})
+
+	// Test case 3: ContextHandler succeeds, next handler is called
+	t.Run("Success", func(t *testing.T) {
+		handler := ContextHandler(func(c *Context) error { return nil })
+
+		called := false
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(200)
+		})
+
+		wrapped := handler.HTTPHandler(next)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/", nil)
+
+		ctx := AcquireContext()
+		defer ReleaseContext(ctx)
+		req = req.WithContext(SetContext(req.Context(), ctx))
+
+		wrapped.ServeHTTP(rec, req)
+
+		if !called {
+			t.Error("next handler should be called when ContextHandler succeeds")
+		}
+		if rec.Code != 200 {
+			t.Errorf("expected status code 200, got %d", rec.Code)
+		}
+	})
 }

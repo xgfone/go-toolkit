@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/xgfone/go-toolkit/internal/render"
@@ -54,6 +55,11 @@ func XML(w http.ResponseWriter, code int, v any) (err error) {
 	return render.XML(w, code, v)
 }
 
+var (
+	_ http.Handler = ContextHandler(nil)
+	_ Middleware   = ContextHandler(nil)
+)
+
 // ContextHandler is the handler function for the request context.
 type ContextHandler func(c *Context) error
 
@@ -63,4 +69,18 @@ type ContextHandler func(c *Context) error
 func (h ContextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := GetContext(r.Context())
 	c.AppendError(h(c))
+}
+
+// HTTPHandler implements the Middleware interface.
+func (h ContextHandler) HTTPHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c := GetContext(r.Context()); c == nil {
+			w.WriteHeader(500)
+			_, _ = io.WriteString(w, "missing httpx.Context")
+		} else if err := h(c); err != nil {
+			c.AppendError(err)
+		} else {
+			next.ServeHTTP(w, r)
+		}
+	})
 }
