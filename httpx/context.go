@@ -36,11 +36,9 @@ var _ctxpool = sync.Pool{
 	},
 }
 
-// AcquireContext acquires a context from the pool and resets it with the given request.
-func AcquireContext(w http.ResponseWriter, r *http.Request) *Context {
-	c := _ctxpool.Get().(*Context)
-	c.Reset(w, r)
-	return c
+// AcquireContext acquires a context from the pool.
+func AcquireContext() *Context {
+	return _ctxpool.Get().(*Context)
 }
 
 // ReleaseContext releases the context back to the pool.

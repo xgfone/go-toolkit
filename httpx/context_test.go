@@ -33,7 +33,7 @@ func newContext(w http.ResponseWriter, r *http.Request) *Context {
 }
 
 func TestContext_AcquireRelease(t *testing.T) {
-	ctx := AcquireContext(nil, nil)
+	ctx := AcquireContext()
 	if ctx == nil {
 		t.Fatal("Context is nil")
 	}
