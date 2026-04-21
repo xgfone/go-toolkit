@@ -73,6 +73,9 @@ type Context struct {
 	Data mapx.SMap[any]
 
 	Error error
+
+	// w is the original http.ResponseWriter never implement ResponseWriter.
+	w http.ResponseWriter
 }
 
 // Reset resets the request context.
@@ -88,9 +91,10 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 
 	case ResponseWriter:
 		rw = _w
+		w = nil
 
 	default:
-		rw = newContextResponseWriter(c, w)
+		rw = newContextResponseWriter(c)
 	}
 
 	clear(c.Data)
@@ -100,6 +104,7 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 		ResponseWriter: rw,
 
 		Data: c.Data,
+		w:    w,
 	}
 }
 

@@ -15,18 +15,24 @@
 package httpx
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+func newResponseWriter(c *Context, w http.ResponseWriter) ResponseWriter {
+	c.w = w
+	return newContextResponseWriter(c)
+}
 
 func TestContextResponseWriter(t *testing.T) {
 	t.Run("Unwrap", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ctx := &Context{}
-		rw := newContextResponseWriter(ctx, rec)
+		rw := newResponseWriter(ctx, rec)
 
-		if crw, ok := rw.(_ContextResponseWriter); ok {
-			if crw.Unwrap() != rec {
+		if w, ok := rw.(interface{ Unwrap() http.ResponseWriter }); ok {
+			if w.Unwrap() != rec {
 				t.Error("Unwrap should return original ResponseWriter")
 			}
 		} else {
@@ -37,7 +43,7 @@ func TestContextResponseWriter(t *testing.T) {
 	t.Run("Header", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ctx := &Context{}
-		rw := newContextResponseWriter(ctx, rec)
+		rw := newResponseWriter(ctx, rec)
 
 		headers := rw.Header()
 		headers.Set("Content-Type", "application/json")
@@ -54,7 +60,7 @@ func TestContextResponseWriter(t *testing.T) {
 	t.Run("Write", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		ctx := &Context{}
-		rw := newContextResponseWriter(ctx, rec)
+		rw := newResponseWriter(ctx, rec)
 
 		data := []byte("test")
 		n, err := rw.Write(data)
@@ -79,7 +85,7 @@ func TestContextResponseWriter(t *testing.T) {
 		t.Run("ValidStatusCode", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 
 			rw.WriteHeader(201)
 			if rec.Code != 201 {
@@ -93,7 +99,7 @@ func TestContextResponseWriter(t *testing.T) {
 		t.Run("IgnoreSecondWriteHeader", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 
 			rw.WriteHeader(200)
 			rw.WriteHeader(404)
@@ -114,7 +120,7 @@ func TestContextResponseWriter(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 			rw.WriteHeader(99)
 		})
 	})
@@ -123,7 +129,7 @@ func TestContextResponseWriter(t *testing.T) {
 		t.Run("DefaultStatusCode", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 
 			if code := rw.StatusCode(); code != 0 {
 				t.Errorf("default status code should be 0, got %d", code)
@@ -133,7 +139,7 @@ func TestContextResponseWriter(t *testing.T) {
 		t.Run("AfterWriteHeader", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 
 			rw.WriteHeader(404)
 			if code := rw.StatusCode(); code != 404 {
@@ -144,7 +150,7 @@ func TestContextResponseWriter(t *testing.T) {
 		t.Run("AfterWrite", func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			ctx := &Context{}
-			rw := newContextResponseWriter(ctx, rec)
+			rw := newResponseWriter(ctx, rec)
 
 			rw.Write([]byte("test"))
 			if code := rw.StatusCode(); code != 200 {

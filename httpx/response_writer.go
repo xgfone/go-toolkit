@@ -29,39 +29,36 @@ type ResponseWriter interface {
 	StatusCode() int
 }
 
-type _ContextResponseWriter struct {
-	w http.ResponseWriter
-	c *Context
+type _ContextResponseWriter Context
+
+func newContextResponseWriter(c *Context) ResponseWriter {
+	return (*_ContextResponseWriter)(c)
 }
 
-func newContextResponseWriter(c *Context, w http.ResponseWriter) ResponseWriter {
-	return _ContextResponseWriter{c: c, w: w}
-}
-
-func (w _ContextResponseWriter) Unwrap() http.ResponseWriter {
+func (w *_ContextResponseWriter) Unwrap() http.ResponseWriter {
 	return w.w
 }
 
-func (w _ContextResponseWriter) Header() http.Header {
+func (w *_ContextResponseWriter) Header() http.Header {
 	return w.w.Header()
 }
 
-func (w _ContextResponseWriter) Write(p []byte) (int, error) {
+func (w *_ContextResponseWriter) Write(p []byte) (int, error) {
 	w.WriteHeader(200)
 	return w.w.Write(p)
 }
 
-func (w _ContextResponseWriter) WriteHeader(code int) {
+func (w *_ContextResponseWriter) WriteHeader(code int) {
 	if code < 100 {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
-	if w.c.Code == 0 {
-		w.c.Code = code
+	if w.Code == 0 {
+		w.Code = code
 		w.w.WriteHeader(code)
 	}
 }
 
-func (w _ContextResponseWriter) StatusCode() int {
-	return w.c.Code
+func (w *_ContextResponseWriter) StatusCode() int {
+	return w.Code
 }
