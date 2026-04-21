@@ -149,6 +149,11 @@ func (r Route) Group(group string) Route {
 	return r
 }
 
+// Prefix returns the route path prefix.
+func (r Route) Prefix() string {
+	return r.group
+}
+
 // Method sets the HTTP method for the route.
 func (r Route) Method(method string) Route {
 	r.method = method
