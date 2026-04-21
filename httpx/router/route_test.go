@@ -128,9 +128,14 @@ func TestRoute_Path(t *testing.T) {
 func TestRoute_Group(t *testing.T) {
 	router := New()
 
-	router.Group("/api").Path("/users").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	group := router.Group("/api")
+	group.Path("/users").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+
+	if prefix := group.Prefix(); prefix != "/api" {
+		t.Errorf("expected prefix /api, got %s", prefix)
+	}
 
 	req := httptest.NewRequest("GET", "/api/users", nil)
 	rr := httptest.NewRecorder()
