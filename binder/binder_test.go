@@ -22,10 +22,6 @@ import (
 
 var errBad = errors.New("bad text")
 
-type getter map[string]string
-
-func (g getter) Get(s string) string { return g[s] }
-
 type textValue string
 
 func (t *textValue) UnmarshalText(b []byte) error {
@@ -45,11 +41,11 @@ type bindTarget struct {
 	PText *textValue `q:"ptext"`
 }
 
-func TestBindGetter(t *testing.T) {
-	src := getter{"name": "alice", "age": "12", "text": "ok", "ptext": "pt"}
+func TestBindSMap(t *testing.T) {
+	src := map[string]string{"name": "alice", "age": "12", "text": "ok", "ptext": "pt"}
 
 	var dst bindTarget
-	if err := BindGetter(src, &dst, "q"); err != nil {
+	if err := BindSMap(src, &dst, "q"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -62,24 +58,24 @@ func TestBindGetter(t *testing.T) {
 func TestBindGetterErrors(t *testing.T) {
 	var err error
 
-	err = BindGetter(getter{}, (*bindTarget)(nil), "q")
+	err = BindGetter(_SMap{}, (*bindTarget)(nil), "q")
 	if err == nil || err.Error() != "dst is nil" {
 		t.Fatalf("got error %v", err)
 	}
 
 	var n int
-	err = BindGetter(getter{}, &n, "q")
+	err = BindGetter(_SMap{}, &n, "q")
 	if err == nil || err.Error() != "dst is not a pointer to struct" {
 		t.Fatalf("got error %v", err)
 	}
 
 	var dst bindTarget
-	err = BindGetter(getter{"age": "bad"}, &dst, "q")
+	err = BindGetter(_SMap{"age": "bad"}, &dst, "q")
 	if err == nil || !strings.Contains(err.Error(), `"age":`) {
 		t.Fatalf("got error %v", err)
 	}
 
-	err = BindGetter(getter{"text": "bad"}, &dst, "q")
+	err = BindGetter(_SMap{"text": "bad"}, &dst, "q")
 	if err == nil || !strings.Contains(err.Error(), `"text":`) {
 		t.Fatalf("got error %v", err)
 	}
