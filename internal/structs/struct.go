@@ -60,9 +60,12 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 			continue
 		}
 
-		name := parseTagName(sf.Tag.Get(tag))
-		if name == "-" {
-			continue
+		var name string
+		if tag != "" {
+			name = parseTagName(sf.Tag.Get(tag))
+			if name == "-" {
+				continue
+			}
 		}
 
 		ft := sf.Type
