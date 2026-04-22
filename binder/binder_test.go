@@ -18,6 +18,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/xgfone/go-toolkit/mapx"
 )
 
 var errBad = errors.New("bad text")
@@ -56,6 +58,7 @@ func TestBindSMap(t *testing.T) {
 }
 
 func TestBindGetterErrors(t *testing.T) {
+	type _SMap = mapx.SMap[string]
 	var err error
 
 	err = BindGetter(_SMap{}, (*bindTarget)(nil), "q")

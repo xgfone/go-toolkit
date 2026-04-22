@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	"github.com/xgfone/go-toolkit/internal/structs"
+	"github.com/xgfone/go-toolkit/mapx"
 )
 
 // Getter is an interface for getting a string value by a string key.
@@ -29,16 +30,10 @@ type Getter interface {
 	Get(string) string
 }
 
-type _SMap map[string]string
-
-func (m _SMap) Get(key string) string {
-	return m[key]
-}
-
 // BindSMap converts map[string]string to Getter and uses BindGetter
 // to bind map[string]string into dst.
 func BindSMap[M ~map[string]string, T any](src M, dst *T, tag string) error {
-	return BindGetter(_SMap(src), dst, tag)
+	return BindGetter(mapx.SMap[string](src), dst, tag)
 }
 
 // BindGetter binds values from src into dst based on the field tag name.
