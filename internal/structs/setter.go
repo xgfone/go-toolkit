@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/xgfone/go-toolkit/reflectx"
 	"github.com/xgfone/go-toolkit/unsafex"
 )
 
@@ -36,14 +37,14 @@ func CompileSetter(t reflect.Type) SetterFunc {
 		return compileSetterPointer(t)
 	}
 
-	if reflect.PointerTo(t).Implements(textUnmarshalerType) {
+	if reflectx.Implements(reflect.PointerTo(t), textUnmarshalerType) {
 		return setValueInterface
 	}
 	return compileSetter(t)
 }
 
 func compileSetterPointer(t reflect.Type) SetterFunc {
-	if t.Implements(textUnmarshalerType) {
+	if reflectx.Implements(t, textUnmarshalerType) {
 		return setPointerInterface
 	}
 
