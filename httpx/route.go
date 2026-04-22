@@ -26,6 +26,9 @@ type Route struct {
 	Path   string `json:",omitempty"`
 	Method string `json:",omitempty"`
 
+	// Whether the route is registered successfully.
+	Online bool `json:",omitempty"`
+
 	http.Handler `json:"-"`
 }
 

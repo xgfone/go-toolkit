@@ -343,15 +343,25 @@ func TestNewServeMuxBackend_RegisterRoute(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
 
+	route1 := &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler201}
+	route2 := &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler204}
+
 	server := http.NewServeMux()
-	registerRoute(server, &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler201})
-	registerRoute(server, &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler204})
+	registerRoute(server, route1)
+	registerRoute(server, route2)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
 	server.ServeHTTP(rec, req)
 	if rec.Code != 201 {
 		t.Errorf("expect status code %d, but got %d", 201, rec.Code)
+	}
+
+	if !route1.Online {
+		t.Error("expect that route1 is registered, but got not")
+	}
+	if route2.Online {
+		t.Error("expect that route1 is not registered, but registered")
 	}
 
 	const expected = "fail to register the http route"
