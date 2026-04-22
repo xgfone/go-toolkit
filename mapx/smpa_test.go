@@ -27,3 +27,13 @@ func TestNewSMap(t *testing.T) {
 		t.Errorf("expect len(m) == 1, got %d", len(m))
 	}
 }
+
+func TestSMap_Get(t *testing.T) {
+	m := SMap[int]{"a": 123}
+	if v := m.Get("a"); v != 123 {
+		t.Errorf("expect m.Get(\"a\") == 123, got %d", v)
+	}
+	if v := m.Get("b"); v != 0 {
+		t.Errorf("expect m.Get(\"b\") == 0, got %d", v)
+	}
+}

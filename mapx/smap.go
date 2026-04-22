@@ -21,3 +21,8 @@ type SMap[T any] map[string]T
 func NewSMap[T any](cap int) SMap[T] {
 	return make(SMap[T], cap)
 }
+
+// Get returns the value of the given key, but ZERO if the key does not exist.
+func (m SMap[T]) Get(key string) T {
+	return m[key]
+}
