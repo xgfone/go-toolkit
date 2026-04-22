@@ -16,6 +16,7 @@ package router
 
 import (
 	"go/token"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -89,7 +90,7 @@ func newServeMuxBackend(routes []httpx.Route, notfound http.Handler) http.Handle
 	server := http.NewServeMux()
 	for i := range routes {
 		route := &routes[i]
-		server.Handle(route.Pattern(), route.Handler)
+		registerRoute(server, route)
 		hasall = hasall || route.Path == "/" || isWildcardRoute(route.Path)
 	}
 
@@ -97,6 +98,18 @@ func newServeMuxBackend(routes []httpx.Route, notfound http.Handler) http.Handle
 		server.Handle("/", notfound)
 	}
 	return server
+}
+
+func registerRoute(server *http.ServeMux, route *httpx.Route) {
+	pattern := route.Pattern()
+	defer recoverRoutePanic(pattern)
+	server.Handle(pattern, route.Handler)
+}
+
+func recoverRoutePanic(pattern string) {
+	if r := recover(); r != nil {
+		slog.Error("fail to register the http route", "pattern", pattern, "err", r)
+	}
 }
 
 func isWildcardRoute(path string) bool {

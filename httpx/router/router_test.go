@@ -15,8 +15,11 @@
 package router
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/xgfone/go-toolkit/httpx"
@@ -330,5 +333,29 @@ func TestNewServeMuxBackend_WildcardRoutes(t *testing.T) {
 
 	if rr2.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 for root without catch-all route, got %d", rr2.Code)
+	}
+}
+
+func TestNewServeMuxBackend_RegisterRoute(t *testing.T) {
+	origlogger := slog.Default()
+	defer func() { slog.SetDefault(origlogger) }()
+
+	buf := bytes.NewBuffer(nil)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
+
+	server := http.NewServeMux()
+	registerRoute(server, &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler201})
+	registerRoute(server, &httpx.Route{Path: "/", Method: "GET", Handler: httpx.Handler204})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+	server.ServeHTTP(rec, req)
+	if rec.Code != 201 {
+		t.Errorf("expect status code %d, but got %d", 201, rec.Code)
+	}
+
+	const expected = "fail to register the http route"
+	if s := strings.TrimSpace(buf.String()); !strings.Contains(s, expected) {
+		t.Errorf("expect log message to contain '%s', but got '%s'", expected, s)
 	}
 }

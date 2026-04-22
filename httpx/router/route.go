@@ -110,10 +110,12 @@ func (r Route) Auth(auth httpx.Middleware) Route {
 
 // Path sets the route path.
 //
-// Note: The path must be empty or start with /.
+// Note: The path must be empty or start with /. If the path is empty or "/",
+// use the group prefix without the suffix "/" as the path instead.
 func (r Route) Path(path string) Route {
 	path = normalizePath(path)
 	if path == "" || path == "/" {
+		r.path = r.group
 		return r
 	}
 
