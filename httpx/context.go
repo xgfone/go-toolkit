@@ -72,7 +72,8 @@ type Context struct {
 	Auth any
 	Data mapx.SMap[any]
 
-	Error error
+	Error    error // The error occurred during the request
+	Response any   // The response information, such as response body
 
 	// w is the original http.ResponseWriter never implement ResponseWriter.
 	w http.ResponseWriter
@@ -218,6 +219,10 @@ func SetRespond(f func(*Context, result.Response)) {
 }
 
 func defaultRespond(c *Context, response result.Response) {
+	if !response.IsZero() {
+		c.Response = response
+	}
+
 	if response.Error != nil {
 		respondError(c, response)
 	} else if response.Data != nil {
