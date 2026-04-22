@@ -23,6 +23,9 @@ var (
 	// PhoneDesensitizer is used to desensitize the phone.
 	PhoneDesensitizer = NewDesensitizer(3, 4)
 
+	// ShortDesensitizer is used to desensitize the short string.
+	ShortDesensitizer = NewDesensitizer(2, 2)
+
 	// DefaultDesensitizer is the common desensitizer.
 	DefaultDesensitizer = NewDesensitizer(4, 4)
 )
