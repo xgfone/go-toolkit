@@ -28,6 +28,8 @@ var (
 
 	// DefaultDesensitizer is the common desensitizer.
 	DefaultDesensitizer = NewDesensitizer(4, 4)
+
+	PasswordDesensitizer = NewDesensitizer(0, 0).WithChars("********")
 )
 
 // Desensitizer is used to desensitize a string.
