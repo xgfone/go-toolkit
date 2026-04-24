@@ -178,13 +178,13 @@ func TestContextResponseWriter(t *testing.T) {
 		}
 	})
 
-	t.Run("GetContext", func(t *testing.T) {
+	t.Run("HTTPContext", func(t *testing.T) {
 		ctx := &Context{}
 		rec := httptest.NewRecorder()
 		rw := newResponseWriter(ctx, rec)
-		if v, ok := rw.(interface{ GetContext() *Context }); !ok {
+		if v, ok := rw.(interface{ HTTPContext() *Context }); !ok {
 			t.Errorf("rw should implement GetContext method")
-		} else if ctx2 := v.GetContext(); ctx2 != ctx {
+		} else if ctx2 := v.HTTPContext(); ctx2 != ctx {
 			t.Errorf("GetContext should return the original context")
 		}
 	})

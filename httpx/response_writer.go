@@ -67,6 +67,6 @@ func (w *_ContextResponseWriter) JSON(code int, v any) {
 	(*Context)(w).JSON(code, v)
 }
 
-func (w *_ContextResponseWriter) GetContext() *Context {
+func (w *_ContextResponseWriter) HTTPContext() *Context {
 	return (*Context)(w)
 }
