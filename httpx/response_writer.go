@@ -62,3 +62,11 @@ func (w *_ContextResponseWriter) WriteHeader(code int) {
 func (w *_ContextResponseWriter) StatusCode() int {
 	return w.Code
 }
+
+func (w *_ContextResponseWriter) JSON(code int, v any) {
+	(*Context)(w).JSON(code, v)
+}
+
+func (w *_ContextResponseWriter) GetContext() *Context {
+	return (*Context)(w)
+}

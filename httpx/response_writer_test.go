@@ -17,6 +17,7 @@ package httpx
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -157,5 +158,34 @@ func TestContextResponseWriter(t *testing.T) {
 				t.Errorf("status code should be 200 after Write, got %d", code)
 			}
 		})
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		ctx := &Context{}
+		rec := httptest.NewRecorder()
+		rw := newResponseWriter(ctx, rec)
+		ctx.ResponseWriter = rw
+
+		if v, ok := rw.(interface{ JSON(int, any) }); !ok {
+			t.Errorf("rw should implement JSON method")
+		} else {
+			v.JSON(201, map[string]string{"a": "b"})
+			if rec.Code != 201 {
+				t.Errorf("status code should be 200, got %d", rec.Code)
+			} else if s := strings.TrimSpace(rec.Body.String()); s != `{"a":"b"}` {
+				t.Errorf("response body should be '%s', got '%s'", `{"a":"b"}`, s)
+			}
+		}
+	})
+
+	t.Run("GetContext", func(t *testing.T) {
+		ctx := &Context{}
+		rec := httptest.NewRecorder()
+		rw := newResponseWriter(ctx, rec)
+		if v, ok := rw.(interface{ GetContext() *Context }); !ok {
+			t.Errorf("rw should implement GetContext method")
+		} else if ctx2 := v.GetContext(); ctx2 != ctx {
+			t.Errorf("GetContext should return the original context")
+		}
 	})
 }
