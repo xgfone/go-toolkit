@@ -15,7 +15,6 @@
 package structs
 
 import (
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -172,51 +171,36 @@ func TestSetValueSuccess(t *testing.T) {
 	}
 }
 
-func TestSetValueError(t *testing.T) {
-	field := Field{
-		GetField: func(root reflect.Value) (reflect.Type, reflect.Value, error) {
-			return nil, reflect.Value{}, errors.New("get")
-		},
-		SetField: func(t reflect.Type, dst reflect.Value, src string) error {
-			return errors.New("set")
-		},
-	}
-
-	root := reflect.ValueOf(new(int)).Elem()
-	if err := field.SetValue(root, "123"); err == nil {
-		t.Error("expected error, got nil")
-	} else if s := err.Error(); s != "get" {
-		t.Errorf("got error %q, want %q", s, "get")
-	}
-}
-
 // --- Error path ---
 
-func TestMakeFieldGetter(t *testing.T) {
-	var dst embedNamed
-	root := reflect.ValueOf(&dst).Elem()
-
-	// index [0, 0, 0]: embedMe.A is int, not struct -> "invalid field path"
-	_, _, err := makeFieldGetter([]int{0, 0, 0}, reflect.TypeFor[int]())(root)
-	if err == nil || err.Error() != "invalid field path" {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestFieldByIndexAllocErrors(t *testing.T) {
-	var err error
-
-	_, err = fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), nil)
-	if err == nil || err.Error() != "empty field index" {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected panic for empty field index")
+			}
+			if msg, ok := r.(string); !ok || msg != "empty field index" {
+				t.Fatalf("unexpected panic message: %v", r)
+			}
+		}()
+		fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), nil)
+	}()
 
 	// index [2]: C int, not struct. But it's len=1 so returns C directly (no error).
 	// Use [2, 0] instead: C int is not the last level -> "invalid field path".
-	_, err = fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), []int{2, 0})
-	if err == nil || err.Error() != "invalid field path" {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected panic for invalid field path")
+			}
+			if msg, ok := r.(string); !ok || msg != "invalid field path" {
+				t.Fatalf("unexpected panic message: %v", r)
+			}
+		}()
+		fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), []int{2, 0})
+	}()
 }
 
 func TestFieldByIndexAllocPointerStruct(t *testing.T) {
@@ -225,15 +209,23 @@ func TestFieldByIndexAllocPointerStruct(t *testing.T) {
 	type badHolder struct{ P *int }
 
 	h := holder{}
-	v, err := fieldByIndexAlloc(reflect.ValueOf(&h).Elem(), []int{0, 0})
-	if err != nil || !v.IsValid() || h.P == nil {
-		t.Fatalf("unexpected result: %v %v %#v", v, err, h)
+	v := fieldByIndexAlloc(reflect.ValueOf(&h).Elem(), []int{0, 0})
+	if !v.IsValid() || h.P == nil {
+		t.Fatalf("unexpected result: %v %#v", v, h)
 	}
 
-	_, err = fieldByIndexAlloc(reflect.ValueOf(badHolder{}), []int{0, 0})
-	if err == nil || err.Error() != "non-struct pointer in field path" {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	func() {
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected panic for non-struct pointer in field path")
+			}
+			if msg, ok := r.(string); !ok || msg != "non-struct pointer in field path" {
+				t.Fatalf("unexpected panic message: %v", r)
+			}
+		}()
+		fieldByIndexAlloc(reflect.ValueOf(badHolder{}), []int{0, 0})
+	}()
 }
 
 func TestFieldByIndexAllocPointerNonNil(t *testing.T) {
@@ -244,10 +236,7 @@ func TestFieldByIndexAllocPointerNonNil(t *testing.T) {
 
 	v := &outer{P: &inner{X: 42}}
 	rv := reflect.ValueOf(v).Elem()
-	fv, err := fieldByIndexAlloc(rv, []int{0, 0})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	fv := fieldByIndexAlloc(rv, []int{0, 0})
 	if !fv.IsValid() {
 		t.Fatal("returned value is invalid")
 	}

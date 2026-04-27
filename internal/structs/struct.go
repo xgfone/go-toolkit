@@ -15,7 +15,6 @@
 package structs
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"sync"
@@ -38,13 +37,10 @@ type Field struct {
 	GetField FieldGetter
 }
 
-type FieldGetter func(root reflect.Value) (reflect.Type, reflect.Value, error)
+type FieldGetter func(root reflect.Value) (reflect.Type, reflect.Value)
 
 func (f *Field) SetValue(root reflect.Value, value string) error {
-	rtype, rvalue, err := f.GetField(root)
-	if err != nil {
-		return err
-	}
+	rtype, rvalue := f.GetField(root)
 	return f.SetField(rtype, rvalue, value)
 }
 
@@ -154,20 +150,18 @@ func appendIndex(parent []int, i int) []int {
 }
 
 func makeFieldGetter(index []int, rtype reflect.Type) FieldGetter {
-	return func(root reflect.Value) (reflect.Type, reflect.Value, error) {
-		rvalue, err := fieldByIndexAlloc(root, index)
-		return rtype, rvalue, err
+	return func(root reflect.Value) (reflect.Type, reflect.Value) {
+		return rtype, fieldByIndexAlloc(root, index)
 	}
 }
 
-func fieldByIndexAlloc(v reflect.Value, index []int) (reflect.Value, error) {
+func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {
 	cur := v
 
 	for i, x := range index {
 		f := cur.Field(x)
-
 		if i == len(index)-1 {
-			return f, nil
+			return f
 		}
 
 		// When traversing through an anonymous (embedded) pointer field,
@@ -176,7 +170,7 @@ func fieldByIndexAlloc(v reflect.Value, index []int) (reflect.Value, error) {
 		// on the original addressable value instead.
 		if f.Kind() == reflect.Pointer {
 			if f.Type().Elem().Kind() != reflect.Struct {
-				return reflect.Value{}, errors.New("non-struct pointer in field path")
+				panic("non-struct pointer in field path")
 			}
 
 			if f.IsNil() {
@@ -194,11 +188,11 @@ func fieldByIndexAlloc(v reflect.Value, index []int) (reflect.Value, error) {
 		}
 
 		if f.Kind() != reflect.Struct {
-			return reflect.Value{}, errors.New("invalid field path")
+			panic("invalid field path")
 		}
 
 		cur = f
 	}
 
-	return reflect.Value{}, errors.New("empty field index")
+	panic("empty field index")
 }

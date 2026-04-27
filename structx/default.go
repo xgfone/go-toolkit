@@ -48,11 +48,12 @@ func SetDefault[Struct any](v *Struct) (err error) {
 			continue
 		}
 
-		rtype, rvalue, err := f.GetField(root)
-		if err == nil && rvalue.IsZero() {
-			err = f.SetField(rtype, rvalue, f.Default)
+		rtype, rvalue := f.GetField(root)
+		if !rvalue.IsZero() {
+			continue
 		}
-		if err != nil {
+
+		if err = f.SetField(rtype, rvalue, f.Default); err != nil {
 			return fmt.Errorf("%q: %w", f.Name, err)
 		}
 	}
