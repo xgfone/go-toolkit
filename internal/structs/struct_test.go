@@ -246,6 +246,26 @@ func TestFieldByIndexAllocPointerStruct(t *testing.T) {
 	}
 }
 
+func TestFieldByIndexAllocPointerNonNil(t *testing.T) {
+	// Covers the "else" branch in fieldByIndexAlloc where a non-nil
+	// pointer field is an intermediate node (not the last index element).
+	type inner struct{ X int }
+	type outer struct{ P *inner }
+
+	v := &outer{P: &inner{X: 42}}
+	rv := reflect.ValueOf(v).Elem()
+	fv, err := fieldByIndexAlloc(rv, []int{0, 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !fv.IsValid() {
+		t.Fatal("returned value is invalid")
+	}
+	if fv.Int() != 42 {
+		t.Fatalf("expected 42, got %d", fv.Int())
+	}
+}
+
 // --- Other ---
 
 func TestParseCache(t *testing.T) {

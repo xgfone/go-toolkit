@@ -161,22 +161,34 @@ func fieldByIndexAlloc(v reflect.Value, index []int) (reflect.Value, error) {
 			return f, nil
 		}
 
-		switch f.Kind() {
-		case reflect.Struct:
-			cur = f
-
-		case reflect.Pointer:
+		// When traversing through an anonymous (embedded) pointer field,
+		// reflect.Value.Field returns a value that is NOT addressable/settable
+		// even if the parent struct is addressable. We must use FieldByIndex
+		// on the original addressable value instead.
+		if f.Kind() == reflect.Pointer {
 			if f.Type().Elem().Kind() != reflect.Struct {
 				return reflect.Value{}, errors.New("non-struct pointer in field path")
 			}
-			if f.IsNil() {
-				f.Set(reflect.New(f.Type().Elem()))
-			}
-			cur = f.Elem()
 
-		default:
+			if f.IsNil() {
+				// Allocate through the original struct by creating the
+				// intermediate pointer at index[:i+1].
+				f = v.FieldByIndex(index[:i+1])
+				f.Set(reflect.New(f.Type().Elem()))
+				f = f.Elem()
+			} else {
+				f = f.Elem()
+			}
+
+			cur = f
+			continue
+		}
+
+		if f.Kind() != reflect.Struct {
 			return reflect.Value{}, errors.New("invalid field path")
 		}
+
+		cur = f
 	}
 
 	return reflect.Value{}, errors.New("empty field index")
