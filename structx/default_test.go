@@ -296,7 +296,7 @@ func TestSetDefaultMultipleCalls(t *testing.T) {
 func TestSetDefaultUnexportedField(t *testing.T) {
 	type testUnexported struct {
 		Name   string `default:"visible"`
-		hidden string `default:"invisible"`
+		hidden string `default:"invisible"` //nolint:unused
 	}
 	v := &testUnexported{}
 	if err := SetDefault(v); err != nil {
@@ -441,6 +441,7 @@ func TestSetDefaultEmbeddedPointerStructAlreadySet(t *testing.T) {
 		t.Errorf("Key: expect %q, got %q (should not be overwritten)", "existing_key", v.Key)
 	}
 	if v.Value != 999 {
+		t.Errorf("Value: expect %d, got %d (should not be overwritten)", 999, v.Value)
 	}
 }
 
@@ -487,9 +488,9 @@ func TestSetDefaultWrappedTypeEmbed(t *testing.T) {
 	if err := SetDefault(v); err != nil {
 		t.Fatal(err)
 	}
-	// testDefaultWrapTime is a named type wrapping time.Time; it has no "default"
-	// tag and no exported fields of its own (it's just a time.Time alias),
-	// so it should appear as a single regular field with no default.
+	if _t := time.Time(v.testDefaultWrapTime); !_t.IsZero() {
+		t.Errorf("expect ZERO time, but got %s", _t.Format(time.RFC3339Nano))
+	}
 	if v.Desc != "wrap_desc" {
 		t.Errorf("Desc: expect %q, got %q", "wrap_desc", v.Desc)
 	}
@@ -598,8 +599,9 @@ func TestSetDefaultHiddenEmbed(t *testing.T) {
 	if err := SetDefault(v); err != nil {
 		t.Fatal(err)
 	}
-	// testDefaultEmbNoExport has no exported fields, so it should be skipped.
-	// testDefaultUnexportedEmb has exported field "X", so it should be expanded.
+	if v.x != 0 || v.y != "" {
+		t.Errorf("x: expect %d, got %d; y: expect %q, got %q", 0, v.x, "", v.y)
+	}
 	if v.X != "unexported_emb_x" {
 		t.Errorf("X: expect %q, got %q", "unexported_emb_x", v.X)
 	}
