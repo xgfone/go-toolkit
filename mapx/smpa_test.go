@@ -37,3 +37,22 @@ func TestSMap_Get(t *testing.T) {
 		t.Errorf("expect m.Get(\"b\") == 0, got %d", v)
 	}
 }
+
+func TestSMap_IsZero(t *testing.T) {
+	var m SMap[int]
+	if !m.IsZero() {
+		t.Error("expect m.IsZero() == true, got false")
+	}
+
+	m = make(SMap[int], 10)
+	if !m.IsZero() {
+		t.Error("expect m.IsZero() == true, got false")
+	}
+
+	m["a"] = 123
+	if m.IsZero() {
+		t.Error("expect m.IsZero() == false, got true")
+	} else if v := m["a"]; v != 123 {
+		t.Errorf(`expect m["a"] == 123, got %d`, v)
+	}
+}

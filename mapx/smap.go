@@ -26,3 +26,8 @@ func NewSMap[T any](cap int) SMap[T] {
 func (m SMap[T]) Get(key string) T {
 	return m[key]
 }
+
+// IsZero reports whether the map is ZERO.
+func (m SMap[T]) IsZero() bool {
+	return len(m) == 0
+}
