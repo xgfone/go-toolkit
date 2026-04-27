@@ -266,6 +266,72 @@ func TestFieldByIndexAllocPointerNonNil(t *testing.T) {
 	}
 }
 
+// Named struct field (not anonymous) — expanded into its sub-fields.
+type namedStructFieldHost struct {
+	Key string `q:"key"`
+}
+
+type namedStructFieldOuter struct {
+	Inner namedStructFieldHost
+	Label string `q:"label"`
+}
+
+func TestExpandNamedStructField(t *testing.T) {
+	typ := reflect.TypeFor[namedStructFieldOuter]()
+	s := Parse(typ, "q")
+	checkFields(t, s, "key", "label")
+}
+
+// Named pointer-to-struct field — expanded into its sub-fields.
+type namedPtrStructFieldHost struct {
+	N int `q:"n"`
+}
+
+type namedPtrStructFieldOuter struct {
+	Inner *namedPtrStructFieldHost
+	Name  string `q:"name"`
+}
+
+func TestExpandNamedPointerStructField(t *testing.T) {
+	typ := reflect.TypeFor[namedPtrStructFieldOuter]()
+	s := Parse(typ, "q")
+	checkFields(t, s, "n", "name")
+}
+
+// Named struct field without exported sub-fields — not expanded.
+type namedStructNoExport struct {
+	Named struct {
+		x int // unexported
+	}
+	Tag string `q:"tag"`
+}
+
+func TestNotExpandNamedStructNoExportedFields(t *testing.T) {
+	typ := reflect.TypeFor[namedStructNoExport]()
+	s := Parse(typ, "q")
+	// Named has no exported sub-fields, so it stays as a single field.
+	checkFields(t, s, "Named", "tag")
+}
+
+// Unexported named struct field with exported sub-fields
+// covers the "!sf.IsExported()" branch in parseWithParent
+// when processing struct-typed named fields.
+type unexportedNamedStructFieldHost struct {
+	Val int `q:"val"`
+}
+
+type unexportedNamedStructOuter struct {
+	inner unexportedNamedStructFieldHost
+	Tag   string `q:"tag"`
+}
+
+func TestNotExpandUnexportedNamedStructField(t *testing.T) {
+	typ := reflect.TypeFor[unexportedNamedStructOuter]()
+	s := Parse(typ, "q")
+	// inner is unexported, so it is skipped entirely.
+	checkFields(t, s, "tag")
+}
+
 // --- Other ---
 
 func TestParseCache(t *testing.T) {

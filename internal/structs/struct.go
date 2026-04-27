@@ -79,11 +79,21 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 
 		index := appendIndex(parent, i)
 
-		// Handle anonymous embedded structs first, before the IsExported check.
-		// Even if the embedded field itself is unexported, its exported sub-fields
-		// can still be accessed via reflect.FieldByIndex (the reflect package allows
-		// traversing through unexported structs to reach exported fields).
-		if sf.Anonymous && ft.Kind() == reflect.Struct && hasExportedField(ft) {
+		// Expand struct-typed fields by recursively parsing their
+		// sub-fields so they are discoverable by callers.
+		//
+		// A struct field is expanded only when it has at least one exported
+		// sub-field (hasExportedField) AND it is either:
+		//   - an anonymous embedded field, or
+		//   - an exported named field.
+		//
+		// Anonymous embedded structs are checked before the IsExported test
+		// below because reflect.FieldByIndex permits traversing through an
+		// unexported anonymous struct to reach its exported sub-fields.
+		//
+		// Struct-typed fields without exported sub-fields fall through to
+		// the normal path below and are added as a single opaque field.
+		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
 			fields = append(fields, parseWithParent(ft, tag, index)...)
 			continue
 		}
