@@ -48,7 +48,11 @@ func SetDefault[Struct any](v *Struct) (err error) {
 			continue
 		}
 
-		if err = f.SetValue(root, f.Default, structs.SetFlagOnlyZero); err != nil {
+		rtype, rvalue, err := f.GetField(root)
+		if err == nil && rvalue.IsZero() {
+			err = f.SetField(rtype, rvalue, f.Default)
+		}
+		if err != nil {
 			return fmt.Errorf("%q: %w", f.Name, err)
 		}
 	}

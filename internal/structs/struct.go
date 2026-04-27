@@ -21,11 +21,6 @@ import (
 	"sync"
 )
 
-const (
-	SetFlagOnlyZero int8 = 0
-	SetFlagForce    int8 = 1
-)
-
 type mapKey struct {
 	typ reflect.Type
 	tag string
@@ -39,8 +34,18 @@ type Field struct {
 	Name    string
 	Default string
 
-	// flag: SetFlagOnlyZero or SetFlagForce
-	SetValue func(root reflect.Value, s string, flag int8) error
+	SetField SetterFunc
+	GetField FieldGetter
+}
+
+type FieldGetter func(root reflect.Value) (reflect.Type, reflect.Value, error)
+
+func (f *Field) SetValue(root reflect.Value, value string) error {
+	rtype, rvalue, err := f.GetField(root)
+	if err != nil {
+		return err
+	}
+	return f.SetField(rtype, rvalue, value)
 }
 
 var structs sync.Map // map[mapKey]*Struct
@@ -109,7 +114,8 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 		fields = append(fields, Field{
 			Name:     name,
 			Default:  sf.Tag.Get("default"),
-			SetValue: makeValueSetter(index, sf.Type),
+			SetField: CompileSetter(sf.Type),
+			GetField: makeFieldGetter(index, sf.Type),
 		})
 	}
 
@@ -147,17 +153,10 @@ func appendIndex(parent []int, i int) []int {
 	return index
 }
 
-func makeValueSetter(index []int, rtype reflect.Type) func(root reflect.Value, s string, flag int8) error {
-	setter := CompileSetter(rtype)
-	return func(root reflect.Value, s string, flag int8) error {
-		fv, err := fieldByIndexAlloc(root, index)
-		if err != nil {
-			return err
-		}
-		if flag == SetFlagOnlyZero && !fv.IsZero() {
-			return nil
-		}
-		return setter(rtype, fv, s)
+func makeFieldGetter(index []int, rtype reflect.Type) FieldGetter {
+	return func(root reflect.Value) (reflect.Type, reflect.Value, error) {
+		rvalue, err := fieldByIndexAlloc(root, index)
+		return rtype, rvalue, err
 	}
 }
 

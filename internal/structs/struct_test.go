@@ -15,6 +15,7 @@
 package structs
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -66,10 +67,10 @@ type flatFields struct {
 
 // --- Helper ---
 
-func mustSet(t *testing.T, f Field, root reflect.Value, s string, flag int8) {
+func mustSet(t *testing.T, f Field, root reflect.Value, s string) {
 	t.Helper()
-	if err := f.SetValue(root, s, flag); err != nil {
-		t.Fatalf("SetValue(%q, %d): %v", s, flag, err)
+	if err := f.SetValue(root, s); err != nil {
+		t.Fatalf("SetValue(%q): %v", s, err)
 	}
 }
 
@@ -152,7 +153,7 @@ func TestExpandUnexportedEmbed(t *testing.T) {
 
 // --- SetValue tests ---
 
-func TestSetValueForce(t *testing.T) {
+func TestSetValueSuccess(t *testing.T) {
 	typ := reflect.TypeFor[embedNamed]()
 	s := Parse(typ, "q")
 
@@ -163,51 +164,40 @@ func TestSetValueForce(t *testing.T) {
 
 	var dst embedNamed
 	root := reflect.ValueOf(&dst).Elem()
-	mustSet(t, fields["a"], root, "10", SetFlagForce)
-	mustSet(t, fields["b"], root, "hello", SetFlagForce)
-	mustSet(t, fields["c"], root, "99", SetFlagForce)
+	mustSet(t, fields["a"], root, "10")
+	mustSet(t, fields["b"], root, "hello")
+	mustSet(t, fields["c"], root, "99")
 	if dst.A != 10 || dst.B != "hello" || dst.C != 99 {
 		t.Fatalf("got A=%d B=%q C=%d", dst.A, dst.B, dst.C)
 	}
 }
 
-func TestSetValueOnlyZero(t *testing.T) {
-	typ := reflect.TypeFor[flatFields]()
-	s := Parse(typ, "q")
-
-	fields := make(map[string]Field, len(s.Fields))
-	for _, f := range s.Fields {
-		fields[f.Name] = f
+func TestSetValueError(t *testing.T) {
+	field := Field{
+		GetField: func(root reflect.Value) (reflect.Type, reflect.Value, error) {
+			return nil, reflect.Value{}, errors.New("get")
+		},
+		SetField: func(t reflect.Type, dst reflect.Value, src string) error {
+			return errors.New("set")
+		},
 	}
 
-	var dst flatFields
-	root := reflect.ValueOf(&dst).Elem()
-	mustSet(t, fields["name"], root, "initial", SetFlagForce)
-	mustSet(t, fields["value"], root, "42", SetFlagForce)
-
-	// Non-zero field with SetFlagOnlyZero → skip.
-	mustSet(t, fields["name"], root, "changed", SetFlagOnlyZero)
-	if dst.Name != "initial" {
-		t.Fatalf("SetFlagOnlyZero overwrote non-zero Name: got %q", dst.Name)
-	}
-
-	// Zero field with SetFlagOnlyZero → set value.
-	var dst2 flatFields
-	root2 := reflect.ValueOf(&dst2).Elem()
-	mustSet(t, fields["name"], root2, "new", SetFlagOnlyZero)
-	if dst2.Name != "new" {
-		t.Fatalf("SetFlagOnlyZero on zero Name: got %q", dst2.Name)
+	root := reflect.ValueOf(new(int)).Elem()
+	if err := field.SetValue(root, "123"); err == nil {
+		t.Error("expected error, got nil")
+	} else if s := err.Error(); s != "get" {
+		t.Errorf("got error %q, want %q", s, "get")
 	}
 }
 
 // --- Error path ---
 
-func TestSetValueError(t *testing.T) {
+func TestMakeFieldGetter(t *testing.T) {
 	var dst embedNamed
 	root := reflect.ValueOf(&dst).Elem()
 
 	// index [0, 0, 0]: embedMe.A is int, not struct -> "invalid field path"
-	err := makeValueSetter([]int{0, 0, 0}, reflect.TypeFor[int]())(root, "1", SetFlagForce)
+	_, _, err := makeFieldGetter([]int{0, 0, 0}, reflect.TypeFor[int]())(root)
 	if err == nil || err.Error() != "invalid field path" {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -316,13 +306,14 @@ func TestNotExpandNamedStructNoExportedFields(t *testing.T) {
 // Unexported named struct field with exported sub-fields
 // covers the "!sf.IsExported()" branch in parseWithParent
 // when processing struct-typed named fields.
-type unexportedNamedStructFieldHost struct {
+type unexportedNamedStructFieldHost struct { //nolint:unused
 	Val int `q:"val"`
 }
 
 type unexportedNamedStructOuter struct {
-	inner unexportedNamedStructFieldHost
-	Tag   string `q:"tag"`
+	inner unexportedNamedStructFieldHost //nolint:unused
+
+	Tag string `q:"tag"`
 }
 
 func TestNotExpandUnexportedNamedStructField(t *testing.T) {

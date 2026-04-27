@@ -56,13 +56,18 @@ func BenchmarkParseMiss(b *testing.B) {
 }
 
 func BenchmarkFieldSetValueInt(b *testing.B) {
-	field := makeValueSetter([]int{0}, reflect.TypeFor[int]())
+	rtype := reflect.TypeFor[int]()
+	field := Field{
+		SetField: CompileSetter(rtype),
+		GetField: makeFieldGetter([]int{0}, rtype),
+	}
+
 	root := reflect.ValueOf(&struct{ N int }{}).Elem()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := field(root, "123", SetFlagForce); err != nil {
+		if err := field.SetValue(root, "123"); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -70,13 +75,18 @@ func BenchmarkFieldSetValueInt(b *testing.B) {
 }
 
 func BenchmarkFieldSetValueText(b *testing.B) {
-	field := makeValueSetter([]int{0}, reflect.TypeFor[benchText]())
+	rtype := reflect.TypeFor[benchText]()
+	field := Field{
+		SetField: CompileSetter(rtype),
+		GetField: makeFieldGetter([]int{0}, rtype),
+	}
+
 	root := reflect.ValueOf(&struct{ T benchText }{}).Elem()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := field(root, "abc", SetFlagForce); err != nil {
+		if err := field.SetValue(root, "abc"); err != nil {
 			b.Fatal(err)
 		}
 	}
