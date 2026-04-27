@@ -32,7 +32,7 @@ type Getter interface {
 
 // BindSMap converts map[string]string to Getter and uses BindGetter
 // to bind map[string]string into dst.
-func BindSMap[M ~map[string]string, T any](src M, dst *T, tag string) error {
+func BindSMap[M ~map[string]string, Struct any](src M, dst *Struct, tag string) error {
 	return BindGetter(mapx.SMap[string](src), dst, tag)
 }
 
@@ -71,12 +71,12 @@ func BindSMap[M ~map[string]string, T any](src M, dst *T, tag string) error {
 // BindGetter does not distinguish between a missing source value and an
 // explicitly provided empty string, because Getter exposes only Get(string)
 // string. Multi-level pointers and unsupported field kinds are not supported.
-func BindGetter[V Getter, T any](src V, dst *T, tag string) (err error) {
+func BindGetter[V Getter, Struct any](src V, dst *Struct, tag string) (err error) {
 	if dst == nil {
 		return errors.New("dst is nil")
 	}
 
-	rtype := reflect.TypeFor[T]()
+	rtype := reflect.TypeFor[Struct]()
 	if rtype.Kind() != reflect.Struct {
 		return errors.New("dst is not a pointer to struct")
 	}
