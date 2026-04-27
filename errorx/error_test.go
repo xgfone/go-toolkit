@@ -21,16 +21,22 @@ import (
 )
 
 func TestSensitive(t *testing.T) {
+	if err := Sensitive(nil, "safe"); err != nil {
+		t.Errorf("Sensitive(nil, ...) = %#v, want nil", err)
+	}
+
 	err := errors.New("sensitive data")
 	se := Sensitive(err, "safe")
 	if se == nil {
-		t.Fatal("Sensitive(...) = nil, want non-nil")
+		t.Errorf("Sensitive(...) = nil, want non-nil")
 	}
 	if se.Error() != "safe" {
-		t.Fatalf("Error() = %q, want %q", se.Error(), "safe")
+		t.Errorf("Error() = %q, want %q", se.Error(), "safe")
 	}
-	if se.SensitiveError() != err {
-		t.Fatalf("SensitiveSource() = %#v, want %#v", se.SensitiveError(), err)
+	if e, ok := se.(*SensitiveError); !ok {
+		t.Errorf("Sensitive(...) = %#v, want *SensitiveError", se)
+	} else if e.SensitiveError() != err {
+		t.Errorf("SensitiveError() = %#v, want %#v", e.SensitiveError(), err)
 	}
 }
 
@@ -77,7 +83,7 @@ func TestSensitiveErrorNilReceiver(t *testing.T) {
 		t.Fatalf("(*SensitiveError)(nil).Unwrap() = %#v, want nil", got)
 	}
 	if got := err.SensitiveError(); got != nil {
-		t.Fatalf("(*SensitiveError)(nil).SensitiveSource() = %#v, want nil", got)
+		t.Fatalf("(*SensitiveError)(nil).SensitiveError() = %#v, want nil", got)
 	}
 }
 

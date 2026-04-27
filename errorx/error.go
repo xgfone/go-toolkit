@@ -19,8 +19,12 @@ import "strings"
 
 const defaultSensitiveMessage = "[REDACTED]"
 
-// Sensitive is short for NewSensitiveError.
-func Sensitive(err error, safe string) *SensitiveError {
+// Sensitive wraps an error with a safe message and returns a *SensitiveError,
+// or nil if err is nil.
+func Sensitive(err error, safe string) error {
+	if err == nil {
+		return nil
+	}
 	return NewSensitiveError(err, safe)
 }
 
