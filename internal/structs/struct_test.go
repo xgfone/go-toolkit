@@ -27,6 +27,7 @@ type embedMe struct {
 
 type WrapTime time.Time
 
+//nolint:unused
 type noExported struct {
 	x int
 	y string
@@ -34,11 +35,6 @@ type noExported struct {
 
 type unexportedEmb struct {
 	X string `q:"x"`
-}
-
-type embedAll struct {
-	embedMe
-	X int `q:"x"`
 }
 
 type embedPointer struct {
@@ -58,7 +54,7 @@ type embedExternal struct {
 }
 
 type embedHidden struct {
-	noExported
+	noExported //nolint:unused
 	unexportedEmb
 	A int `q:"a"`
 }
