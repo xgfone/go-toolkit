@@ -91,7 +91,7 @@ func BindGetter[V Getter, T any](src V, dst *T, tag string) (err error) {
 			continue
 		}
 
-		if err = f.SetValue(root, s); err != nil {
+		if err = f.SetValue(root, s, structs.SetFlagForce); err != nil {
 			return fmt.Errorf("%q: %w", f.Name, err)
 		}
 	}

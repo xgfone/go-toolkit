@@ -62,7 +62,7 @@ func BenchmarkFieldSetValueInt(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := field(root, "123"); err != nil {
+		if err := field(root, "123", SetFlagForce); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -76,7 +76,7 @@ func BenchmarkFieldSetValueText(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := field(root, "abc"); err != nil {
+		if err := field(root, "abc", SetFlagForce); err != nil {
 			b.Fatal(err)
 		}
 	}

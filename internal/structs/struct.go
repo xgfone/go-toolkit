@@ -21,6 +21,11 @@ import (
 	"sync"
 )
 
+const (
+	SetFlagOnlyZero int8 = 0
+	SetFlagForce    int8 = 1
+)
+
 type mapKey struct {
 	typ reflect.Type
 	tag string
@@ -31,9 +36,11 @@ type Struct struct {
 }
 
 type Field struct {
-	Name     string
-	Default  string
-	SetValue func(root reflect.Value, s string) error
+	Name    string
+	Default string
+
+	// flag: SetFlagOnlyZero or SetFlagForce
+	SetValue func(root reflect.Value, s string, flag int8) error
 }
 
 var structs sync.Map // map[mapKey]*Struct
@@ -56,9 +63,6 @@ func parse(t reflect.Type, tag string) (s *Struct) {
 func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) {
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
-		if !sf.IsExported() {
-			continue
-		}
 
 		var name string
 		if tag != "" {
@@ -75,8 +79,16 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 
 		index := appendIndex(parent, i)
 
-		if sf.Anonymous && name == "" && ft.Kind() == reflect.Struct {
+		// Handle anonymous embedded structs first, before the IsExported check.
+		// Even if the embedded field itself is unexported, its exported sub-fields
+		// can still be accessed via reflect.FieldByIndex (the reflect package allows
+		// traversing through unexported structs to reach exported fields).
+		if sf.Anonymous && ft.Kind() == reflect.Struct && hasExportedField(ft) {
 			fields = append(fields, parseWithParent(ft, tag, index)...)
+			continue
+		}
+
+		if !sf.IsExported() {
 			continue
 		}
 
@@ -92,6 +104,19 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 	}
 
 	return
+}
+
+// hasExportedField reports whether the struct type t has at least one
+// exported field. It is used to decide whether to expand an anonymous
+// struct field: only structs with at least one exported field are
+// candidates for expansion.
+func hasExportedField(t reflect.Type) bool {
+	for i := 0; i < t.NumField(); i++ {
+		if t.Field(i).IsExported() {
+			return true
+		}
+	}
+	return false
 }
 
 func parseTagName(tag string) string {
@@ -112,12 +137,15 @@ func appendIndex(parent []int, i int) []int {
 	return index
 }
 
-func makeValueSetter(index []int, rtype reflect.Type) func(root reflect.Value, s string) error {
+func makeValueSetter(index []int, rtype reflect.Type) func(root reflect.Value, s string, flag int8) error {
 	setter := CompileSetter(rtype)
-	return func(root reflect.Value, s string) error {
+	return func(root reflect.Value, s string, flag int8) error {
 		fv, err := fieldByIndexAlloc(root, index)
 		if err != nil {
 			return err
+		}
+		if flag == SetFlagOnlyZero && !fv.IsZero() {
+			return nil
 		}
 		return setter(rtype, fv, s)
 	}
