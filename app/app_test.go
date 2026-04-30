@@ -156,7 +156,7 @@ func TestRun_Panics_DoubleCall(t *testing.T) {
 				t.Error("expected panic on double Run")
 			}
 		}()
-		app.Run(context.Background())
+		_ = app.Run(context.Background())
 	}()
 
 	cancel()

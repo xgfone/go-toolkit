@@ -28,7 +28,7 @@ func TestGo_Panics_EmptyName(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	app.Run(ctx)
+	_ = app.Run(ctx)
 	if !panicked {
 		t.Error("expected panic")
 	}
@@ -54,7 +54,7 @@ func TestGo_Panics_NilFunc(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	app.Run(ctx)
+	_ = app.Run(ctx)
 	if !panicked {
 		t.Error("expected panic")
 	}

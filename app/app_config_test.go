@@ -55,7 +55,7 @@ func TestDefaultFlagConfigLoader_AlreadyParsed(t *testing.T) {
 	t.Cleanup(func() { flag.CommandLine = origCL })
 
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	fs.Parse(nil)
+	_ = fs.Parse(nil)
 	flag.CommandLine = fs
 
 	app := New()
