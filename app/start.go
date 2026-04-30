@@ -16,11 +16,7 @@ package app
 
 import "time"
 
-var startat time.Time
-
-func init() {
-	startat = time.Now()
-}
+var startat = time.Now()
 
 // StartAt returns the time when the application started.
 func StartAt() time.Time {
