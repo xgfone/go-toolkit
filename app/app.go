@@ -57,7 +57,6 @@ type App struct {
 
 	name    string
 	version string
-	values  sync.Map // map[string]any
 
 	configLoader    ConfigLoader
 	shutdownTimeout time.Duration
