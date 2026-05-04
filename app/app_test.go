@@ -12,7 +12,7 @@ func TestNew_Defaults(t *testing.T) {
 	if app.Name() == "" {
 		t.Error("expected non-empty default name")
 	}
-	if app.Version() != "" {
+	if app.Version() != "0.0.0" {
 		t.Error("expected empty default version")
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -70,8 +71,8 @@ type (
 type App struct {
 	mu sync.Mutex
 
-	name    string
-	version string
+	name    atomic.Value
+	version atomic.Value
 
 	configLoader    ctxAppFunc
 	shutdownTimeout time.Duration
@@ -93,6 +94,7 @@ type App struct {
 // New creates an App with minimal default behavior.
 //
 // By default, it:
+//   - sets version to "0.0.0"
 //   - sets name to strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
 //   - uses a minimal flag-based ConfigLoader
 //   - uses 30 seconds as shutdown timeout
@@ -103,6 +105,7 @@ func New() *App {
 	app.SetConfigLoader(defaultFlagConfigLoader)
 	app.SetShutdownTimeout(30 * time.Second)
 	app.SetSignals(os.Interrupt, syscall.SIGTERM)
+	app.SetVersion("0.0.0")
 	return app
 }
 
@@ -123,18 +126,12 @@ func Version() string {
 
 // Name returns app name.
 func (a *App) Name() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	return a.name
+	return a.name.Load().(string)
 }
 
 // Version returns app version.
 func (a *App) Version() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	return a.version
+	return a.version.Load().(string)
 }
 
 // SetName sets app name.
@@ -149,7 +146,7 @@ func (a *App) SetName(name string) {
 	defer a.mu.Unlock()
 
 	a.mustBeNewLocked("SetName")
-	a.name = name
+	a.name.Store(name)
 }
 
 // SetVersion sets app version.
@@ -160,7 +157,7 @@ func (a *App) SetVersion(version string) {
 	defer a.mu.Unlock()
 
 	a.mustBeNewLocked("SetVersion")
-	a.version = version
+	a.version.Store(version)
 }
 
 // SetShutdownTimeout sets graceful shutdown timeout.
