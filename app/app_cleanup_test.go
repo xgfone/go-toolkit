@@ -8,19 +8,19 @@ import (
 	"time"
 )
 
-func TestDeferCleanup_Panics_EmptyName(t *testing.T) {
+func TestDefer_Panics_EmptyName(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().DeferCleanup("", func(ctx context.Context) error { return nil })
+	New().Defer("", func(ctx context.Context) error { return nil })
 	t.Error("expected panic")
 }
 
-func TestDeferCleanup_Panics_NilFunc(t *testing.T) {
+func TestDefer_Panics_NilFunc(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().DeferCleanup("c", nil)
+	New().Defer("c", nil)
 	t.Error("expected panic")
 }
 
-func TestDeferCleanup_Panics_DuringShutdown(t *testing.T) {
+func TestDefer_Panics_DuringShutdown(t *testing.T) {
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
@@ -33,7 +33,7 @@ func TestDeferCleanup_Panics_DuringShutdown(t *testing.T) {
 					panicked = true
 				}
 			}()
-			app.DeferCleanup("c", func(ctx context.Context) error { return nil })
+			app.Defer("c", func(ctx context.Context) error { return nil })
 		}()
 		return nil
 	})
@@ -46,13 +46,13 @@ func TestDeferCleanup_Panics_DuringShutdown(t *testing.T) {
 	}
 }
 
-func TestCleanup_Executed(t *testing.T) {
+func TestDefer_Executed(t *testing.T) {
 	var called atomic.Bool
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
 
-	app.DeferCleanup("c", func(ctx context.Context) error {
+	app.Defer("c", func(ctx context.Context) error {
 		called.Store(true)
 		return nil
 	})
@@ -63,11 +63,11 @@ func TestCleanup_Executed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !called.Load() {
-		t.Error("cleanup not called")
+		t.Error("defer not called")
 	}
 }
 
-func TestCleanup_ReverseOrder(t *testing.T) {
+func TestDefer_ReverseOrder(t *testing.T) {
 	var order []int
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
@@ -75,7 +75,7 @@ func TestCleanup_ReverseOrder(t *testing.T) {
 
 	for i := range 3 {
 		n := i
-		app.DeferCleanup("c", func(ctx context.Context) error {
+		app.Defer("c", func(ctx context.Context) error {
 			order = append(order, n)
 			return nil
 		})
@@ -91,12 +91,12 @@ func TestCleanup_ReverseOrder(t *testing.T) {
 	}
 }
 
-func TestCleanup_Error(t *testing.T) {
+func TestDefer_Error(t *testing.T) {
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
 
-	app.DeferCleanup("c", func(ctx context.Context) error { return errors.New("cleanup fail") })
+	app.Defer("c", func(ctx context.Context) error { return errors.New("defer fail") })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
@@ -106,7 +106,7 @@ func TestCleanup_Error(t *testing.T) {
 	}
 }
 
-func TestDeferCleanup_FromInit(t *testing.T) {
+func TestDefer_FromInit(t *testing.T) {
 	var called atomic.Bool
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
@@ -114,7 +114,7 @@ func TestDeferCleanup_FromInit(t *testing.T) {
 
 	m := newTestModule("mod")
 	m.init = func(ctx context.Context, app *App) error {
-		app.DeferCleanup("from-init", func(ctx context.Context) error {
+		app.Defer("from-init", func(ctx context.Context) error {
 			called.Store(true)
 			return nil
 		})
@@ -129,6 +129,6 @@ func TestDeferCleanup_FromInit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !called.Load() {
-		t.Error("cleanup from init not called")
+		t.Error("defer from init not called")
 	}
 }

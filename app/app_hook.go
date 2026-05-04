@@ -20,32 +20,24 @@ import (
 	"fmt"
 )
 
-type namedHook struct {
-	name string
-	fn   Hook
-}
-
-// Hook is called when App reaches a lifecycle stage.
-type Hook func(ctx context.Context, app *App) error
-
 // On registers a lifecycle hook for the default app.
 //
 // It must be called before Run.
-func On(stage Stage, hook Hook) {
+func On(stage Stage, hook func(context.Context, *App) error) {
 	DefaultApp.On(stage, hook)
 }
 
 // OnNamed registers a named lifecycle hook for the default app.
 //
 // It must be called before Run.
-func OnNamed(stage Stage, name string, hook Hook) {
+func OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
 	DefaultApp.OnNamed(stage, name, hook)
 }
 
 // On registers a lifecycle hook.
 //
 // It must be called before Run.
-func (a *App) On(stage Stage, hook Hook) {
+func (a *App) On(stage Stage, hook func(context.Context, *App) error) {
 	a.OnNamed(stage, "", hook)
 }
 
@@ -54,7 +46,7 @@ func (a *App) On(stage Stage, hook Hook) {
 // Name is optional but useful for error messages.
 //
 // It must be called before Run.
-func (a *App) OnNamed(stage Stage, name string, hook Hook) {
+func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
 	if hook == nil {
 		panic("app: nil hook")
 	}
@@ -67,12 +59,12 @@ func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 	defer a.mu.Unlock()
 
 	a.mustBeNewLocked("On")
-	a.hooks[stage] = append(a.hooks[stage], namedHook{name: name, fn: hook})
+	a.hooks[stage] = append(a.hooks[stage], namedCtxAppFunc{name: name, fn: hook})
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Lock()
-	hooks := append([]namedHook(nil), a.hooks[stage]...)
+	hooks := append([]namedCtxAppFunc(nil), a.hooks[stage]...)
 	a.mu.Unlock()
 
 	var errs []error

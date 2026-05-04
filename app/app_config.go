@@ -21,15 +21,12 @@ import (
 	"os"
 )
 
-// ConfigLoader is used to load or parse app configuration before app starts.
-type ConfigLoader func(ctx context.Context, app *App) error
-
-// SetConfigLoader replaces the default ConfigLoader.
+// SetConfigLoader replaces the default config loader.
 //
 // It must be called before Run.
-func (a *App) SetConfigLoader(loader ConfigLoader) {
+func (a *App) SetConfigLoader(loader func(ctx context.Context, app *App) error) {
 	if loader == nil {
-		panic("app: nil ConfigLoader")
+		panic("app: nil config loader")
 	}
 
 	a.mu.Lock()

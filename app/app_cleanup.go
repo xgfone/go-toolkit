@@ -20,24 +20,13 @@ import (
 	"fmt"
 )
 
-type namedCleanup struct {
-	name string
-	fn   CleanupFunc
-}
-
-// CleanupFunc is a cleanup function registered by DeferCleanup.
+// Defer registers a defer function.
 //
-// Cleanups are executed in reverse registration order.
-type CleanupFunc func(ctx context.Context) error
-
-// DeferCleanup registers a cleanup function.
-//
-// Cleanups are executed in reverse registration order.
-// It can be called before Run or during running lifecycle,
-// such as Module.Init.
+// The defer functions are executed in reverse registration order before app shutdown.
+// It can be called before Run or during running lifecycle, such as Module.Init.
 //
 // It cannot be called during or after shutdown.
-func (a *App) DeferCleanup(name string, fn CleanupFunc) {
+func (a *App) Defer(name string, fn func(context.Context) error) {
 	if name == "" {
 		panic("app: empty cleanup name")
 	}
@@ -50,15 +39,15 @@ func (a *App) DeferCleanup(name string, fn CleanupFunc) {
 	defer a.mu.Unlock()
 
 	if a.state == stateStopping || a.state == stateExited {
-		panic("app: DeferCleanup cannot be called during or after shutdown")
+		panic("app: Defer cannot be called during or after shutdown")
 	}
 
-	a.cleanups = append(a.cleanups, namedCleanup{name: name, fn: fn})
+	a.cleanups = append(a.cleanups, namedCtxFunc{name: name, fn: fn})
 }
 
 func (a *App) runCleanups(ctx context.Context) error {
 	a.mu.Lock()
-	items := append([]namedCleanup(nil), a.cleanups...)
+	items := append([]namedCtxFunc(nil), a.cleanups...)
 	a.cleanups = nil // Clear cleanups to avoid accidental repeated execution.
 	a.mu.Unlock()
 

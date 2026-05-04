@@ -51,6 +51,21 @@ const (
 	stateExited
 )
 
+type (
+	ctxFunc    func(context.Context) error
+	ctxAppFunc func(context.Context, *App) error
+
+	namedCtxFunc struct {
+		name string
+		fn   ctxFunc
+	}
+
+	namedCtxAppFunc struct {
+		name string
+		fn   ctxAppFunc
+	}
+)
+
 // App is a lightweight backend application lifecycle manager.
 type App struct {
 	mu sync.Mutex
@@ -58,14 +73,14 @@ type App struct {
 	name    string
 	version string
 
-	configLoader    ConfigLoader
+	configLoader    ctxAppFunc
 	shutdownTimeout time.Duration
 	signals         []os.Signal
 
 	modules  []Module
-	cleanups []namedCleanup
+	cleanups []namedCtxFunc
 
-	hooks map[Stage][]namedHook
+	hooks map[Stage][]namedCtxAppFunc
 	state state
 
 	runCtx    context.Context
@@ -83,7 +98,7 @@ type App struct {
 //   - uses 30 seconds as shutdown timeout
 //   - listens to SIGINT, SIGTERM
 func New() *App {
-	app := &App{hooks: make(map[Stage][]namedHook), state: stateNew}
+	app := &App{hooks: make(map[Stage][]namedCtxAppFunc), state: stateNew}
 	app.SetName(strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"))
 	app.SetConfigLoader(defaultFlagConfigLoader)
 	app.SetShutdownTimeout(30 * time.Second)
@@ -289,7 +304,7 @@ func (a *App) Run(ctx context.Context) (err error) {
 	return err
 }
 
-func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, ConfigLoader, []os.Signal) {
+func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, ctxAppFunc, []os.Signal) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
