@@ -8,15 +8,24 @@ import (
 	"time"
 )
 
+func TestOnNamed_Default(t *testing.T) {
+	origApp := DefaultApp
+	defer func() { DefaultApp = origApp }()
+
+	defer func() { _ = recover() }()
+	OnNamed(StageInit, "", nil)
+	t.Error("expected panic")
+}
+
 func TestOn_Panics_NilHook(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().On(StageInit, nil)
+	On(StageInit, nil)
 	t.Error("expected panic")
 }
 
 func TestOn_Panics_InvalidStage(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().On("bogus", func(ctx context.Context, app *App) error { return nil })
+	On("bogus", func(ctx context.Context, app *App) error { return nil })
 	t.Error("expected panic")
 }
 

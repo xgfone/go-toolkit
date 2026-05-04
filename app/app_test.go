@@ -123,6 +123,18 @@ func TestSetSignals_Empty(t *testing.T) {
 	}
 }
 
+func TestRun(t *testing.T) {
+	origApp := DefaultApp
+	defer func() { DefaultApp = origApp }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err := Run(ctx); err != nil {
+		t.Errorf("expect nil, but got an error: %v", err)
+	}
+}
+
 func TestRun_ConfigError(t *testing.T) {
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return errors.New("config fail") })

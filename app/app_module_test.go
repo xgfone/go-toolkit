@@ -49,13 +49,13 @@ func (m *testModule) Stop(ctx context.Context, app *App) error  { return m.stop(
 
 func TestUse_Panics_NilModule(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().Use(nil)
+	Use(nil)
 	t.Error("expected panic")
 }
 
 func TestUse_Panics_EmptyName(t *testing.T) {
 	defer func() { _ = recover() }()
-	New().Use(newTestModule(""))
+	Use(newTestModule(""))
 	t.Error("expected panic")
 }
 

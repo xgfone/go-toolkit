@@ -27,6 +27,13 @@ type Module interface {
 	Stop(ctx context.Context, app *App) error
 }
 
+// Use registers lifecycle modules for the default app.
+//
+// It must be called before Run.
+func Use(mods ...Module) {
+	DefaultApp.Use(mods...)
+}
+
 // Use registers lifecycle modules.
 //
 // It must be called before Run.

@@ -28,6 +28,20 @@ type namedHook struct {
 // Hook is called when App reaches a lifecycle stage.
 type Hook func(ctx context.Context, app *App) error
 
+// On registers a lifecycle hook for the default app.
+//
+// It must be called before Run.
+func On(stage Stage, hook Hook) {
+	DefaultApp.On(stage, hook)
+}
+
+// OnNamed registers a named lifecycle hook for the default app.
+//
+// It must be called before Run.
+func OnNamed(stage Stage, name string, hook Hook) {
+	DefaultApp.OnNamed(stage, name, hook)
+}
+
 // On registers a lifecycle hook.
 //
 // It must be called before Run.

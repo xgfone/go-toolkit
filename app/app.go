@@ -91,6 +91,11 @@ func New() *App {
 	return app
 }
 
+// Run starts the default app, see App.Run.
+func Run(ctx context.Context) error {
+	return DefaultApp.Run(ctx)
+}
+
 // Name is a convenience function that returns the default app name.
 func Name() string {
 	return DefaultApp.Name()
