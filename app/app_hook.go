@@ -34,6 +34,16 @@ func OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
 	DefaultApp.OnNamed(stage, name, hook)
 }
 
+// On registers a hook function into DefaultApp to be executed at the given stage.
+func (s Stage) On(fn func(context.Context, *App) error) {
+	DefaultApp.On(s, fn)
+}
+
+// OnNamed registers a named hook function into DefaultApp to be executed at the given stage.
+func (s Stage) OnNamed(name string, fn func(context.Context, *App) error) {
+	DefaultApp.OnNamed(s, name, fn)
+}
+
 // On registers a lifecycle hook.
 //
 // It must be called before Run.

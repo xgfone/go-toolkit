@@ -208,6 +208,78 @@ func TestHook_MultiplePerStage(t *testing.T) {
 	}
 }
 
+func TestStageOn(t *testing.T) {
+	origApp := DefaultApp
+	defer func() { DefaultApp = origApp }()
+
+	DefaultApp = New()
+	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	DefaultApp.SetSignals()
+
+	var called atomic.Bool
+	StageInit.On(func(ctx context.Context, app *App) error {
+		called.Store(true)
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := DefaultApp.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !called.Load() {
+		t.Error("Stage.On hook not called")
+	}
+}
+
+func TestStageOnNamed(t *testing.T) {
+	origApp := DefaultApp
+	defer func() { DefaultApp = origApp }()
+
+	DefaultApp = New()
+	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	DefaultApp.SetSignals()
+
+	var called atomic.Bool
+	StageInit.OnNamed("test-hook", func(ctx context.Context, app *App) error {
+		called.Store(true)
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := DefaultApp.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !called.Load() {
+		t.Error("Stage.OnNamed hook not called")
+	}
+}
+
+func TestStageOn_Panics_NilHook(t *testing.T) {
+	defer func() { _ = recover() }()
+	StageInit.On(nil)
+	t.Error("expected panic")
+}
+
+func TestStageOnNamed_Panics_NilHook(t *testing.T) {
+	defer func() { _ = recover() }()
+	StageInit.OnNamed("name", nil)
+	t.Error("expected panic")
+}
+
+func TestStageOn_Panics_InvalidStage(t *testing.T) {
+	defer func() { _ = recover() }()
+	Stage("bogus").On(func(ctx context.Context, app *App) error { return nil })
+	t.Error("expected panic")
+}
+
+func TestStageOnNamed_Panics_InvalidStage(t *testing.T) {
+	defer func() { _ = recover() }()
+	Stage("bogus").OnNamed("name", func(ctx context.Context, app *App) error { return nil })
+	t.Error("expected panic")
+}
+
 func TestHookLabel(t *testing.T) {
 	if l := hookLabel(StageInit, "n", 0); l != `"n" at stage "init"` {
 		t.Errorf("unexpected named label: %s", l)
