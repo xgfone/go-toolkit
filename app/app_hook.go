@@ -85,3 +85,10 @@ func (a *App) runHooks(ctx context.Context, stage Stage) error {
 
 	return errors.Join(errs...)
 }
+
+func hookLabel(stage Stage, name string, index int) string {
+	if name != "" {
+		return fmt.Sprintf("%q at stage %q", name, stage)
+	}
+	return fmt.Sprintf("#%d at stage %q", index, stage)
+}

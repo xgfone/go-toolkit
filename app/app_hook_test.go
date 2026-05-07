@@ -207,3 +207,12 @@ func TestHook_MultiplePerStage(t *testing.T) {
 		t.Errorf("unexpected order: %v", order)
 	}
 }
+
+func TestHookLabel(t *testing.T) {
+	if l := hookLabel(StageInit, "n", 0); l != `"n" at stage "init"` {
+		t.Errorf("unexpected named label: %s", l)
+	}
+	if l := hookLabel(StageInit, "", 3); l != `#3 at stage "init"` {
+		t.Errorf("unexpected unnamed label: %s", l)
+	}
+}

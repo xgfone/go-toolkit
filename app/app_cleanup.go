@@ -20,17 +20,18 @@ import (
 	"fmt"
 )
 
-// Defer registers a defer function.
+// Defer is short for App.DeferNamed("", fn).
+func (a *App) Defer(fn func(context.Context) error) {
+	a.DeferNamed("", fn)
+}
+
+// DeferNamed registers a named defer function, but name is optional.
 //
 // The defer functions are executed in reverse registration order before app shutdown.
 // It can be called before Run or during running lifecycle, such as Module.Init.
 //
 // It cannot be called during or after shutdown.
-func (a *App) Defer(name string, fn func(context.Context) error) {
-	if name == "" {
-		panic("app: empty cleanup name")
-	}
-
+func (a *App) DeferNamed(name string, fn func(context.Context) error) {
 	if fn == nil {
 		panic("app: nil cleanup func")
 	}

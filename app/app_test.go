@@ -182,7 +182,7 @@ func TestShutdownBackgroundTaskTimeout(t *testing.T) {
 	app.SetShutdownTimeout(50 * time.Millisecond)
 
 	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go("slow", func(ctx context.Context) error {
+		app.Go(func(ctx context.Context) error {
 			select {}
 		})
 		return nil
@@ -212,15 +212,6 @@ func TestName_Version_Convenience(t *testing.T) {
 	}
 }
 
-func TestHookLabel(t *testing.T) {
-	if l := hookLabel(StageInit, "n", 0); l != `"n" at stage "init"` {
-		t.Errorf("unexpected named label: %s", l)
-	}
-	if l := hookLabel(StageInit, "", 3); l != `#3 at stage "init"` {
-		t.Errorf("unexpected unnamed label: %s", l)
-	}
-}
-
 func TestValidStage(t *testing.T) {
 	for _, s := range []Stage{StageInit, StageStart, StageReady, StageStopping, StageExited} {
 		if !validStage(s) {
@@ -238,7 +229,7 @@ func TestGo_Error_ContextCancelled_NoShutdown(t *testing.T) {
 	app.SetSignals()
 
 	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go("task", func(ctx context.Context) error {
+		app.Go(func(ctx context.Context) error {
 			<-ctx.Done()
 			return errors.New("late error")
 		})

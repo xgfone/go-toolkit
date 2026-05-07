@@ -20,19 +20,25 @@ import (
 )
 
 // Go is a convenience function that calls DefaultApp.Go.
-func Go(name string, fn func(ctx context.Context) error) {
-	DefaultApp.Go(name, fn)
+func Go(fn func(ctx context.Context) error) {
+	GoNamed("", fn)
 }
 
-// Go starts a lifecycle-managed background task.
+// GoNamed is a convenience function that calls DefaultApp.GoNamed.
+func GoNamed(name string, fn func(ctx context.Context) error) {
+	DefaultApp.GoNamed(name, fn)
+}
+
+// Go is short for App.GoNamed("", fn).
+func (a *App) Go(fn func(ctx context.Context) error) {
+	a.GoNamed("", fn)
+}
+
+// GoNamed starts a lifecycle-managed background task with the optional name.
 //
 // It can only be called after Run starts, usually inside Module.Start or hooks.
 // If fn returns a non-nil error while App is still running, App will start shutdown.
-func (a *App) Go(name string, fn func(ctx context.Context) error) {
-	if name == "" {
-		panic("app: empty background task name")
-	}
-
+func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
 	if fn == nil {
 		panic("app: nil background task func")
 	}
