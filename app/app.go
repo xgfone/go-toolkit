@@ -36,11 +36,27 @@ var DefaultApp = New()
 type Stage string
 
 const (
-	StageInit     Stage = "init"
-	StageStart    Stage = "start"
-	StageReady    Stage = "ready"
+	StageInit  Stage = "init"
+	StageStart Stage = "start"
+	StageReady Stage = "ready"
+
+	// If a StageStopping hook returns an error, the error is collected, but the
+	// remaining cleanup hooks will continue to run.
 	StageStopping Stage = "stopping"
-	StageExited   Stage = "exited"
+
+	// StageCleanup is triggered after StageStopping and before StageExited.
+	//
+	// Hooks registered for StageCleanup are executed in reverse registration
+	// order, making it suitable for releasing resources that were initialized
+	// earlier in the app lifecycle.
+	//
+	// If a StageCleanup hook returns an error, the error is collected, but the
+	// remaining cleanup hooks will continue to run.
+	StageCleanup Stage = "cleanup"
+
+	// If a StageExited hook returns an error, the error is collected, but the
+	// remaining cleanup hooks will continue to run.
+	StageExited Stage = "exited"
 )
 
 type state int
@@ -53,13 +69,7 @@ const (
 )
 
 type (
-	ctxFunc    func(context.Context) error
 	ctxAppFunc func(context.Context, *App) error
-
-	namedCtxFunc struct {
-		name string
-		fn   ctxFunc
-	}
 
 	namedCtxAppFunc struct {
 		name string
@@ -78,11 +88,9 @@ type App struct {
 	shutdownTimeout time.Duration
 	signals         []os.Signal
 
-	modules  []Module
-	cleanups []namedCtxFunc
-
-	hooks map[Stage][]namedCtxAppFunc
-	state state
+	modules []Module
+	hooks   map[Stage][]namedCtxAppFunc
+	state   state
 
 	runCtx    context.Context
 	cancelRun context.CancelFunc
@@ -234,6 +242,10 @@ func (a *App) Run(ctx context.Context) (err error) {
 			shutdownErr = errors.Join(shutdownErr, e)
 		}
 
+		if e := a.runHooks(context.Background(), StageCleanup); e != nil {
+			shutdownErr = errors.Join(shutdownErr, e)
+		}
+
 		if e := a.runHooks(context.Background(), StageExited); e != nil {
 			shutdownErr = errors.Join(shutdownErr, e)
 		}
@@ -337,10 +349,6 @@ func (a *App) shutdown(ctx context.Context, initialized []Module) error {
 		errs = append(errs, err)
 	}
 
-	if err := a.runCleanups(ctx); err != nil {
-		errs = append(errs, err)
-	}
-
 	return errors.Join(errs...)
 }
 
@@ -401,6 +409,7 @@ func validStage(stage Stage) bool {
 		StageStart,
 		StageReady,
 		StageStopping,
+		StageCleanup,
 		StageExited:
 		return true
 	default:

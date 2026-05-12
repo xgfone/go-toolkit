@@ -60,6 +60,7 @@ func TestHook_AllStages(t *testing.T) {
 	app.On(StageStart, record("start"))
 	app.On(StageReady, record("ready"))
 	app.On(StageStopping, record("stopping"))
+	app.On(StageCleanup, record("cleanup"))
 	app.On(StageExited, record("exited"))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +72,7 @@ func TestHook_AllStages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected := []string{"init", "start", "ready", "stopping", "exited"}
+	expected := []string{"init", "start", "ready", "stopping", "cleanup", "exited"}
 	if len(order) != len(expected) {
 		t.Fatalf("unexpected order length: %v", order)
 	}
@@ -286,5 +287,75 @@ func TestHookLabel(t *testing.T) {
 	}
 	if l := hookLabel(StageInit, "", 3); l != `#3 at stage "init"` {
 		t.Errorf("unexpected unnamed label: %s", l)
+	}
+}
+
+func TestHook_Cleanup_Executed(t *testing.T) {
+	var called atomic.Bool
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+		called.Store(true)
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := app.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !called.Load() {
+		t.Error("StageCleanup hook not called")
+	}
+}
+
+func TestHook_Cleanup_ReverseOrder(t *testing.T) {
+	var order []int
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	for i := range 3 {
+		n := i
+		app.On(StageCleanup, func(ctx context.Context, app *App) error {
+			order = append(order, n)
+			return nil
+		})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := app.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(order) != 3 || order[0] != 2 || order[1] != 1 || order[2] != 0 {
+		t.Errorf("unexpected reverse order: %v", order)
+	}
+}
+
+func TestHook_Cleanup_Error_Continues(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	var secondCalled atomic.Bool
+	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+		return errors.New("first cleanup fail")
+	})
+	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+		secondCalled.Store(true)
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	err := app.Run(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !secondCalled.Load() {
+		t.Error("second cleanup hook should still execute after first error")
 	}
 }

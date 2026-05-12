@@ -213,7 +213,7 @@ func TestName_Version_Convenience(t *testing.T) {
 }
 
 func TestValidStage(t *testing.T) {
-	for _, s := range []Stage{StageInit, StageStart, StageReady, StageStopping, StageExited} {
+	for _, s := range []Stage{StageInit, StageStart, StageReady, StageStopping, StageCleanup, StageExited} {
 		if !validStage(s) {
 			t.Errorf("expected valid stage %q", s)
 		}

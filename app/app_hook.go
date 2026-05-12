@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
+	"slices"
 )
 
 // On registers a lifecycle hook for the default app.
@@ -78,13 +80,20 @@ func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Unlock()
 
 	var errs []error
+	var seq2 iter.Seq2[int, namedCtxAppFunc]
 
-	for i, hook := range hooks {
+	if stage == StageCleanup {
+		seq2 = slices.Backward(hooks)
+	} else {
+		seq2 = slices.All(hooks)
+	}
+
+	for i, hook := range seq2 {
 		if err := hook.fn(ctx, a); err != nil {
 			wrapped := fmt.Errorf("app: hook %s: %w", hookLabel(stage, hook.name, i), err)
 
 			// During shutdown stages, continue executing remaining hooks.
-			if stage == StageStopping || stage == StageExited {
+			if stage == StageStopping || stage == StageCleanup || stage == StageExited {
 				errs = append(errs, wrapped)
 				continue
 			}
