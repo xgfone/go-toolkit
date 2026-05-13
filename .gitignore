@@ -45,6 +45,8 @@ debug_test
 
 # coverage test
 *coverage.*
+*.html
+*.out
 
 # hidden files
 .*
