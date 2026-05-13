@@ -21,10 +21,14 @@ import (
 	"testing"
 )
 
+func getAddrFunc(addr string) func() string {
+	return func() string { return addr }
+}
+
 // TestNewHttpServer verifies that NewHttpServer creates a Module
 // with the given name, and the returned Name() matches.
 func TestNewHttpServer(t *testing.T) {
-	m := NewHttpServer("test-server", ":0", http.NotFoundHandler())
+	m := NewHttpServer("test-server", getAddrFunc(":0"), http.NotFoundHandler())
 	if got := m.Name(); got != "test-server" {
 		t.Errorf("Name() = %q, want %q", got, "test-server")
 	}
@@ -33,7 +37,7 @@ func TestNewHttpServer(t *testing.T) {
 // TestHttpServerLifecycle exercises the full Init → Start (concurrently) → Stop
 // lifecycle on a random port.
 func TestHttpServerLifecycle(t *testing.T) {
-	m := NewHttpServer("lifecycle", ":0", http.NotFoundHandler())
+	m := NewHttpServer("lifecycle", getAddrFunc(":0"), http.NotFoundHandler())
 	ctx := context.Background()
 
 	if err := m.Init(ctx, nil); err != nil {
@@ -62,7 +66,7 @@ func TestHttpServerInitFail(t *testing.T) {
 	holder.Start()
 	defer holder.Close()
 
-	m := NewHttpServer("conflict", holder.Listener.Addr().String(), http.NotFoundHandler())
+	m := NewHttpServer("conflict", getAddrFunc(holder.Listener.Addr().String()), http.NotFoundHandler())
 	if err := m.Init(context.Background(), nil); err == nil {
 		t.Error("expected Init to fail on a busy port, but got nil")
 	}
@@ -71,7 +75,7 @@ func TestHttpServerInitFail(t *testing.T) {
 // TestHttpServerEmptyAddr verifies that an empty address defaults to ":http"
 // and Init returns an error because port 80 is not available without privileges.
 func TestHttpServerEmptyAddr(t *testing.T) {
-	m := NewHttpServer("empty", "", http.NotFoundHandler())
+	m := NewHttpServer("empty", getAddrFunc(""), http.NotFoundHandler())
 	err := m.Init(context.Background(), nil)
 	if err == nil {
 		// If we somehow have permission, clean up properly.
@@ -82,7 +86,7 @@ func TestHttpServerEmptyAddr(t *testing.T) {
 // TestHttpServerURLScheme verifies that Init correctly parses a "tcp://..." URL
 // and extracts the network and address from it.
 func TestHttpServerURLScheme(t *testing.T) {
-	m := NewHttpServer("scheme", "tcp://:0", http.NotFoundHandler())
+	m := NewHttpServer("scheme", getAddrFunc("tcp://:0"), http.NotFoundHandler())
 	ctx := context.Background()
 
 	if err := m.Init(ctx, nil); err != nil {

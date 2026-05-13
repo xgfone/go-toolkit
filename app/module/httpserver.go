@@ -26,14 +26,16 @@ import (
 	"github.com/xgfone/go-toolkit/app"
 )
 
-func NewHttpServer(name, addr string, handler http.Handler) app.Module {
-	return &httpServer{name: name, addr: addr, handler: handler}
+// NewHttpServer returns a new app module that starts an HTTP server.
+func NewHttpServer(name string, addr func() string, handler http.Handler) app.Module {
+	return &httpServer{name: name, getAddr: addr, handler: handler}
 }
 
 type httpServer struct {
 	name string
 	addr string
 
+	getAddr func() string
 	handler http.Handler
 	server  *http.Server
 	listen  net.Listener
@@ -44,6 +46,10 @@ func (s *httpServer) Name() string {
 }
 
 func (s *httpServer) Init(ctx context.Context, a *app.App) (err error) {
+	if s.getAddr != nil {
+		s.addr = s.getAddr()
+	}
+
 	network := "tcp"
 	if s.addr == "" {
 		s.addr = ":http"
