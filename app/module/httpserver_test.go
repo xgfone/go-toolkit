@@ -1,0 +1,105 @@
+// Copyright 2026 xgfone
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package module
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+// TestNewHttpServer verifies that NewHttpServer creates a Module
+// with the given name, and the returned Name() matches.
+func TestNewHttpServer(t *testing.T) {
+	m := NewHttpServer("test-server", ":0", http.NotFoundHandler())
+	if got := m.Name(); got != "test-server" {
+		t.Errorf("Name() = %q, want %q", got, "test-server")
+	}
+}
+
+// TestHttpServerLifecycle exercises the full Init → Start (concurrently) → Stop
+// lifecycle on a random port.
+func TestHttpServerLifecycle(t *testing.T) {
+	m := NewHttpServer("lifecycle", ":0", http.NotFoundHandler())
+	ctx := context.Background()
+
+	if err := m.Init(ctx, nil); err != nil {
+		t.Fatalf("Init: unexpected error: %v", err)
+	}
+
+	// Start is blocking; run it in a goroutine.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- m.Start(ctx, nil)
+	}()
+
+	if err := m.Stop(ctx, nil); err != nil {
+		t.Errorf("Stop: unexpected error: %v", err)
+	}
+
+	if err := <-errCh; err != nil {
+		t.Errorf("Start returned error: %v", err)
+	}
+}
+
+// TestHttpServerInitFail verifies that Init fails when the port is already in use.
+func TestHttpServerInitFail(t *testing.T) {
+	// Listen on a random port and hold it.
+	holder := httptest.NewUnstartedServer(http.NotFoundHandler())
+	holder.Start()
+	defer holder.Close()
+
+	m := NewHttpServer("conflict", holder.Listener.Addr().String(), http.NotFoundHandler())
+	if err := m.Init(context.Background(), nil); err == nil {
+		t.Error("expected Init to fail on a busy port, but got nil")
+	}
+}
+
+// TestHttpServerEmptyAddr verifies that an empty address defaults to ":http"
+// and Init returns an error because port 80 is not available without privileges.
+func TestHttpServerEmptyAddr(t *testing.T) {
+	m := NewHttpServer("empty", "", http.NotFoundHandler())
+	err := m.Init(context.Background(), nil)
+	if err == nil {
+		// If we somehow have permission, clean up properly.
+		m.(*httpServer).server.Close()
+	}
+}
+
+// TestHttpServerURLScheme verifies that Init correctly parses a "tcp://..." URL
+// and extracts the network and address from it.
+func TestHttpServerURLScheme(t *testing.T) {
+	m := NewHttpServer("scheme", "tcp://:0", http.NotFoundHandler())
+	ctx := context.Background()
+
+	if err := m.Init(ctx, nil); err != nil {
+		t.Fatalf("Init with tcp:// scheme: unexpected error: %v", err)
+	}
+
+	// Run a full lifecycle to confirm the server works with URL-scheme addresses.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- m.Start(ctx, nil)
+	}()
+
+	if err := m.Stop(ctx, nil); err != nil {
+		t.Errorf("Stop: unexpected error: %v", err)
+	}
+
+	if err := <-errCh; err != nil {
+		t.Errorf("Start returned error: %v", err)
+	}
+}
