@@ -17,6 +17,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	"github.com/xgfone/go-toolkit/runtimex"
 )
 
 // Go is a convenience function that calls DefaultApp.Go.
@@ -62,7 +64,7 @@ func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
 	go func() {
 		defer a.wg.Done()
 
-		if err := fn(runCtx); err != nil {
+		if err := saferun(runCtx, fn); err != nil {
 			// If the app is already shutting down, the task error is usually
 			// a consequence of cancellation and should not trigger another shutdown.
 			if runCtx.Err() != nil {
@@ -77,4 +79,9 @@ func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
 			}
 		}
 	}()
+}
+
+func saferun(ctx context.Context, fn func(context.Context) error) error {
+	defer runtimex.Recover(ctx)
+	return fn(ctx)
 }
