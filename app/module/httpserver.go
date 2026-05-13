@@ -82,7 +82,7 @@ func (s *httpServer) Init(ctx context.Context, a *app.App) (err error) {
 
 func (s *httpServer) Start(context.Context, *app.App) (err error) {
 	slog.Info("start the http server", "addr", s.addr)
-	_ = s.server.Serve(s.listen)
+	go s.server.Serve(s.listen)
 	return
 }
 
