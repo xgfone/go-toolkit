@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -213,4 +214,36 @@ func TestModule_Multiple_ReverseStopOrder(t *testing.T) {
 	if len(order) != 2 || order[0] != 2 || order[1] != 1 {
 		t.Errorf("unexpected stop order: %v", order)
 	}
+}
+
+func TestSortModules(t *testing.T) {
+	mods := []Module{
+		newPriorityModule(3, newTestModule("m3")),
+		newPriorityModule(1, newTestModule("m1")),
+		newPriorityModule(2, newTestModule("m2")),
+	}
+
+	sortModules(mods)
+	for i, mod := range mods {
+		name := fmt.Sprintf("m%d", 3-i)
+		if mod.Name() != name {
+			t.Errorf("unexpected module name: %s, expected %s", mod.Name(), name)
+		}
+	}
+}
+
+type _PriorityModule struct {
+	priority int
+	Module
+}
+
+func newPriorityModule(priority int, mod Module) _PriorityModule {
+	return _PriorityModule{
+		priority: priority,
+		Module:   mod,
+	}
+}
+
+func (p _PriorityModule) Priority() int {
+	return p.priority
 }

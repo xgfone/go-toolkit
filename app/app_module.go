@@ -14,7 +14,12 @@
 
 package app
 
-import "context"
+import (
+	"context"
+	"slices"
+
+	"github.com/xgfone/go-toolkit/internal/priority"
+)
 
 // Module represents a lifecycle-managed component.
 //
@@ -54,4 +59,10 @@ func (a *App) Use(mods ...Module) {
 
 		a.modules = append(a.modules, m)
 	}
+}
+
+func sortModules(mods []Module) {
+	slices.SortStableFunc(mods, func(a, b Module) int {
+		return priority.Get(b) - priority.Get(a)
+	})
 }

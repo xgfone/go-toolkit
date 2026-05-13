@@ -330,6 +330,7 @@ func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module
 	loader := a.configLoader
 	signals := slices.Clone(a.signals)
 	modules := slices.Clone(a.modules)
+	sortModules(modules)
 
 	return modules, loader, signals
 }
