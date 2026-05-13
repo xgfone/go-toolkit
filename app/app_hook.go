@@ -22,42 +22,40 @@ import (
 	"slices"
 )
 
-// On registers a lifecycle hook for the default app.
+// On is short for DefaultApp.On(stage, hook).
 //
 // It must be called before Run.
 func On(stage Stage, hook func(context.Context, *App) error) {
 	DefaultApp.On(stage, hook)
 }
 
-// OnNamed registers a named lifecycle hook for the default app.
+// OnNamed is short for DefaultApp.OnNamed(stage, name, hook).
 //
 // It must be called before Run.
 func OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
 	DefaultApp.OnNamed(stage, name, hook)
 }
 
-// On registers a hook function into DefaultApp to be executed at the given stage.
-func (s Stage) On(fn func(context.Context, *App) error) {
-	DefaultApp.On(s, fn)
-}
-
-// OnNamed registers a named hook function into DefaultApp to be executed at the given stage.
-func (s Stage) OnNamed(name string, fn func(context.Context, *App) error) {
-	DefaultApp.OnNamed(s, name, fn)
-}
-
-// On registers a lifecycle hook.
+// On is short for App.OnNamed(stage, "", hook).
 //
 // It must be called before Run.
 func (a *App) On(stage Stage, hook func(context.Context, *App) error) {
 	a.OnNamed(stage, "", hook)
 }
 
-// OnNamed registers a named lifecycle hook.
+// On registers a lifecycle hook.
 //
 // Name is optional but useful for error messages.
 //
-// It must be called before Run.
+// Before Run starts, hooks may be registered for any valid stage.
+//
+// After Run starts, hooks may only be registered for future stages. The App
+// tracks the lifecycle stage it has reached, and registering a hook for the
+// current or a past stage will panic.
+//
+// Hooks are executed in registration order for most stages. The only exception
+// is StageCleanup: hooks registered for StageCleanup are executed in reverse
+// registration order.
 func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
 	if hook == nil {
 		panic("app: nil hook")
@@ -70,12 +68,16 @@ func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.mustBeNewLocked("On")
+	if !a.canRegisterHookLocked(stage) {
+		panic(fmt.Sprintf("app: cannot register hook for stage %q after stage %q", stage, a.stage))
+	}
+
 	a.hooks[stage] = append(a.hooks[stage], namedCtxAppFunc{name: name, fn: hook})
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Lock()
+	a.stage = stage
 	hooks := slices.Clone(a.hooks[stage])
 	a.mu.Unlock()
 

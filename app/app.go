@@ -33,33 +33,6 @@ import (
 // DefaultApp is the package-level default App instance.
 var DefaultApp = New()
 
-// Stage is a lifecycle hook stage.
-type Stage string
-
-const (
-	StageInit  Stage = "init"
-	StageStart Stage = "start"
-	StageReady Stage = "ready"
-
-	// If a StageStopping hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
-	StageStopping Stage = "stopping"
-
-	// StageCleanup is triggered after StageStopping and before StageExited.
-	//
-	// Hooks registered for StageCleanup are executed in reverse registration
-	// order, making it suitable for releasing resources that were initialized
-	// earlier in the app lifecycle.
-	//
-	// If a StageCleanup hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
-	StageCleanup Stage = "cleanup"
-
-	// If a StageExited hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
-	StageExited Stage = "exited"
-)
-
 type state int
 
 const (
@@ -91,6 +64,7 @@ type App struct {
 
 	modules []Module
 	hooks   map[Stage][]namedCtxAppFunc
+	stage   Stage
 	state   state
 
 	runCtx    context.Context
@@ -401,20 +375,5 @@ func (a *App) markExited() {
 func (a *App) mustBeNewLocked(method string) {
 	if a.state != stateNew {
 		panic(fmt.Sprintf("app: %s cannot be called after Run", method))
-	}
-}
-
-func validStage(stage Stage) bool {
-	switch stage {
-	case
-		StageInit,
-		StageStart,
-		StageReady,
-		StageStopping,
-		StageCleanup,
-		StageExited:
-		return true
-	default:
-		return false
 	}
 }

@@ -226,17 +226,6 @@ func TestName_Version_Convenience(t *testing.T) {
 	}
 }
 
-func TestValidStage(t *testing.T) {
-	for _, s := range []Stage{StageInit, StageStart, StageReady, StageStopping, StageCleanup, StageExited} {
-		if !validStage(s) {
-			t.Errorf("expected valid stage %q", s)
-		}
-	}
-	if validStage("bogus") {
-		t.Error("expected invalid")
-	}
-}
-
 func TestGo_Error_ContextCancelled_NoShutdown(t *testing.T) {
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
