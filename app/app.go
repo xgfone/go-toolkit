@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -200,7 +201,7 @@ func (a *App) SetSignals(signals ...os.Signal) {
 	defer a.mu.Unlock()
 
 	a.mustBeNewLocked("SetSignals")
-	a.signals = append([]os.Signal(nil), signals...)
+	a.signals = slices.Clone(signals)
 }
 
 // Run starts the app lifecycle and blocks until shutdown,
@@ -326,9 +327,9 @@ func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module
 	a.cancelRun = cancel
 	a.errCh = make(chan error, 1)
 
-	modules := append([]Module(nil), a.modules...)
 	loader := a.configLoader
-	signals := append([]os.Signal(nil), a.signals...)
+	signals := slices.Clone(a.signals)
+	modules := slices.Clone(a.modules)
 
 	return modules, loader, signals
 }

@@ -76,7 +76,7 @@ func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App)
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Lock()
-	hooks := append([]namedCtxAppFunc(nil), a.hooks[stage]...)
+	hooks := slices.Clone(a.hooks[stage])
 	a.mu.Unlock()
 
 	var errs []error
