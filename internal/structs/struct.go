@@ -30,6 +30,7 @@ type Struct struct {
 }
 
 type Field struct {
+	Type    reflect.Type
 	Name    string
 	Default string
 
@@ -37,11 +38,11 @@ type Field struct {
 	GetField FieldGetter
 }
 
-type FieldGetter func(root reflect.Value) (reflect.Type, reflect.Value)
+type FieldGetter func(root reflect.Value) reflect.Value
 
 func (f *Field) SetValue(root reflect.Value, value string) error {
-	rtype, rvalue := f.GetField(root)
-	return f.SetField(rtype, rvalue, value)
+	rvalue := f.GetField(root)
+	return f.SetField(f.Type, rvalue, value)
 }
 
 var structs sync.Map // map[mapKey]*Struct
@@ -109,9 +110,10 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 
 		fields = append(fields, Field{
 			Name:     name,
+			Type:     sf.Type,
 			Default:  sf.Tag.Get("default"),
 			SetField: CompileSetter(sf.Type),
-			GetField: makeFieldGetter(index, sf.Type),
+			GetField: makeFieldGetter(index),
 		})
 	}
 
@@ -149,9 +151,9 @@ func appendIndex(parent []int, i int) []int {
 	return index
 }
 
-func makeFieldGetter(index []int, rtype reflect.Type) FieldGetter {
-	return func(root reflect.Value) (reflect.Type, reflect.Value) {
-		return rtype, fieldByIndexAlloc(root, index)
+func makeFieldGetter(index []int) FieldGetter {
+	return func(root reflect.Value) reflect.Value {
+		return fieldByIndexAlloc(root, index)
 	}
 }
 

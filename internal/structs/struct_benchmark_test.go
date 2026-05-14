@@ -58,8 +58,9 @@ func BenchmarkParseMiss(b *testing.B) {
 func BenchmarkFieldSetValueInt(b *testing.B) {
 	rtype := reflect.TypeFor[int]()
 	field := Field{
+		Type:     rtype,
 		SetField: CompileSetter(rtype),
-		GetField: makeFieldGetter([]int{0}, rtype),
+		GetField: makeFieldGetter([]int{0}),
 	}
 
 	root := reflect.ValueOf(&struct{ N int }{}).Elem()
@@ -77,8 +78,9 @@ func BenchmarkFieldSetValueInt(b *testing.B) {
 func BenchmarkFieldSetValueText(b *testing.B) {
 	rtype := reflect.TypeFor[benchText]()
 	field := Field{
+		Type:     rtype,
 		SetField: CompileSetter(rtype),
-		GetField: makeFieldGetter([]int{0}, rtype),
+		GetField: makeFieldGetter([]int{0}),
 	}
 
 	root := reflect.ValueOf(&struct{ T benchText }{}).Elem()
