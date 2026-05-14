@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -26,99 +25,46 @@ type testValidator struct {
 	Valid bool
 }
 
-func (t *testValidator) Validate(ctx context.Context) error {
+func (t *testValidator) Validate() error {
 	if !t.Valid {
 		return errors.New("invalid")
 	}
 	return nil
 }
 
-func TestBindJSONBytes(t *testing.T) {
-	ctx := context.Background()
-
-	// Test scenario 1: Unmarshal success, validation success
-	validJSON := []byte(`{"name":"test"}`)
-	var validObj testValidator
-	validObj.Valid = true
-	err := BindJSONBytes(ctx, validJSON, &validObj)
-	if err != nil {
-		t.Errorf("BindJSONBytes: expected no error, got %v", err)
-	}
-
-	// Test scenario 2: Unmarshal success, validation failure
-	validJSON2 := []byte(`{"name":"test"}`)
-	var invalidObj testValidator
-	invalidObj.Valid = false
-	err = BindJSONBytes(ctx, validJSON2, &invalidObj)
-	if err == nil {
-		t.Error("BindJSONBytes: expected validation error, got nil")
-	}
-
-	// Test scenario 3: Unmarshal failure
-	invalidJSON := []byte(`{invalid json}`)
-	var obj testValidator
-	err = BindJSONBytes(ctx, invalidJSON, &obj)
-	if err == nil {
-		t.Error("BindJSONBytes: expected unmarshal error, got nil")
-	}
-}
-
-func TestBindJSONString(t *testing.T) {
-	ctx := context.Background()
-
-	// Test scenario 1: Unmarshal success, validation success
+func TestBind(t *testing.T) {
 	validJSON := `{"name":"test"}`
-	var validObj testValidator
-	validObj.Valid = true
-	err := BindJSONString(ctx, validJSON, &validObj)
-	if err != nil {
-		t.Errorf("BindJSONString: expected no error, got %v", err)
-	}
-
-	// Test scenario 2: Unmarshal success, validation failure
-	validJSON2 := `{"name":"test"}`
-	var invalidObj testValidator
-	invalidObj.Valid = false
-	err = BindJSONString(ctx, validJSON2, &invalidObj)
-	if err == nil {
-		t.Error("BindJSONString: expected validation error, got nil")
-	}
-
-	// Test scenario 3: Unmarshal failure
 	invalidJSON := `{invalid json}`
-	var obj testValidator
-	err = BindJSONString(ctx, invalidJSON, &obj)
-	if err == nil {
-		t.Error("BindJSONString: expected unmarshal error, got nil")
-	}
-}
 
-func TestBindJSONReader(t *testing.T) {
-	ctx := context.Background()
-
-	// Test scenario 1: Unmarshal success, validation success
-	validJSON := strings.NewReader(`{"name":"test"}`)
-	var validObj testValidator
-	validObj.Valid = true
-	err := BindJSONReader(ctx, validJSON, &validObj)
-	if err != nil {
-		t.Errorf("BindJSONReader: expected no error, got %v", err)
+	tests := []struct {
+		name         string
+		validInput   func(any) error
+		invalidInput func(any) error
+	}{
+		{"Bytes", func(out any) error { return BindJSONBytes([]byte(validJSON), out) },
+			func(out any) error { return BindJSONBytes([]byte(invalidJSON), out) }},
+		{"String", func(out any) error { return BindJSONString(validJSON, out) },
+			func(out any) error { return BindJSONString(invalidJSON, out) }},
+		{"Reader", func(out any) error { return BindJSONReader(strings.NewReader(validJSON), out) },
+			func(out any) error { return BindJSONReader(strings.NewReader(invalidJSON), out) }},
 	}
 
-	// Test scenario 2: Unmarshal success, validation failure
-	validJSON2 := strings.NewReader(`{"name":"test"}`)
-	var invalidObj testValidator
-	invalidObj.Valid = false
-	err = BindJSONReader(ctx, validJSON2, &invalidObj)
-	if err == nil {
-		t.Error("BindJSONReader: expected validation error, got nil")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Valid object + valid input → success
+			if err := tt.validInput(&testValidator{Valid: true}); err != nil {
+				t.Errorf("expected no error, got %v", err)
+			}
 
-	// Test scenario 3: Unmarshal failure
-	invalidJSON := strings.NewReader(`{invalid json}`)
-	var obj testValidator
-	err = BindJSONReader(ctx, invalidJSON, &obj)
-	if err == nil {
-		t.Error("BindJSONReader: expected unmarshal error, got nil")
+			// Invalid object + valid input → validation error
+			if err := tt.validInput(&testValidator{Valid: false}); err == nil {
+				t.Error("expected validation error, got nil")
+			}
+
+			// Invalid input → unmarshal error
+			if err := tt.invalidInput(&testValidator{}); err == nil {
+				t.Error("expected unmarshal error, got nil")
+			}
+		})
 	}
 }

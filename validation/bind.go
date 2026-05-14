@@ -15,32 +15,31 @@
 package validation
 
 import (
-	"context"
 	"io"
 
 	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 // BindJSONBytes unmarshals the JSON bytes into out and validates it.
-func BindJSONBytes(ctx context.Context, in []byte, out any) (err error) {
+func BindJSONBytes(in []byte, out any) (err error) {
 	if err = jsonx.UnmarshalBytes(in, out); err == nil {
-		err = Validate(ctx, out)
+		err = Validate(out)
 	}
 	return
 }
 
 // BindJSONString unmarshals the JSON string into out and validates it.
-func BindJSONString(ctx context.Context, in string, out any) (err error) {
+func BindJSONString(in string, out any) (err error) {
 	if err = jsonx.UnmarshalString(in, out); err == nil {
-		err = Validate(ctx, out)
+		err = Validate(out)
 	}
 	return
 }
 
 // BindJSONReader reads JSON from the io.Reader, unmarshals it into out, and validates it.
-func BindJSONReader(ctx context.Context, in io.Reader, out any) (err error) {
+func BindJSONReader(in io.Reader, out any) (err error) {
 	if err = jsonx.UnmarshalReader(out, in); err == nil {
-		err = Validate(ctx, out)
+		err = Validate(out)
 	}
 	return
 }

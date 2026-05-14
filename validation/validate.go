@@ -15,32 +15,30 @@
 // Package validation provides some validation functions.
 package validation
 
-import "context"
+var _validate func(any) error = _default
 
-var _validate func(context.Context, any) error = _default
-
-func _default(ctx context.Context, value any) error {
+func _default(value any) error {
 	if v, ok := value.(_Validator); ok {
-		return v.Validate(ctx)
+		return v.Validate()
 	}
 	return nil
 }
 
 type _Validator interface {
-	Validate(context.Context) error
+	Validate() error
 }
 
 // Validate validates whether the value is the valid,
 // which can be overrided by SetValidateFunc.
-func Validate(ctx context.Context, value any) error {
-	return _validate(ctx, value)
+func Validate(value any) error {
+	return _validate(value)
 }
 
 // SetValidateFunc resets the global validation function,
 // which will be used by Validate.
 //
 // If f is nil, it will panic.
-func SetValidateFunc(f func(ctx context.Context, value any) error) {
+func SetValidateFunc(f func(value any) error) {
 	if f == nil {
 		panic("SetValidateFunc: the validate function must not be nil")
 	}

@@ -15,7 +15,6 @@
 package validation
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -25,25 +24,25 @@ type mockValidator struct {
 	err error
 }
 
-func (m mockValidator) Validate(context.Context) error {
+func (m mockValidator) Validate() error {
 	return m.err
 }
 
 func TestValidate_DefaultNoop(t *testing.T) {
 	// Test that Validate works with the default no-op function
-	if err := Validate(context.Background(), nil); err != nil {
+	if err := Validate(nil); err != nil {
 		t.Errorf("expect nil, but got an error: %v", err)
 	}
 
-	if err := Validate(context.Background(), "test"); err != nil {
+	if err := Validate("test"); err != nil {
 		t.Errorf("expect nil, but got an error: %v", err)
 	}
 
-	if err := Validate(context.Background(), mockValidator{err: nil}); err != nil {
+	if err := Validate(mockValidator{err: nil}); err != nil {
 		t.Errorf("expect nil, but got an error: %v", err)
 	}
 
-	if Validate(context.Background(), mockValidator{err: errors.New("test")}) == nil {
+	if Validate(mockValidator{err: errors.New("test")}) == nil {
 		t.Errorf("expect an error, but got nil")
 	}
 }
@@ -69,51 +68,65 @@ func TestSetValidateFunc_PanicWhenNil(t *testing.T) {
 	}
 }
 
-func TestSetValidateFunc_SetsFunction(t *testing.T) {
+func TestSetValidateFunc_ReturnsOnValue(t *testing.T) {
 	// Save the current validation function
 	originalValidate := _validate
 	defer func() { _validate = originalValidate }()
 
-	// Test setting a validation function
-	called := false
-	expectedValue := "test value"
-
-	SetValidateFunc(func(ctx context.Context, value any) error {
-		called = true
-		if value != expectedValue {
-			t.Errorf("expected value %v, got %v", expectedValue, value)
-		}
-		return nil
-	})
-
-	ctx := context.Background()
-	err := Validate(ctx, expectedValue)
-
-	if err != nil {
-		t.Errorf("expected nil error, got %v", err)
+	tests := []struct {
+		name       string
+		fn         func(value any) error
+		value      any
+		wantErr    bool
+		wantCalled bool
+	}{
+		{
+			name: "passes_value",
+			fn: func(value any) error {
+				if value != "test value" {
+					t.Errorf("expected 'test value', got %v", value)
+				}
+				return nil
+			},
+			value:      "test value",
+			wantErr:    false,
+			wantCalled: true,
+		},
+		{
+			name: "returns_error",
+			fn: func(value any) error {
+				return errors.New("validation failed")
+			},
+			value:   "test",
+			wantErr: true,
+		},
 	}
 
-	if !called {
-		t.Error("validation function was not called")
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			wrappedFn := func(value any) error {
+				called = true
+				return tt.fn(value)
+			}
 
-func TestValidate_ReturnsErrorFromFunction(t *testing.T) {
-	// Save the current validation function
-	originalValidate := _validate
-	defer func() { _validate = originalValidate }()
+			SetValidateFunc(wrappedFn)
+			err := Validate(tt.value)
 
-	// Test that Validate returns the error from the validation function
-	expectedErr := errors.New("validation failed")
-	SetValidateFunc(func(ctx context.Context, value any) error {
-		return expectedErr
-	})
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				} else if err.Error() != "validation failed" {
+					t.Errorf("expected 'validation failed', got %v", err)
+				}
+			} else if err != nil {
+				t.Errorf("expected nil, got %v", err)
+			}
 
-	ctx := context.Background()
-	err := Validate(ctx, "test")
-
-	if err != expectedErr {
-		t.Errorf("expected error %v, got %v", expectedErr, err)
+			if tt.wantCalled && !called {
+				t.Error("validation function was not called")
+			}
+		})
 	}
 }
 
@@ -138,7 +151,7 @@ func TestValidate_WithDifferentValueTypes(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			called := false
-			SetValidateFunc(func(ctx context.Context, value any) error {
+			SetValidateFunc(func(value any) error {
 				called = true
 				if !reflect.DeepEqual(value, tc.value) {
 					t.Errorf("test case %s: expected value %v, got %v", tc.name, tc.value, value)
@@ -146,8 +159,7 @@ func TestValidate_WithDifferentValueTypes(t *testing.T) {
 				return nil
 			})
 
-			ctx := context.Background()
-			if err := Validate(ctx, tc.value); err != nil {
+			if err := Validate(tc.value); err != nil {
 				t.Errorf("test case %s: expected nil error, got %v", tc.name, err)
 			}
 
@@ -158,27 +170,6 @@ func TestValidate_WithDifferentValueTypes(t *testing.T) {
 	}
 }
 
-func TestValidate_ContextPropagation(t *testing.T) {
-	// Save the current validation function
-	originalValidate := _validate
-	defer func() { _validate = originalValidate }()
-
-	type _Key string
-	ctx := context.Background()
-	ctxWithValue := context.WithValue(ctx, _Key("test-key"), "test-value")
-
-	SetValidateFunc(func(ctx context.Context, value any) error {
-		if ctx.Value(_Key("test-key")) != "test-value" {
-			t.Error("context value not propagated to validation function")
-		}
-		return nil
-	})
-
-	if err := Validate(ctxWithValue, "test"); err != nil {
-		t.Errorf("expected nil error, got %v", err)
-	}
-}
-
 func TestSetValidateFunc_OverridesPreviousFunction(t *testing.T) {
 	// Save the current validation function
 	originalValidate := _validate
@@ -186,13 +177,12 @@ func TestSetValidateFunc_OverridesPreviousFunction(t *testing.T) {
 
 	// Set first function
 	firstCalled := false
-	SetValidateFunc(func(ctx context.Context, value any) error {
+	SetValidateFunc(func(value any) error {
 		firstCalled = true
 		return nil
 	})
 
-	ctx := context.Background()
-	_ = Validate(ctx, "test")
+	_ = Validate("test")
 
 	if !firstCalled {
 		t.Error("first validation function should have been called")
@@ -200,14 +190,14 @@ func TestSetValidateFunc_OverridesPreviousFunction(t *testing.T) {
 
 	// Override with second function
 	secondCalled := false
-	SetValidateFunc(func(ctx context.Context, value any) error {
+	SetValidateFunc(func(value any) error {
 		secondCalled = true
 		return errors.New("error from second function")
 	})
 
 	// Reset firstCalled to check if it's called again
 	firstCalled = false
-	err := Validate(ctx, "test")
+	err := Validate("test")
 
 	if firstCalled {
 		t.Error("first validation function should not be called after being overridden")
