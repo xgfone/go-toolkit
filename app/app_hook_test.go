@@ -182,8 +182,8 @@ func TestHook_ExitedError_Continues(t *testing.T) {
 	app.SetSignals()
 
 	var secondCalled atomic.Bool
-	app.On(StageExited, func(ctx context.Context, app *App) error { return errors.New("first fail") })
-	app.On(StageExited, func(ctx context.Context, app *App) error {
+	app.OnExited(func(ctx context.Context, app *App) error { return errors.New("first fail") })
+	app.OnExited(func(ctx context.Context, app *App) error {
 		secondCalled.Store(true)
 		return nil
 	})
@@ -238,7 +238,7 @@ func TestHook_Cleanup_Executed(t *testing.T) {
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
 
-	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+	app.OnCleanup(func(ctx context.Context, app *App) error {
 		called.Store(true)
 		return nil
 	})
@@ -261,7 +261,7 @@ func TestHook_Cleanup_ReverseOrder(t *testing.T) {
 
 	for i := range 3 {
 		n := i
-		app.On(StageCleanup, func(ctx context.Context, app *App) error {
+		app.OnCleanup(func(ctx context.Context, app *App) error {
 			order = append(order, n)
 			return nil
 		})
@@ -283,10 +283,10 @@ func TestHook_Cleanup_Error_Continues(t *testing.T) {
 	app.SetSignals()
 
 	var secondCalled atomic.Bool
-	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+	app.OnCleanup(func(ctx context.Context, app *App) error {
 		return errors.New("first cleanup fail")
 	})
-	app.On(StageCleanup, func(ctx context.Context, app *App) error {
+	app.OnCleanup(func(ctx context.Context, app *App) error {
 		secondCalled.Store(true)
 		return nil
 	})

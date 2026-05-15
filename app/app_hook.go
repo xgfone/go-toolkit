@@ -75,6 +75,16 @@ func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App)
 	a.hooks[stage] = append(a.hooks[stage], namedCtxAppFunc{name: name, fn: hook})
 }
 
+// OnCleanup is short for App.On(StageCleanup, fn).
+func (a *App) OnCleanup(fn func(context.Context, *App) error) {
+	a.On(StageCleanup, fn)
+}
+
+// OnExited is short for App.On(StageExited, fn).
+func (a *App) OnExited(fn func(context.Context, *App) error) {
+	a.On(StageExited, fn)
+}
+
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Lock()
 	a.stage = stage
