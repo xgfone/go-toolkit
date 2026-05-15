@@ -17,9 +17,11 @@ package runtimex
 import (
 	"context"
 	"os"
+	"sync"
 )
 
 var (
+	_lock sync.Mutex
 	_exit func(code int) = os.Exit
 
 	_exitcontext, _exitcancelf = context.WithCancel(context.Background())
@@ -39,12 +41,20 @@ func ExitContext() context.Context {
 // to perform some cleanup operations before exit.
 func Exit(code int) {
 	_exitcancelf()
-	_exit(code)
+
+	_lock.Lock()
+	exit := _exit
+	_lock.Unlock()
+
+	exit(code)
 }
 
 // GetExitFunc returns the current exit function.
 func GetExitFunc() func(code int) {
-	return _exit
+	_lock.Lock()
+	exit := _exit
+	_lock.Unlock()
+	return exit
 }
 
 // SetExitFunc sets the exit function to be called by Exit.
@@ -59,5 +69,8 @@ func SetExitFunc(exit func(code int)) {
 	if exit == nil {
 		panic("runtimex.SetExitFunc: exit function must not be nil")
 	}
+
+	_lock.Lock()
 	_exit = exit
+	_lock.Unlock()
 }
