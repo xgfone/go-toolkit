@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	errDefaultNilPointer = errors.New("SetDefault: v is nil")
-	errDefaultNotStruct  = errors.New("SetDefault: v is not a pointer to struct")
+	errDefaultNilPointer = errors.New("SetDefault: structptr is nil")
+	errDefaultNotStruct  = errors.New("SetDefault: structptr is not a pointer to struct")
 )
 
 // SetDefault sets the default values of the struct fields tagged with "default".
@@ -32,8 +32,8 @@ var (
 // If a field has a "default" tag and its current value is the zero value
 // of its type, SetDefault will set it to the value parsed from the tag.
 // Otherwise, the field is left unchanged.
-func SetDefault[Struct any](v *Struct) (err error) {
-	if v == nil {
+func SetDefault[Struct any](structptr *Struct) (err error) {
+	if structptr == nil {
 		return errDefaultNilPointer
 	}
 
@@ -42,7 +42,11 @@ func SetDefault[Struct any](v *Struct) (err error) {
 		return errDefaultNotStruct
 	}
 
-	root := reflect.ValueOf(v).Elem()
+	root := reflect.ValueOf(structptr).Elem()
+	return setDefault(rtype, root)
+}
+
+func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
 	for _, f := range structs.Parse(rtype, "").Fields {
 		if f.Default == "" {
 			continue
@@ -57,6 +61,5 @@ func SetDefault[Struct any](v *Struct) (err error) {
 			return fmt.Errorf("%q: %w", f.Name, err)
 		}
 	}
-
 	return
 }
