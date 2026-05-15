@@ -62,8 +62,13 @@ var (
 var (
 	ErrNotRegistered = ErrConflict.WithCode(401001).WithMessage("not registered")
 	ErrUserDisabled  = ErrConflict.WithCode(401002).WithMessage("user is disabled")
+	ErrUserLimited   = ErrConflict.WithCode(401003).WithMessage("user is limited")
 
 	ErrAuthMissing = ErrConflict.WithCode(401010).WithMessage("auth is missing")
 	ErrAuthInvalid = ErrConflict.WithCode(401011).WithMessage("auth is invalid")
 	ErrAuthExpired = ErrConflict.WithCode(401012).WithMessage("auth is expired")
+
+	ErrPasswordReused  = ErrConflict.WithCode(401020).WithMessage("password is reused")
+	ErrPasswordInvalid = ErrConflict.WithCode(401021).WithMessage("password is invalid")
+	ErrPasswordExpired = ErrConflict.WithCode(401022).WithMessage("password is expired")
 )
