@@ -62,7 +62,7 @@ var (
 var (
 	ErrNotRegistered = ErrConflict.WithCode(401001).WithMessage("not registered")
 	ErrUserDisabled  = ErrConflict.WithCode(401002).WithMessage("user is disabled")
-	ErrUserLimited   = ErrConflict.WithCode(401003).WithMessage("user is limited")
+	ErrLoginLocked   = ErrConflict.WithCode(401003).WithMessage("login is locked")
 
 	ErrAuthMissing = ErrConflict.WithCode(401010).WithMessage("auth is missing")
 	ErrAuthInvalid = ErrConflict.WithCode(401011).WithMessage("auth is invalid")
