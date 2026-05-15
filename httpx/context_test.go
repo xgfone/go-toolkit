@@ -406,6 +406,16 @@ func TestRespondError(t *testing.T) {
 	if rec.Code != 500 {
 		t.Errorf("expected status code 500 for generic error, got %d", rec.Code)
 	}
+
+	// Test with X-Error-Status-Code
+	req.Header.Set("X-Error-Status-Code", "200")
+	rec = httptest.NewRecorder()
+	ctx.Reset(rec, req)
+	response = result.Response{Error: errors.New("generic error")}
+	respondError(ctx, response)
+	if rec.Code != 200 {
+		t.Errorf("expected status code 200 for generic error with X-Error-Status-Code, got %d", rec.Code)
+	}
 }
 
 type statusCodeError struct {

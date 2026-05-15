@@ -250,5 +250,9 @@ func respondError(c *Context, response result.Response) {
 		response.Error = codeint.ErrInternalServerError.WithError(response.Error)
 	}
 
+	if c.Request.Header.Get("X-Error-Status-Code") == "200" {
+		statuscode = 200
+	}
+
 	c.JSON(statuscode, response)
 }
