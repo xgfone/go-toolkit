@@ -14,8 +14,6 @@
 
 package app
 
-import "context"
-
 // Stage is a lifecycle hook stage.
 type Stage string
 
@@ -44,13 +42,13 @@ const (
 )
 
 // On registers a hook function into DefaultApp to be executed at the given stage.
-func (s Stage) On(fn func(context.Context, *App) error) {
-	DefaultApp.On(s, fn)
+func (s Stage) On(hook Hook) {
+	DefaultApp.On(s, hook)
 }
 
 // OnNamed registers a named hook function into DefaultApp to be executed at the given stage.
-func (s Stage) OnNamed(name string, fn func(context.Context, *App) error) {
-	DefaultApp.OnNamed(s, name, fn)
+func (s Stage) OnNamed(name string, hook Hook) {
+	DefaultApp.OnNamed(s, name, hook)
 }
 
 func (a *App) canRegisterHookLocked(stage Stage) bool {

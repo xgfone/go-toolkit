@@ -22,24 +22,32 @@ import (
 	"slices"
 )
 
+type namedHook struct {
+	name string
+	hook Hook
+}
+
+// Hook is a function type that can be used as a hook for the App.
+type Hook func(ctx context.Context, app *App) error
+
 // On is short for DefaultApp.On(stage, hook).
 //
 // It must be called before Run.
-func On(stage Stage, hook func(context.Context, *App) error) {
+func On(stage Stage, hook Hook) {
 	DefaultApp.On(stage, hook)
 }
 
 // OnNamed is short for DefaultApp.OnNamed(stage, name, hook).
 //
 // It must be called before Run.
-func OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
+func OnNamed(stage Stage, name string, hook Hook) {
 	DefaultApp.OnNamed(stage, name, hook)
 }
 
 // On is short for App.OnNamed(stage, "", hook).
 //
 // It must be called before Run.
-func (a *App) On(stage Stage, hook func(context.Context, *App) error) {
+func (a *App) On(stage Stage, hook Hook) {
 	a.OnNamed(stage, "", hook)
 }
 
@@ -56,7 +64,7 @@ func (a *App) On(stage Stage, hook func(context.Context, *App) error) {
 // Hooks are executed in registration order for most stages. The only exception
 // is StageCleanup: hooks registered for StageCleanup are executed in reverse
 // registration order.
-func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App) error) {
+func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 	if hook == nil {
 		panic("app: nil hook")
 	}
@@ -72,17 +80,17 @@ func (a *App) OnNamed(stage Stage, name string, hook func(context.Context, *App)
 		panic(fmt.Sprintf("app: cannot register hook for stage %q after stage %q", stage, a.stage))
 	}
 
-	a.hooks[stage] = append(a.hooks[stage], namedCtxAppFunc{name: name, fn: hook})
+	a.hooks[stage] = append(a.hooks[stage], namedHook{name: name, hook: hook})
 }
 
-// OnCleanup is short for App.On(StageCleanup, fn).
-func (a *App) OnCleanup(fn func(context.Context, *App) error) {
-	a.On(StageCleanup, fn)
+// OnCleanup is short for App.On(StageCleanup, hook).
+func (a *App) OnCleanup(hook Hook) {
+	a.On(StageCleanup, hook)
 }
 
-// OnExited is short for App.On(StageExited, fn).
-func (a *App) OnExited(fn func(context.Context, *App) error) {
-	a.On(StageExited, fn)
+// OnExited is short for App.On(StageExited, hook).
+func (a *App) OnExited(hook Hook) {
+	a.On(StageExited, hook)
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
@@ -92,7 +100,7 @@ func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	a.mu.Unlock()
 
 	var errs []error
-	var seq2 iter.Seq2[int, namedCtxAppFunc]
+	var seq2 iter.Seq2[int, namedHook]
 
 	if stage == StageCleanup {
 		seq2 = slices.Backward(hooks)
@@ -101,7 +109,7 @@ func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	}
 
 	for i, hook := range seq2 {
-		if err := hook.fn(ctx, a); err != nil {
+		if err := hook.hook(ctx, a); err != nil {
 			wrapped := fmt.Errorf("app: hook %s: %w", hookLabel(stage, hook.name, i), err)
 
 			// During shutdown stages, continue executing remaining hooks.

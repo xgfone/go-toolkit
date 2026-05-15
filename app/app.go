@@ -42,15 +42,6 @@ const (
 	stateExited
 )
 
-type (
-	ctxAppFunc func(context.Context, *App) error
-
-	namedCtxAppFunc struct {
-		name string
-		fn   ctxAppFunc
-	}
-)
-
 // App is a lightweight backend application lifecycle manager.
 type App struct {
 	mu sync.Mutex
@@ -58,12 +49,12 @@ type App struct {
 	name    atomic.Value
 	version atomic.Value
 
-	configLoader    ctxAppFunc
+	configLoader    Hook
 	shutdownTimeout time.Duration
 	signals         []os.Signal
 
 	modules []Module
-	hooks   map[Stage][]namedCtxAppFunc
+	hooks   map[Stage][]namedHook
 	stage   Stage
 	state   state
 
@@ -86,7 +77,7 @@ type App struct {
 func New() *App {
 	app := &App{
 		state: stateNew,
-		hooks: make(map[Stage][]namedCtxAppFunc),
+		hooks: make(map[Stage][]namedHook),
 		done:  make(chan struct{}),
 	}
 	app.SetName(strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"))
@@ -328,7 +319,7 @@ func (a *App) WaitContext(ctx context.Context) error {
 	}
 }
 
-func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, ctxAppFunc, []os.Signal) {
+func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, Hook, []os.Signal) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

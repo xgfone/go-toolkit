@@ -24,7 +24,7 @@ import (
 // SetConfigLoader replaces the default config loader.
 //
 // It must be called before Run.
-func (a *App) SetConfigLoader(loader func(ctx context.Context, app *App) error) {
+func (a *App) SetConfigLoader(loader Hook) {
 	if loader == nil {
 		panic("app: nil config loader")
 	}
