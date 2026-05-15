@@ -27,6 +27,32 @@ var (
 	errDefaultNotStruct  = errors.New("SetDefault: structptr is not a pointer to struct")
 )
 
+// SetDefaultAny is like SetDefault, but accepts a value of type any.
+//
+// structptr must be a non-nil pointer to struct.
+func SetDefaultAny(structptr any) (err error) {
+	if structptr == nil {
+		return errDefaultNilPointer
+	}
+
+	rtype := reflect.TypeOf(structptr)
+	if rtype.Kind() != reflect.Pointer {
+		return errDefaultNotStruct
+	}
+
+	rtype = rtype.Elem()
+	if rtype.Kind() != reflect.Struct {
+		return errDefaultNotStruct
+	}
+
+	root := reflect.ValueOf(structptr)
+	if root.IsNil() {
+		return errDefaultNilPointer
+	}
+
+	return _setdefault(rtype, root.Elem())
+}
+
 // SetDefault sets the default values of the struct fields tagged with "default".
 //
 // If a field has a "default" tag and its current value is the zero value
@@ -43,8 +69,12 @@ func SetDefault[Struct any](structptr *Struct) (err error) {
 	}
 
 	root := reflect.ValueOf(structptr).Elem()
-	return setDefault(rtype, root)
+	return _setdefault(rtype, root)
 }
+
+// _setdefault is the backend function implementing the SetDefault functionality,
+// designed for convenient replacement during testing.
+var _setdefault = setDefault
 
 func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
 	for _, f := range structs.Parse(rtype, "").Fields {
