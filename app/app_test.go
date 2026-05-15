@@ -245,3 +245,145 @@ func TestGo_Error_ContextCancelled_NoShutdown(t *testing.T) {
 		t.Fatal("expected no error because task error happens after cancel:", err)
 	}
 }
+
+func TestWait_BlocksUntilRunExits(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		_ = app.Run(ctx)
+	}()
+
+	waitDone := make(chan struct{})
+	go func() {
+		app.Wait()
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("Wait should block before Run exits")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cancel()
+
+	select {
+	case <-waitDone:
+	case <-time.After(time.Second):
+		t.Fatal("Wait should return after Run exits")
+	}
+
+	<-runDone
+}
+
+func TestWait_ReturnsImmediatelyAfterRunExit(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := app.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		app.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Wait should return immediately after Run exits")
+	}
+}
+
+func TestWaitContext_ReturnsCtxErrWhenCanceledFirst(t *testing.T) {
+	app := New()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err := app.WaitContext(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context deadline exceeded, got: %v", err)
+	}
+	if time.Since(start) < 40*time.Millisecond {
+		t.Fatal("WaitContext should wait until context is done")
+	}
+}
+
+func TestWaitContext_ReturnsNilWhenRunExited(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	runCtx, runCancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); runCancel() }()
+	if err := app.Run(runCtx); err != nil {
+		t.Fatal(err)
+	}
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+
+	if err := app.WaitContext(waitCtx); err != nil {
+		t.Fatalf("expected nil, got: %v", err)
+	}
+}
+
+func TestStop_StopsRunningApp(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- app.Run(context.Background())
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	app.Stop()
+
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("expected nil, got: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run should stop after Stop")
+	}
+}
+
+func TestStop_NoOpWhenNotRunningOrExited(t *testing.T) {
+	app := New()
+	app.Stop() // no-op before Run
+
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	if err := app.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	app.Stop() // no-op after Run exits
+	app.Stop()
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer waitCancel()
+	if err := app.WaitContext(waitCtx); err != nil {
+		t.Fatalf("expected nil, got: %v", err)
+	}
+}

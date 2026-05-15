@@ -72,6 +72,7 @@ type App struct {
 
 	wg    sync.WaitGroup
 	errCh chan error
+	done  chan struct{}
 }
 
 // New creates an App with minimal default behavior.
@@ -83,7 +84,11 @@ type App struct {
 //   - uses 30 seconds as shutdown timeout
 //   - listens to SIGINT, SIGTERM
 func New() *App {
-	app := &App{hooks: make(map[Stage][]namedCtxAppFunc), state: stateNew}
+	app := &App{
+		state: stateNew,
+		hooks: make(map[Stage][]namedCtxAppFunc),
+		done:  make(chan struct{}),
+	}
 	app.SetName(strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"))
 	app.SetConfigLoader(defaultFlagConfigLoader)
 	app.SetShutdownTimeout(30 * time.Second)
@@ -288,6 +293,41 @@ func (a *App) Run(ctx context.Context) (err error) {
 	return err
 }
 
+// Stop requests Run to stop.
+//
+// It is safe to call Stop multiple times from different goroutines.
+// If Run is not running anymore, Stop is a no-op.
+func (a *App) Stop() {
+	a.mu.Lock()
+	cancel := a.cancelRun
+	a.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// Wait blocks until Run returns.
+//
+// If Run is still running, Wait blocks until the shutdown lifecycle finishes.
+// If Run has already returned, Wait returns immediately.
+func (a *App) Wait() {
+	_ = a.WaitContext(context.Background())
+}
+
+// WaitContext blocks until Run returns or ctx is done.
+//
+// It returns nil if Run has exited, or ctx.Err() if canceled first.
+func (a *App) WaitContext(ctx context.Context) error {
+	select {
+	case <-a.done:
+		return nil
+
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, ctxAppFunc, []os.Signal) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -370,6 +410,7 @@ func (a *App) markExited() {
 	a.runCtx = nil
 	a.cancelRun = nil
 	a.errCh = nil
+	close(a.done)
 }
 
 func (a *App) mustBeNewLocked(method string) {
