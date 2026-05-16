@@ -83,14 +83,16 @@ func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 	a.hooks[stage] = append(a.hooks[stage], namedHook{name: name, hook: hook})
 }
 
-// OnCleanup is short for App.On(StageCleanup, hook).
-func (a *App) OnCleanup(hook Hook) {
-	a.On(StageCleanup, hook)
+// Cleanup registers a simple function for StageCleanup,
+// which is a convenience wrapper around OnNamed(StageCleanup, ...).
+func (a *App) Cleanup(fn func() error) {
+	a.On(StageCleanup, func(context.Context, *App) error { return fn() })
 }
 
-// OnExited is short for App.On(StageExited, hook).
-func (a *App) OnExited(hook Hook) {
-	a.On(StageExited, hook)
+// AtExit registers a simple function for StageExited,
+// which is a convenience wrapper around OnNamed(StageExited, ...).
+func (a *App) AtExit(fn func() error) {
+	a.On(StageExited, func(context.Context, *App) error { return fn() })
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {

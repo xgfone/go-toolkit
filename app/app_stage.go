@@ -36,6 +36,15 @@ const (
 	// remaining cleanup hooks will continue to run.
 	StageCleanup Stage = "cleanup"
 
+	// StageExited is the final lifecycle stage.
+	//
+	// It is triggered after StageCleanup has completed and before Run returns.
+	// Hooks registered for StageExited are intended for fast final notification
+	// logic, such as logging, metrics, or status reporting.
+	//
+	// StageExited does not mean the process has already exited. It means the App
+	// has reached its final lifecycle stage.
+	//
 	// If a StageExited hook returns an error, the error is collected, but the
 	// remaining cleanup hooks will continue to run.
 	StageExited Stage = "exited"

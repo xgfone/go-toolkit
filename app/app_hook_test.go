@@ -182,11 +182,8 @@ func TestHook_ExitedError_Continues(t *testing.T) {
 	app.SetSignals()
 
 	var secondCalled atomic.Bool
-	app.OnExited(func(ctx context.Context, app *App) error { return errors.New("first fail") })
-	app.OnExited(func(ctx context.Context, app *App) error {
-		secondCalled.Store(true)
-		return nil
-	})
+	app.AtExit(func() error { return errors.New("first fail") })
+	app.AtExit(func() error { secondCalled.Store(true); return nil })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
@@ -238,10 +235,7 @@ func TestHook_Cleanup_Executed(t *testing.T) {
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
 
-	app.OnCleanup(func(ctx context.Context, app *App) error {
-		called.Store(true)
-		return nil
-	})
+	app.Cleanup(func() error { called.Store(true); return nil })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
@@ -261,10 +255,7 @@ func TestHook_Cleanup_ReverseOrder(t *testing.T) {
 
 	for i := range 3 {
 		n := i
-		app.OnCleanup(func(ctx context.Context, app *App) error {
-			order = append(order, n)
-			return nil
-		})
+		app.Cleanup(func() error { order = append(order, n); return nil })
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -283,13 +274,8 @@ func TestHook_Cleanup_Error_Continues(t *testing.T) {
 	app.SetSignals()
 
 	var secondCalled atomic.Bool
-	app.OnCleanup(func(ctx context.Context, app *App) error {
-		return errors.New("first cleanup fail")
-	})
-	app.OnCleanup(func(ctx context.Context, app *App) error {
-		secondCalled.Store(true)
-		return nil
-	})
+	app.Cleanup(func() error { return errors.New("first cleanup fail") })
+	app.Cleanup(func() error { secondCalled.Store(true); return nil })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
