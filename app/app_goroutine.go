@@ -17,8 +17,6 @@ package app
 import (
 	"context"
 	"fmt"
-
-	"github.com/xgfone/go-toolkit/runtimex"
 )
 
 // Go is a convenience function that calls DefaultApp.Go.
@@ -33,7 +31,7 @@ func GoNamed(name string, fn func(ctx context.Context) error) {
 
 // Go is short for App.GoNamed("", fn).
 func (a *App) Go(fn func(ctx context.Context) error) {
-	a.GoNamed("", fn)
+	a.goNamed("", fn)
 }
 
 // GoNamed starts a lifecycle-managed background task with the optional name.
@@ -41,6 +39,10 @@ func (a *App) Go(fn func(ctx context.Context) error) {
 // It can only be called after Run starts, usually inside Module.Start or hooks.
 // If fn returns a non-nil error while App is still running, App will start shutdown.
 func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
+	a.goNamed(name, fn)
+}
+
+func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
 	if fn == nil {
 		panic("app: nil background task func")
 	}
@@ -81,7 +83,15 @@ func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
 	}()
 }
 
-func saferun(ctx context.Context, fn func(context.Context) error) error {
-	defer runtimex.Recover(ctx)
+func saferun(ctx context.Context, fn func(context.Context) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = fmt.Errorf("panic: %w", e)
+			} else {
+				err = fmt.Errorf("panic: %v", r)
+			}
+		}
+	}()
 	return fn(ctx)
 }
