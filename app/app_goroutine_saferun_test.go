@@ -23,7 +23,7 @@ import (
 
 func TestSafeRun(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		var err error
+		errch := make(chan error, 1)
 
 		app := New()
 		app.On(StageStart, func(_ context.Context, app *App) error {
@@ -32,13 +32,14 @@ func TestSafeRun(t *testing.T) {
 		})
 
 		go func() {
-			err = app.Run(context.Background())
+			errch <- app.Run(context.Background())
 		}()
 
 		time.Sleep(time.Millisecond * 100)
 		app.Stop()
 		app.Wait()
 
+		err := <-errch
 		if err != nil {
 			t.Errorf("expect nil, but got an error: %s", err.Error())
 		}
@@ -46,7 +47,7 @@ func TestSafeRun(t *testing.T) {
 
 	t.Run("panic with error", func(t *testing.T) {
 		panicerr := errors.New("test")
-		var err error
+		errch := make(chan error, 1)
 
 		app := New()
 		app.On(StageStart, func(_ context.Context, app *App) error {
@@ -55,13 +56,14 @@ func TestSafeRun(t *testing.T) {
 		})
 
 		go func() {
-			err = app.Run(context.Background())
+			errch <- app.Run(context.Background())
 		}()
 
 		time.Sleep(time.Millisecond * 100)
 		app.Stop()
 		app.Wait()
 
+		err := <-errch
 		if err == nil {
 			t.Fatal("expect an error, but got nil")
 		}
@@ -76,7 +78,7 @@ func TestSafeRun(t *testing.T) {
 	})
 
 	t.Run("panic without error", func(t *testing.T) {
-		var err error
+		errch := make(chan error, 1)
 
 		app := New()
 		app.On(StageStart, func(_ context.Context, app *App) error {
@@ -85,13 +87,14 @@ func TestSafeRun(t *testing.T) {
 		})
 
 		go func() {
-			err = app.Run(context.Background())
+			errch <- app.Run(context.Background())
 		}()
 
 		time.Sleep(time.Millisecond * 100)
 		app.Stop()
 		app.Wait()
 
+		err := <-errch
 		if err == nil {
 			t.Fatal("expect an error, but got nil")
 		}
