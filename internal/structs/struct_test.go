@@ -66,14 +66,14 @@ type flatFields struct {
 
 // --- Helper ---
 
-func mustSet(t *testing.T, f Field, root reflect.Value, s string) {
+func mustSet(t *testing.T, f Field[string], root reflect.Value, s string) {
 	t.Helper()
 	if err := f.SetValue(root, s); err != nil {
 		t.Fatalf("SetValue(%q): %v", s, err)
 	}
 }
 
-func checkFields(t *testing.T, s *Struct, want ...string) {
+func checkFields(t *testing.T, s *Struct[string], want ...string) {
 	t.Helper()
 	if len(s.Fields) != len(want) {
 		t.Fatalf("got %d fields, want %d: %v", len(s.Fields), len(want), fieldNames(s.Fields))
@@ -93,7 +93,7 @@ func checkFields(t *testing.T, s *Struct, want ...string) {
 	}
 }
 
-func fieldNames(fields []Field) []string {
+func fieldNames(fields []Field[string]) []string {
 	ns := make([]string, len(fields))
 	for i, f := range fields {
 		ns[i] = f.Name
@@ -105,13 +105,13 @@ func fieldNames(fields []Field) []string {
 
 // Named struct embedded anonymously from the same package — should expand.
 func TestExpandNamedStruct(t *testing.T) {
-	s := Parse(reflect.TypeFor[embedNamed](), "q")
+	s := Parse(reflect.TypeFor[embedNamed](), "q", CompileStringSetter)
 	checkFields(t, s, "a", "b", "c", "WrapTime")
 }
 
 // Pointer to named struct embedded anonymously — should dereference and expand.
 func TestExpandPointerEmbed(t *testing.T) {
-	s := Parse(reflect.TypeFor[embedPointer](), "q")
+	s := Parse(reflect.TypeFor[embedPointer](), "q", CompileStringSetter)
 	checkFields(t, s, "a", "b", "p")
 }
 
@@ -125,28 +125,28 @@ type embedLiteral struct {
 }
 
 func TestExpandAnonymousStruct(t *testing.T) {
-	s := Parse(reflect.TypeFor[embedLiteral](), "q")
+	s := Parse(reflect.TypeFor[embedLiteral](), "q", CompileStringSetter)
 	checkFields(t, s, "z")
 }
 
 // External struct (time.Time) embedded anonymously — NOT expanded, added as regular field.
 func TestNotExpandExternalStruct(t *testing.T) {
 	typ := reflect.TypeFor[embedExternal]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	checkFields(t, s, "Time", "c")
 }
 
 // Named type wrapping an external struct (type T time.Time) — NOT expanded.
 func TestNotExpandWrappedExternal(t *testing.T) {
 	typ := reflect.TypeFor[embedNamed]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	checkFields(t, s, "a", "b", "c", "WrapTime")
 }
 
 // Unexported anonymous embed with exported sub-fields — still expanded before IsExported check.
 func TestExpandUnexportedEmbed(t *testing.T) {
 	typ := reflect.TypeFor[embedHidden]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	checkFields(t, s, "x", "a")
 }
 
@@ -154,9 +154,9 @@ func TestExpandUnexportedEmbed(t *testing.T) {
 
 func TestSetValueSuccess(t *testing.T) {
 	typ := reflect.TypeFor[embedNamed]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 
-	fields := make(map[string]Field, len(s.Fields))
+	fields := make(map[string]Field[string], len(s.Fields))
 	for _, f := range s.Fields {
 		fields[f.Name] = f
 	}
@@ -257,7 +257,7 @@ type namedStructFieldOuter struct {
 
 func TestExpandNamedStructField(t *testing.T) {
 	typ := reflect.TypeFor[namedStructFieldOuter]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	checkFields(t, s, "key", "label")
 }
 
@@ -273,7 +273,7 @@ type namedPtrStructFieldOuter struct {
 
 func TestExpandNamedPointerStructField(t *testing.T) {
 	typ := reflect.TypeFor[namedPtrStructFieldOuter]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	checkFields(t, s, "n", "name")
 }
 
@@ -287,7 +287,7 @@ type namedStructNoExport struct {
 
 func TestNotExpandNamedStructNoExportedFields(t *testing.T) {
 	typ := reflect.TypeFor[namedStructNoExport]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	// Named has no exported sub-fields, so it stays as a single field.
 	checkFields(t, s, "Named", "tag")
 }
@@ -307,7 +307,7 @@ type unexportedNamedStructOuter struct {
 
 func TestNotExpandUnexportedNamedStructField(t *testing.T) {
 	typ := reflect.TypeFor[unexportedNamedStructOuter]()
-	s := Parse(typ, "q")
+	s := Parse(typ, "q", CompileStringSetter)
 	// inner is unexported, so it is skipped entirely.
 	checkFields(t, s, "tag")
 }
@@ -316,8 +316,8 @@ func TestNotExpandUnexportedNamedStructField(t *testing.T) {
 
 func TestParseCache(t *testing.T) {
 	typ := reflect.TypeFor[flatFields]()
-	s1 := Parse(typ, "q")
-	s2 := Parse(typ, "q")
+	s1 := Parse(typ, "q", CompileStringSetter)
+	s2 := Parse(typ, "q", CompileStringSetter)
 	if s1 != s2 {
 		t.Fatal("cache miss")
 	}

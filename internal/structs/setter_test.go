@@ -50,8 +50,8 @@ func TestUnmarshalText(t *testing.T) {
 	}
 }
 
-func TestCompileSetterValueInterface(t *testing.T) {
-	setter := CompileSetter(reflect.TypeFor[textValue]())
+func TestCompileStringSetterValueInterface(t *testing.T) {
+	setter := CompileStringSetter(reflect.TypeFor[textValue]())
 
 	var v textValue
 	var err error
@@ -67,8 +67,8 @@ func TestCompileSetterValueInterface(t *testing.T) {
 	}
 }
 
-func TestCompileSetterPointerInterface(t *testing.T) {
-	setter := CompileSetter(reflect.TypeFor[*textValue]())
+func TestCompileStringSetterPointerInterface(t *testing.T) {
+	setter := CompileStringSetter(reflect.TypeFor[*textValue]())
 
 	var v *textValue
 	var err error
@@ -84,8 +84,8 @@ func TestCompileSetterPointerInterface(t *testing.T) {
 	}
 }
 
-func TestCompileSetterPointerValue(t *testing.T) {
-	setter := CompileSetter(reflect.TypeFor[*int]())
+func TestCompileStringSetterPointerValue(t *testing.T) {
+	setter := CompileStringSetter(reflect.TypeFor[*int]())
 
 	var v *int
 	var err error
@@ -103,51 +103,51 @@ func TestCompileSetterPointerValue(t *testing.T) {
 
 func TestCompileSetterValueKinds(t *testing.T) {
 	sv := new(string)
-	if err := testCompileSetter(sv, "s"); err != nil || *sv != "s" {
+	if err := testCompileStringSetter(sv, "s"); err != nil || *sv != "s" {
 		t.Fatalf("unexpected string result: %v %q", err, *sv)
 	}
 
 	bv := new(bool)
-	if err := testCompileSetter(bv, "true"); err != nil || !*bv {
+	if err := testCompileStringSetter(bv, "true"); err != nil || !*bv {
 		t.Fatalf("unexpected bool result: %v %v", err, *bv)
 	}
-	if err := testCompileSetter(new(bool), "bad"); err == nil {
+	if err := testCompileStringSetter(new(bool), "bad"); err == nil {
 		t.Fatal("expected bool error")
 	}
 
 	iv := new(int)
-	if err := testCompileSetter(iv, "3"); err != nil || *iv != 3 {
+	if err := testCompileStringSetter(iv, "3"); err != nil || *iv != 3 {
 		t.Fatalf("unexpected int result: %v %v", err, *iv)
 	}
-	if err := testCompileSetter(new(int), "bad"); err == nil {
+	if err := testCompileStringSetter(new(int), "bad"); err == nil {
 		t.Fatal("expected int error")
 	}
 
 	uv := new(uint)
-	if err := testCompileSetter(uv, "5"); err != nil || *uv != 5 {
+	if err := testCompileStringSetter(uv, "5"); err != nil || *uv != 5 {
 		t.Fatalf("unexpected uint result: %v %v", err, *uv)
 	}
-	if err := testCompileSetter(new(uint), "bad"); err == nil {
+	if err := testCompileStringSetter(new(uint), "bad"); err == nil {
 		t.Fatal("expected uint error")
 	}
 
 	fv := new(float64)
-	if err := testCompileSetter(fv, "1.5"); err != nil || *fv != 1.5 {
+	if err := testCompileStringSetter(fv, "1.5"); err != nil || *fv != 1.5 {
 		t.Fatalf("unexpected float result: %v %v", err, *fv)
 	}
-	if err := testCompileSetter(new(float64), "bad"); err == nil {
+	if err := testCompileStringSetter(new(float64), "bad"); err == nil {
 		t.Fatal("expected float error")
 	}
 }
 
-func TestCompileSetterUnsupported(t *testing.T) {
-	err := testCompileSetter(new(unsupported), "x")
+func TestCompileStringSetterUnsupported(t *testing.T) {
+	err := testCompileStringSetter(new(unsupported), "x")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func testCompileSetter[T any](ptr *T, tag string) error {
+func testCompileStringSetter[T any](ptr *T, tag string) error {
 	rtype := reflect.TypeFor[T]()
-	return CompileSetter(rtype)(rtype, reflect.ValueOf(ptr).Elem(), tag)
+	return CompileStringSetter(rtype)(rtype, reflect.ValueOf(ptr).Elem(), tag)
 }

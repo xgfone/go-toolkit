@@ -30,9 +30,11 @@ func unmarshalText(v reflect.Value, s string) error {
 	return v.Interface().(encoding.TextUnmarshaler).UnmarshalText(unsafex.Bytes(s))
 }
 
-type SetterFunc func(t reflect.Type, dst reflect.Value, src string) error
+type SetterFunc[T any] func(t reflect.Type, dst reflect.Value, src T) error
 
-func CompileSetter(t reflect.Type) SetterFunc {
+type SetterCompiler[T any] func(reflect.Type) SetterFunc[T]
+
+func CompileStringSetter(t reflect.Type) SetterFunc[string] {
 	if t.Kind() == reflect.Pointer {
 		return compileSetterPointer(t)
 	}
@@ -43,7 +45,7 @@ func CompileSetter(t reflect.Type) SetterFunc {
 	return compileSetter(t)
 }
 
-func compileSetterPointer(t reflect.Type) SetterFunc {
+func compileSetterPointer(t reflect.Type) SetterFunc[string] {
 	if reflectx.Implements(t, textUnmarshalerType) {
 		return setPointerInterface
 	}
@@ -78,7 +80,7 @@ func setValueInterface(_ reflect.Type, v reflect.Value, s string) error {
 	return unmarshalText(v.Addr(), s)
 }
 
-func compileSetter(t reflect.Type) SetterFunc {
+func compileSetter(t reflect.Type) SetterFunc[string] {
 	switch t.Kind() {
 	case reflect.String:
 		return setString

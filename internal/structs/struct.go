@@ -21,48 +21,49 @@ import (
 )
 
 type mapKey struct {
-	typ reflect.Type
-	tag string
+	vtype reflect.Type
+	stype reflect.Type
+	tag   string
 }
 
-type Struct struct {
-	Fields []Field
+type Struct[T any] struct {
+	Fields []Field[T]
 }
 
-type Field struct {
+type Field[T any] struct {
 	Type    reflect.Type
 	Name    string
 	Default string
 
-	SetField SetterFunc
+	SetField SetterFunc[T]
 	GetField FieldGetter
 }
 
 type FieldGetter func(root reflect.Value) reflect.Value
 
-func (f *Field) SetValue(root reflect.Value, value string) error {
+func (f *Field[T]) SetValue(root reflect.Value, value T) error {
 	rvalue := f.GetField(root)
 	return f.SetField(f.Type, rvalue, value)
 }
 
 var structs sync.Map // map[mapKey]*Struct
 
-func Parse(t reflect.Type, tag string) (s *Struct) {
-	key := mapKey{typ: t, tag: tag}
+func Parse[T any](t reflect.Type, tag string, compileSetter SetterCompiler[T]) (s *Struct[T]) {
+	key := mapKey{vtype: reflect.TypeFor[T](), stype: t, tag: tag}
 	if v, ok := structs.Load(key); ok {
-		return v.(*Struct)
+		return v.(*Struct[T])
 	}
 
-	actual, _ := structs.LoadOrStore(key, parse(t, tag))
-	return actual.(*Struct)
+	actual, _ := structs.LoadOrStore(key, parse(t, tag, compileSetter))
+	return actual.(*Struct[T])
 }
 
-func parse(t reflect.Type, tag string) (s *Struct) {
-	fields := parseWithParent(t, tag, nil)
-	return &Struct{Fields: fields}
+func parse[T any](t reflect.Type, tag string, compileSetter SetterCompiler[T]) (s *Struct[T]) {
+	fields := parseWithParent(t, tag, nil, compileSetter)
+	return &Struct[T]{Fields: fields}
 }
 
-func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) {
+func parseWithParent[T any](t reflect.Type, tag string, parent []int, compileSetter SetterCompiler[T]) (fields []Field[T]) {
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
 
@@ -96,7 +97,7 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 		// Struct-typed fields without exported sub-fields fall through to
 		// the normal path below and are added as a single opaque field.
 		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
-			fields = append(fields, parseWithParent(ft, tag, index)...)
+			fields = append(fields, parseWithParent(ft, tag, index, compileSetter)...)
 			continue
 		}
 
@@ -108,11 +109,11 @@ func parseWithParent(t reflect.Type, tag string, parent []int) (fields []Field) 
 			name = sf.Name
 		}
 
-		fields = append(fields, Field{
+		fields = append(fields, Field[T]{
 			Name:     name,
 			Type:     sf.Type,
 			Default:  sf.Tag.Get("default"),
-			SetField: CompileSetter(sf.Type),
+			SetField: compileSetter(sf.Type),
 			GetField: makeFieldGetter(index),
 		})
 	}
