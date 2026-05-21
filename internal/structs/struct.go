@@ -37,6 +37,7 @@ type Field[T any] struct {
 
 	SetField SetterFunc[T]
 	GetField FieldGetter
+	GetValue func(map[string]any) any
 }
 
 type FieldGetter func(root reflect.Value) reflect.Value
@@ -66,11 +67,11 @@ type _Parser[T any] struct {
 }
 
 func (p *_Parser[T]) Parse(t reflect.Type) *Struct[T] {
-	fields := p.parse(t, nil)
+	fields := p.parse(t, nil, nil)
 	return &Struct[T]{Fields: fields}
 }
 
-func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int) (fields []Field[T]) {
+func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []string) (fields []Field[T]) {
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
 
@@ -87,7 +88,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int) (fields []Field[T]
 			ft = ft.Elem()
 		}
 
-		index := appendIndex(parentIndex, i)
+		index := appendSlice(parentIndex, i)
 
 		// Expand struct-typed fields by recursively parsing their
 		// sub-fields so they are discoverable by callers.
@@ -104,7 +105,13 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int) (fields []Field[T]
 		// Struct-typed fields without exported sub-fields fall through to
 		// the normal path below and are added as a single opaque field.
 		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
-			fields = append(fields, p.parse(ft, index)...)
+			var names []string
+			if sf.Anonymous {
+				names = parentNames
+			} else {
+				names = append(parentNames, name)
+			}
+			fields = append(fields, p.parse(ft, index, names)...)
 			continue
 		}
 
@@ -122,6 +129,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int) (fields []Field[T]
 			Default:  sf.Tag.Get("default"),
 			SetField: p.CompileSetter(sf.Type),
 			GetField: makeFieldGetter(index),
+			GetValue: makeMapValueGetter(append(parentNames, name)),
 		})
 	}
 	return
@@ -151,16 +159,40 @@ func parseTagName(tag string) string {
 	return tag
 }
 
-func appendIndex(parent []int, i int) []int {
-	index := make([]int, len(parent)+1)
-	copy(index, parent)
-	index[len(parent)] = i
-	return index
+func appendSlice[T any](parent []T, i T) []T {
+	s := make([]T, len(parent)+1)
+	copy(s, parent)
+	s[len(parent)] = i
+	return s
 }
 
 func makeFieldGetter(index []int) FieldGetter {
 	return func(root reflect.Value) reflect.Value {
 		return fieldByIndexAlloc(root, index)
+	}
+}
+
+func makeMapValueGetter(names []string) func(map[string]any) any {
+	return func(m map[string]any) any {
+		if m == nil {
+			return nil
+		}
+
+		for i := range names {
+			name := names[i]
+
+			if i == len(names)-1 {
+				return m[name]
+			}
+
+			if v, ok := m[name].(map[string]any); ok {
+				m = v
+			} else {
+				return nil
+			}
+		}
+
+		return nil
 	}
 }
 

@@ -262,6 +262,16 @@ func TestExpandNamedStructField(t *testing.T) {
 }
 
 // Named pointer-to-struct field — expanded into its sub-fields.
+type taggedNestedHost struct {
+	Key   string `q:"key"`
+	Count int    `q:"count"`
+}
+
+type taggedNestedOuter struct {
+	Inner taggedNestedHost `q:"inner"`
+	Label string           `q:"label"`
+}
+
 type namedPtrStructFieldHost struct {
 	N int `q:"n"`
 }
@@ -312,6 +322,100 @@ func TestNotExpandUnexportedNamedStructField(t *testing.T) {
 	checkFields(t, s, "tag")
 }
 
+// --- GetValue tests ---
+
+func TestGetValueNonNil(t *testing.T) {
+	typ := reflect.TypeFor[embedNamed]()
+	s := Parse(typ, "q", CompileStringSetter)
+	for _, f := range s.Fields {
+		if f.GetValue == nil {
+			t.Fatalf("field %q has nil GetValue", f.Name)
+		}
+	}
+}
+
+func TestGetValueFlatFields(t *testing.T) {
+	typ := reflect.TypeFor[flatFields]()
+	s := Parse(typ, "q", CompileStringSetter)
+
+	// Nil map → returns nil
+	for _, f := range s.Fields {
+		if got := f.GetValue(nil); got != nil {
+			t.Fatalf("field %q: expected nil, got %v", f.Name, got)
+		}
+	}
+
+	// Key exists → returns value
+	m := map[string]any{"name": "hello", "value": 42}
+	for _, f := range s.Fields {
+		switch f.Name {
+		case "name":
+			if got := f.GetValue(m); got != "hello" {
+				t.Fatalf("expected 'hello', got %v", got)
+			}
+		case "value":
+			if got := f.GetValue(m); got != 42 {
+				t.Fatalf("expected 42, got %v", got)
+			}
+		}
+	}
+
+	// Key missing → returns nil
+	m = map[string]any{"name": "hello"}
+	for _, f := range s.Fields {
+		if f.Name == "value" {
+			if got := f.GetValue(m); got != nil {
+				t.Fatalf("expected nil, got %v", got)
+			}
+			return
+		}
+	}
+}
+
+func TestGetValueNestedFields(t *testing.T) {
+	typ := reflect.TypeFor[taggedNestedOuter]()
+	s := Parse(typ, "q", CompileStringSetter)
+
+	// Key has a nested path ["inner", "key"] because the named struct
+	// field "Inner" (tag "inner") is expanded during parsing.
+	var key Field[string]
+	for _, f := range s.Fields {
+		if f.Name == "key" {
+			key = f
+			break
+		}
+	}
+
+	// Key exists
+	if got := key.GetValue(map[string]any{
+		"inner": map[string]any{"key": "v"},
+	}); got != "v" {
+		t.Fatalf("expected 'v', got %v", got)
+	}
+
+	// Missing intermediate key
+	if got := key.GetValue(map[string]any{}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+
+	// Wrong intermediate type
+	if got := key.GetValue(map[string]any{"inner": "bad"}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+
+	// Nil intermediate map (type assertion succeeds, nil-map read returns nil)
+	if got := key.GetValue(map[string]any{"inner": map[string]any(nil)}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}
+
+func TestMakeMapValueGetterEmptyNames(t *testing.T) {
+	getter := makeMapValueGetter(nil)
+	if got := getter(map[string]any{"x": 1}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}
+
 // --- Other ---
 
 func TestParseCache(t *testing.T) {
@@ -327,7 +431,7 @@ func TestParseHelpers(t *testing.T) {
 	if parseTagName("") != "" || parseTagName("name,omitempty") != "name" {
 		t.Fatal("unexpected tag parse")
 	}
-	idx := appendIndex([]int{1, 2}, 3)
+	idx := appendSlice([]int{1, 2}, 3)
 	if len(idx) != 3 || idx[2] != 3 {
 		t.Fatalf("unexpected index: %#v", idx)
 	}
