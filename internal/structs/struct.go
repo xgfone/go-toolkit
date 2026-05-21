@@ -54,22 +54,29 @@ func Parse[T any](t reflect.Type, tag string, compileSetter SetterCompiler[T]) (
 		return v.(*Struct[T])
 	}
 
-	actual, _ := structs.LoadOrStore(key, parse(t, tag, compileSetter))
+	parser := _Parser[T]{CompileSetter: compileSetter, Tag: tag}
+	actual, _ := structs.LoadOrStore(key, parser.Parse(t))
 	return actual.(*Struct[T])
 }
 
-func parse[T any](t reflect.Type, tag string, compileSetter SetterCompiler[T]) (s *Struct[T]) {
-	fields := parseWithParent(t, tag, nil, compileSetter)
+type _Parser[T any] struct {
+	CompileSetter SetterCompiler[T]
+
+	Tag string
+}
+
+func (p *_Parser[T]) Parse(t reflect.Type) *Struct[T] {
+	fields := p.parse(t, nil)
 	return &Struct[T]{Fields: fields}
 }
 
-func parseWithParent[T any](t reflect.Type, tag string, parent []int, compileSetter SetterCompiler[T]) (fields []Field[T]) {
+func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int) (fields []Field[T]) {
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
 
 		var name string
-		if tag != "" {
-			name = parseTagName(sf.Tag.Get(tag))
+		if p.Tag != "" {
+			name = parseTagName(sf.Tag.Get(p.Tag))
 			if name == "-" {
 				continue
 			}
@@ -80,7 +87,7 @@ func parseWithParent[T any](t reflect.Type, tag string, parent []int, compileSet
 			ft = ft.Elem()
 		}
 
-		index := appendIndex(parent, i)
+		index := appendIndex(parentIndex, i)
 
 		// Expand struct-typed fields by recursively parsing their
 		// sub-fields so they are discoverable by callers.
@@ -97,7 +104,7 @@ func parseWithParent[T any](t reflect.Type, tag string, parent []int, compileSet
 		// Struct-typed fields without exported sub-fields fall through to
 		// the normal path below and are added as a single opaque field.
 		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
-			fields = append(fields, parseWithParent(ft, tag, index, compileSetter)...)
+			fields = append(fields, p.parse(ft, index)...)
 			continue
 		}
 
@@ -113,11 +120,10 @@ func parseWithParent[T any](t reflect.Type, tag string, parent []int, compileSet
 			Name:     name,
 			Type:     sf.Type,
 			Default:  sf.Tag.Get("default"),
-			SetField: compileSetter(sf.Type),
+			SetField: p.CompileSetter(sf.Type),
 			GetField: makeFieldGetter(index),
 		})
 	}
-
 	return
 }
 
