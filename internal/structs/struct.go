@@ -37,7 +37,7 @@ type Field[T any] struct {
 
 	SetField SetterFunc[T]
 	GetField FieldGetter
-	GetValue func(map[string]any) any
+	GetValue func(map[string]any) any // Missing values are returned as nil.
 }
 
 type FieldGetter func(root reflect.Value) reflect.Value
@@ -82,6 +82,9 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 				continue
 			}
 		}
+		if name == "" {
+			name = sf.Name
+		}
 
 		ft := sf.Type
 		for ft.Kind() == reflect.Pointer {
@@ -109,7 +112,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 			if sf.Anonymous {
 				names = parentNames
 			} else {
-				names = append(parentNames, name)
+				names = appendSlice(parentNames, name)
 			}
 			fields = append(fields, p.parse(ft, index, names)...)
 			continue
@@ -119,17 +122,13 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 			continue
 		}
 
-		if name == "" {
-			name = sf.Name
-		}
-
 		fields = append(fields, Field[T]{
 			Name:     name,
 			Type:     sf.Type,
 			Default:  sf.Tag.Get("default"),
 			SetField: p.CompileSetter(sf.Type),
 			GetField: makeFieldGetter(index),
-			GetValue: makeMapValueGetter(append(parentNames, name)),
+			GetValue: makeMapValueGetter(appendSlice(parentNames, name)),
 		})
 	}
 	return

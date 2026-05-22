@@ -409,6 +409,56 @@ func TestGetValueNestedFields(t *testing.T) {
 	}
 }
 
+func TestGetValueNestedFieldsWithoutTag(t *testing.T) {
+	type inner struct {
+		Key string
+	}
+	type outer struct {
+		Inner inner
+	}
+
+	typ := reflect.TypeFor[outer]()
+	s := Parse(typ, "", CompileStringSetter)
+	checkFields(t, s, "Key")
+
+	key := s.Fields[0]
+	if got := key.GetValue(map[string]any{
+		"Inner": map[string]any{"Key": "v"},
+	}); got != "v" {
+		t.Fatalf("expected 'v', got %v", got)
+	}
+
+	if got := key.GetValue(map[string]any{
+		"": map[string]any{"Key": "bad"},
+	}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}
+
+func TestGetValuePathNamesAreIndependent(t *testing.T) {
+	type inner struct {
+		A string
+		B string
+	}
+
+	parentNames := make([]string, 1, 2)
+	parentNames[0] = "Root"
+	parser := _Parser[string]{CompileSetter: CompileStringSetter}
+	fields := parser.parse(reflect.TypeFor[inner](), nil, parentNames)
+	checkFields(t, &Struct[string]{Fields: fields}, "A", "B")
+
+	values := map[string]any{"Root": map[string]any{"A": "a", "B": "b"}}
+	for _, f := range fields {
+		if f.Name == "A" {
+			if got := f.GetValue(values); got != "a" {
+				t.Fatalf("expected 'a', got %v", got)
+			}
+			return
+		}
+	}
+	t.Fatal("missing field A")
+}
+
 func TestMakeMapValueGetterEmptyNames(t *testing.T) {
 	getter := makeMapValueGetter(nil)
 	if got := getter(map[string]any{"x": 1}); got != nil {
