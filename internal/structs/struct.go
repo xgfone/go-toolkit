@@ -16,6 +16,7 @@ package structs
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -34,6 +35,9 @@ type Field[T any] struct {
 	Type    reflect.Type
 	Name    string
 	Default string
+
+	Names   []string // Read-only map field name path.
+	Indexes []int    // Read-only struct field index path.
 
 	SetField SetterFunc[T]
 	GetField FieldGetter
@@ -92,6 +96,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		}
 
 		index := appendSlice(parentIndex, i)
+		names := appendSlice(parentNames, name)
 
 		// Expand struct-typed fields by recursively parsing their
 		// sub-fields so they are discoverable by callers.
@@ -108,11 +113,8 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		// Struct-typed fields without exported sub-fields fall through to
 		// the normal path below and are added as a single opaque field.
 		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
-			var names []string
 			if sf.Anonymous {
 				names = parentNames
-			} else {
-				names = appendSlice(parentNames, name)
 			}
 			fields = append(fields, p.parse(ft, index, names)...)
 			continue
@@ -123,12 +125,16 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		}
 
 		fields = append(fields, Field[T]{
-			Name:     name,
-			Type:     sf.Type,
-			Default:  sf.Tag.Get("default"),
+			Name:    name,
+			Type:    sf.Type,
+			Default: sf.Tag.Get("default"),
+
+			Names:   names,
+			Indexes: index,
+
 			SetField: p.CompileSetter(sf.Type),
-			GetField: makeFieldGetter(index),
-			GetValue: makeMapValueGetter(appendSlice(parentNames, name)),
+			GetField: makeFieldGetter(slices.Clone(index)),
+			GetValue: makeMapValueGetter(slices.Clone(names)),
 		})
 	}
 	return

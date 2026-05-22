@@ -459,6 +459,34 @@ func TestGetValuePathNamesAreIndependent(t *testing.T) {
 	t.Fatal("missing field A")
 }
 
+func TestGetterPathsAreIndependentFromPublicPaths(t *testing.T) {
+	typ := reflect.TypeFor[flatFields]()
+	parser := _Parser[string]{CompileSetter: CompileStringSetter, Tag: "q"}
+	s := parser.Parse(typ)
+
+	var name *Field[string]
+	for i := range s.Fields {
+		if s.Fields[i].Name == "name" {
+			name = &s.Fields[i]
+			break
+		}
+	}
+	if name == nil {
+		t.Fatal("missing field name")
+	}
+
+	name.Names[0] = "value"
+	if got := name.GetValue(map[string]any{"name": "hello", "value": "bad"}); got != "hello" {
+		t.Fatalf("expected 'hello', got %v", got)
+	}
+
+	name.Indexes[0] = 1
+	root := reflect.ValueOf(flatFields{Name: "hello", Value: 42})
+	if got := name.GetField(root).String(); got != "hello" {
+		t.Fatalf("expected 'hello', got %v", got)
+	}
+}
+
 func TestMakeMapValueGetterEmptyNames(t *testing.T) {
 	getter := makeMapValueGetter(nil)
 	if got := getter(map[string]any{"x": 1}); got != nil {
