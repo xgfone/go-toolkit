@@ -261,6 +261,26 @@ func TestExpandNamedStructField(t *testing.T) {
 	checkFields(t, s, "key", "label")
 }
 
+type opaqueNamedStructOuter struct {
+	Inner namedStructFieldHost `q:"inner,opaque"`
+	Outer namedStructFieldHost `q:",opaque"`
+	Label string               `q:"label"`
+}
+
+func TestOpaqueNamedStructField(t *testing.T) {
+	typ := reflect.TypeFor[opaqueNamedStructOuter]()
+	s := Parse(typ, "q", CompileStringSetter)
+	checkFields(t, s, "inner", "Outer", "label")
+
+	fields := make(map[string]Field[string], len(s.Fields))
+	for _, f := range s.Fields {
+		fields[f.Name] = f
+	}
+	if got := fields["inner"].GetValue(map[string]any{"inner": "value"}); got != "value" {
+		t.Fatalf("expected opaque field value, got %v", got)
+	}
+}
+
 // Named pointer-to-struct field — expanded into its sub-fields.
 type taggedNestedHost struct {
 	Key   string `q:"key"`
@@ -506,8 +526,17 @@ func TestParseCache(t *testing.T) {
 }
 
 func TestParseHelpers(t *testing.T) {
-	if parseTagName("") != "" || parseTagName("name,omitempty") != "name" {
+	if name, opaque := parseTag(""); name != "" || opaque {
+		t.Fatal("unexpected empty tag parse")
+	}
+	if name, opaque := parseTag("name,omitempty"); name != "name" || opaque {
 		t.Fatal("unexpected tag parse")
+	}
+	if name, opaque := parseTag("name,omitempty,opaque"); name != "name" || !opaque {
+		t.Fatal("expected opaque option")
+	}
+	if name, opaque := parseTag("name"); name != "name" || opaque {
+		t.Fatal("unexpected name-only tag parse")
 	}
 	idx := appendSlice([]int{1, 2}, 3)
 	if len(idx) != 3 || idx[2] != 3 {

@@ -80,8 +80,9 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		sf := t.Field(i)
 
 		var name string
+		var opaque bool
 		if p.Tag != "" {
-			name = parseTagName(sf.Tag.Get(p.Tag))
+			name, opaque = parseTag(sf.Tag.Get(p.Tag))
 			if name == "-" {
 				continue
 			}
@@ -112,7 +113,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		//
 		// Struct-typed fields without exported sub-fields fall through to
 		// the normal path below and are added as a single opaque field.
-		if ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
+		if !opaque && ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
 			if sf.Anonymous {
 				names = parentNames
 			}
@@ -153,15 +154,25 @@ func hasExportedField(t reflect.Type) bool {
 	return false
 }
 
-func parseTagName(tag string) string {
+func parseTag(tag string) (name string, opaque bool) {
 	if tag == "" {
-		return ""
+		return
 	}
 
-	if i := strings.IndexByte(tag, ','); i >= 0 {
-		tag = tag[:i]
+	name, rest, ok := strings.Cut(tag, ",")
+	if !ok {
+		return
 	}
-	return tag
+
+	var option string
+	for rest != "" {
+		if option, rest, _ = strings.Cut(rest, ","); option == "opaque" {
+			opaque = true
+			break
+		}
+	}
+
+	return
 }
 
 func appendSlice[T any](parent []T, i T) []T {
