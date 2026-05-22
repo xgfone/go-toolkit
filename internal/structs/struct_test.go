@@ -73,7 +73,7 @@ func mustSet(t *testing.T, f Field[string], root reflect.Value, s string) {
 	}
 }
 
-func checkFields(t *testing.T, s *Struct[string], want ...string) {
+func checkFields[T any](t *testing.T, s *Struct[T], want ...string) {
 	t.Helper()
 	if len(s.Fields) != len(want) {
 		t.Fatalf("got %d fields, want %d: %v", len(s.Fields), len(want), fieldNames(s.Fields))
@@ -93,7 +93,7 @@ func checkFields(t *testing.T, s *Struct[string], want ...string) {
 	}
 }
 
-func fieldNames(fields []Field[string]) []string {
+func fieldNames[T any](fields []Field[T]) []string {
 	ns := make([]string, len(fields))
 	for i, f := range fields {
 		ns[i] = f.Name
@@ -102,6 +102,11 @@ func fieldNames(fields []Field[string]) []string {
 }
 
 // --- Requirements tests ---
+
+func TestCompileAnySetter(t *testing.T) {
+	s := Parse(reflect.TypeFor[embedNamed](), "q", CompileAnySetter)
+	checkFields(t, s, "a", "b", "c", "WrapTime")
+}
 
 // Named struct embedded anonymously from the same package — should expand.
 func TestExpandNamedStruct(t *testing.T) {
