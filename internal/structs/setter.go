@@ -17,6 +17,7 @@ package structs
 import (
 	"reflect"
 
+	"github.com/xgfone/go-toolkit/internal/structs/anysetter"
 	"github.com/xgfone/go-toolkit/internal/structs/strsetter"
 )
 
@@ -27,4 +28,8 @@ type (
 
 func CompileStringSetter(t reflect.Type) SetterFunc[string] {
 	return SetterFunc[string](strsetter.Compile(t))
+}
+
+func CompileAnySetter(t reflect.Type) SetterFunc[any] {
+	return SetterFunc[any](anysetter.Compile(t))
 }
