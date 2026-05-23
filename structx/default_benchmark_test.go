@@ -56,48 +56,48 @@ type benchDefaultAlreadySet struct {
 // ---- Benchmarks ----
 
 func BenchmarkSetDefaultSimple(b *testing.B) {
-	v := &benchDefaultSimple{}
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := SetDefault(v); err != nil {
+		var v benchDefaultSimple
+		if err := SetDefault(&v); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkSetDefaultAllFields(b *testing.B) {
-	v := &benchDefaultAllFields{}
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := SetDefault(v); err != nil {
+		var v benchDefaultAllFields
+		if err := SetDefault(&v); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkSetDefaultPartialFields(b *testing.B) {
-	v := &benchDefaultPartial{}
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := SetDefault(v); err != nil {
+		var v benchDefaultPartial
+		if err := SetDefault(&v); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkSetDefaultNested(b *testing.B) {
-	v := &benchDefaultNested{}
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := SetDefault(v); err != nil {
+		var v benchDefaultNested
+		if err := SetDefault(&v); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -143,12 +143,13 @@ func BenchmarkSetDefaultNoDefaults(b *testing.B) {
 		Name string
 		Age  int
 	}
-	v := &noDefault{}
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := SetDefault(v); err != nil {
+		var v noDefault
+		if err := SetDefault(&v); err != nil {
 			b.Fatal(err)
 		}
 	}
