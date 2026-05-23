@@ -22,9 +22,8 @@ import (
 )
 
 type mapKey struct {
-	vtype reflect.Type
-	stype reflect.Type
-	tag   string
+	typ reflect.Type
+	tag string
 }
 
 type Struct[T any] struct {
@@ -51,16 +50,26 @@ func (f *Field[T]) SetValue(root reflect.Value, value T) error {
 	return f.SetField(f.Type, rvalue, value)
 }
 
-var structs sync.Map // map[mapKey]*Struct
+type Parser[T any] struct {
+	compile SetterCompiler[T]
+	structs sync.Map // map[mapKey]*Struct[T]
+}
 
-func Parse[T any](t reflect.Type, tag string, compileSetter SetterCompiler[T]) (s *Struct[T]) {
-	key := mapKey{vtype: reflect.TypeFor[T](), stype: t, tag: tag}
-	if v, ok := structs.Load(key); ok {
+func NewParser[T any](compile SetterCompiler[T]) *Parser[T] {
+	if compile == nil {
+		panic("structs.NewParser: compile is nil")
+	}
+	return &Parser[T]{compile: compile}
+}
+
+func (p *Parser[T]) Parse(t reflect.Type, tag string) (s *Struct[T]) {
+	key := mapKey{typ: t, tag: tag}
+	if v, ok := p.structs.Load(key); ok {
 		return v.(*Struct[T])
 	}
 
-	parser := _Parser[T]{CompileSetter: compileSetter, Tag: tag}
-	actual, _ := structs.LoadOrStore(key, parser.Parse(t))
+	parser := _Parser[T]{CompileSetter: p.compile, Tag: tag}
+	actual, _ := p.structs.LoadOrStore(key, parser.Parse(t))
 	return actual.(*Struct[T])
 }
 

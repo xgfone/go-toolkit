@@ -21,6 +21,11 @@ import (
 	"github.com/xgfone/go-toolkit/internal/structs/strsetter"
 )
 
+var (
+	AnyParser    = NewParser(CompileAnySetter)
+	StringParser = NewParser(CompileStringSetter)
+)
+
 type (
 	SetterFunc[T any]     func(t reflect.Type, dst reflect.Value, src T) error
 	SetterCompiler[T any] func(reflect.Type) SetterFunc[T]

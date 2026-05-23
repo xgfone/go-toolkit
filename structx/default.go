@@ -77,7 +77,7 @@ func SetDefault[Struct any](structptr *Struct) (err error) {
 var _setdefault = setDefault
 
 func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
-	for _, f := range structs.Parse(rtype, "", structs.CompileStringSetter).Fields {
+	for _, f := range structs.StringParser.Parse(rtype, "").Fields {
 		if f.Default == "" {
 			continue
 		}

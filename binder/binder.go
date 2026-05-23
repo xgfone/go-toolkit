@@ -84,7 +84,7 @@ func BindGetter[V Getter, Struct any](src V, dst *Struct, tag string) (err error
 	}
 
 	root := reflect.ValueOf(dst).Elem()
-	for _, f := range structs.Parse(rtype, tag, structs.CompileStringSetter).Fields {
+	for _, f := range structs.StringParser.Parse(rtype, tag).Fields {
 		s := src.Get(f.Name)
 		if s == "" && f.Default != "" {
 			s = f.Default

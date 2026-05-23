@@ -36,12 +36,12 @@ type benchStruct struct {
 
 func BenchmarkParseHit(b *testing.B) {
 	typ := reflect.TypeFor[benchStruct]()
-	_ = Parse(typ, "q", CompileStringSetter)
+	_ = StringParser.Parse(typ, "q")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = Parse(typ, "q", CompileStringSetter)
+		_ = StringParser.Parse(typ, "q")
 	}
 }
 
@@ -51,7 +51,7 @@ func BenchmarkParseMiss(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = Parse(typ, "q"+strconv.Itoa(i), CompileStringSetter)
+		_ = StringParser.Parse(typ, "q"+strconv.Itoa(i))
 	}
 }
 
