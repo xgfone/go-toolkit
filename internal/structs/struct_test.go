@@ -521,6 +521,15 @@ func TestMakeMapValueGetterEmptyNames(t *testing.T) {
 
 // --- Other ---
 
+func TestParserNil(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	_ = NewParser[string](nil)
+}
+
 func TestParseCache(t *testing.T) {
 	typ := reflect.TypeFor[flatFields]()
 	s1 := StringParser.Parse(typ, "q")
