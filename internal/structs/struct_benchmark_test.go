@@ -16,7 +16,6 @@ package structs
 
 import (
 	"reflect"
-	"strconv"
 	"testing"
 	"unsafe"
 )
@@ -45,13 +44,13 @@ func BenchmarkParseHit(b *testing.B) {
 	}
 }
 
-func BenchmarkParseMiss(b *testing.B) {
+func BenchmarkRawParse(b *testing.B) {
 	typ := reflect.TypeFor[benchStruct]()
 
 	b.ReportAllocs()
-	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = StringParser.Parse(typ, "q"+strconv.Itoa(i))
+		parser := _Parser[string]{CompileSetter: CompileStringSetter, Tag: "q"}
+		_ = parser.Parse(typ)
 	}
 }
 
