@@ -82,6 +82,54 @@ func TestBindValuesTextUnmarshaler(t *testing.T) {
 	}
 }
 
+func TestBindValuesAny(t *testing.T) {
+	type _SMap = mapx.SMap[string]
+
+	t.Run("valid struct pointer", func(t *testing.T) {
+		source := _SMap{"name": "alice", "age": "12", "text": "ok", "ptext": "pt"}
+
+		var target bindValuesTarget
+		if err := BindValuesAny(&target, source, "q"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if target.Name != "alice" || target.Age == nil || *target.Age != 12 || !target.Flag ||
+			target.Text != "tv:ok" || target.PText == nil || *target.PText != "tv:pt" {
+			t.Fatalf("unexpected bind result: %#v", target)
+		}
+	})
+
+	t.Run("nil interface", func(t *testing.T) {
+		err := BindValuesAny(nil, _SMap{}, "q")
+		if err == nil || err.Error() != "dst is nil" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("typed nil struct pointer", func(t *testing.T) {
+		var target *bindValuesTarget
+		err := BindValuesAny(target, _SMap{}, "q")
+		if err == nil || err.Error() != "dst is nil" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("non-pointer", func(t *testing.T) {
+		err := BindValuesAny(bindValuesTarget{}, _SMap{}, "q")
+		if err == nil || err.Error() != "dst is not a pointer to struct" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("pointer to non-struct", func(t *testing.T) {
+		n := 1
+		err := BindValuesAny(&n, _SMap{}, "q")
+		if err == nil || err.Error() != "dst is not a pointer to struct" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+}
+
 func TestBindMapNested(t *testing.T) {
 	type inner struct {
 		Age int `json:"age"`
@@ -106,6 +154,64 @@ func TestBindMapNested(t *testing.T) {
 	if target.Name != "alice" || target.Inner.Age != 12 {
 		t.Fatalf("unexpected bind result: %#v", target)
 	}
+}
+
+func TestBindMapAny(t *testing.T) {
+	type inner struct {
+		Age int `json:"age"`
+	}
+	type targetStruct struct {
+		Name  string `json:"name"`
+		Inner inner  `json:"inner"`
+	}
+
+	t.Run("valid struct pointer", func(t *testing.T) {
+		source := map[string]any{
+			"name": "alice",
+			"inner": map[string]any{
+				"age": 12,
+			},
+		}
+
+		var target targetStruct
+		if err := BindMapAny(&target, source, "json"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if target.Name != "alice" || target.Inner.Age != 12 {
+			t.Fatalf("unexpected bind result: %#v", target)
+		}
+	})
+
+	t.Run("nil interface", func(t *testing.T) {
+		err := BindMapAny(nil, map[string]any{}, "json")
+		if err == nil || err.Error() != "dst is nil" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("typed nil struct pointer", func(t *testing.T) {
+		var target *targetStruct
+		err := BindMapAny(target, map[string]any{}, "json")
+		if err == nil || err.Error() != "dst is nil" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("non-pointer", func(t *testing.T) {
+		err := BindMapAny(targetStruct{}, map[string]any{}, "json")
+		if err == nil || err.Error() != "dst is not a pointer to struct" {
+			t.Fatalf("got error %v", err)
+		}
+	})
+
+	t.Run("pointer to non-struct", func(t *testing.T) {
+		n := 1
+		err := BindMapAny(&n, map[string]any{}, "json")
+		if err == nil || err.Error() != "dst is not a pointer to struct" {
+			t.Fatalf("got error %v", err)
+		}
+	})
 }
 
 func TestBindMapBinder(t *testing.T) {

@@ -29,6 +29,17 @@ func BindStringMap[Struct any, Map ~map[string]string](dst *Struct, src Map, tag
 	return BindValues(dst, mapx.SMap[string](src), tag)
 }
 
+// BindValuesAny is like BindValues, but accepts dst as a value of type any.
+//
+// dst must be a non-nil pointer to struct.
+func BindValuesAny(dst any, src interface{ Get(string) string }, tag string) error {
+	rtype, root, err := anyStructPtr(dst)
+	if err != nil {
+		return err
+	}
+	return bindValues(rtype, root, src, tag)
+}
+
 // BindValues binds flat string values from src into dst based on the field tag name.
 //
 // BindValues walks all exported fields of the destination struct type T. For
@@ -61,6 +72,10 @@ func BindValues[Struct any, Getter interface{ Get(string) string }](dst *Struct,
 	}
 
 	root := reflect.ValueOf(dst).Elem()
+	return bindValues(rtype, root, src, tag)
+}
+
+func bindValues(rtype reflect.Type, root reflect.Value, src interface{ Get(string) string }, tag string) error {
 	for _, f := range structs.StringParser.Parse(rtype, tag).Fields {
 		s := src.Get(f.Name)
 		if s == "" && f.Default != "" {
@@ -76,6 +91,17 @@ func BindValues[Struct any, Getter interface{ Get(string) string }](dst *Struct,
 	}
 
 	return nil
+}
+
+// BindMapAny is like BindMap, but accepts dst as a value of type any.
+//
+// dst must be a non-nil pointer to struct.
+func BindMapAny(dst any, src map[string]any, tag string) error {
+	rtype, root, err := anyStructPtr(dst)
+	if err != nil {
+		return err
+	}
+	return bindMap(rtype, root, src, tag)
 }
 
 // BindMap binds values from src into dst based on the field tag name.
@@ -96,26 +122,7 @@ func BindValues[Struct any, Getter interface{ Get(string) string }](dst *Struct,
 // nested map[string]any values. A nil or missing src value is ignored.
 // Non-nil values are converted and assigned using the any-value setter.
 func BindMap[Struct any, Map ~map[string]any](dst *Struct, src Map, tag string) error {
-	binder := mapBinder[Struct, Map]{
-		parser: structs.AnyParser,
-
-		dst: dst,
-		src: src,
-		tag: tag,
-	}
-	return binder.Bind()
-}
-
-type mapBinder[Struct any, Map ~map[string]any] struct {
-	parser *structs.Parser[any]
-
-	src Map
-	dst *Struct
-	tag string
-}
-
-func (b *mapBinder[Struct, Map]) Bind() (err error) {
-	if b.dst == nil {
+	if dst == nil {
 		return errors.New("dst is nil")
 	}
 
@@ -124,9 +131,13 @@ func (b *mapBinder[Struct, Map]) Bind() (err error) {
 		return errors.New("dst is not a pointer to struct")
 	}
 
-	root := reflect.ValueOf(b.dst).Elem()
-	for _, f := range b.parser.Parse(rtype, b.tag).Fields {
-		value := f.GetValue(b.src)
+	root := reflect.ValueOf(dst).Elem()
+	return bindMap(rtype, root, src, tag)
+}
+
+func bindMap(rtype reflect.Type, root reflect.Value, src map[string]any, tag string) (err error) {
+	for _, f := range structs.AnyParser.Parse(rtype, tag).Fields {
+		value := f.GetValue(src)
 		if value == nil {
 			continue
 		}
