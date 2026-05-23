@@ -41,8 +41,10 @@ func BindSMap[M ~map[string]string, Struct any](src M, dst *Struct, tag string) 
 // BindGetter walks all exported fields of the destination struct type T. For
 // each field, it resolves the source name from the given tag. If the tag value
 // is empty, the field name itself is used. A tag value of "-" skips the field.
-// For anonymous embedded struct fields, exported fields are flattened when the
-// embedded field does not declare an explicit tag name.
+// Struct-typed fields are recursively parsed when they have exported
+// sub-fields and are either anonymous embedded fields or exported named fields.
+// Add the "opaque" tag option to stop recursive parsing and bind the struct
+// field as a single field instead, for example `q:"field,opaque"`.
 //
 // When src.Get(name) returns a non-empty string, BindGetter converts that
 // string and assigns it to the field. If src.Get(name) returns an empty string
