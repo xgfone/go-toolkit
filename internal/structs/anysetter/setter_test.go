@@ -229,6 +229,10 @@ func TestSetBinderValues(t *testing.T) {
 		t.Fatalf("failed value binder: got (%v, %q), want previous value and errBadBind", err, v)
 	}
 
+	if err := setExisting(&v, nil); err != nil || v != "bind:<nil>" {
+		t.Fatalf("nil value binder: got (%v, %q), want bind:<nil>", err, v)
+	}
+
 	var p *bindValue
 	if err := setExisting(&p, "ok"); err != nil || p == nil || *p != "bind:ok" {
 		t.Fatalf("nil pointer binder: got (%v, %#v), want allocated bind:ok", err, p)
@@ -242,13 +246,22 @@ func TestSetBinderValues(t *testing.T) {
 	if err := setExisting(&p, "bad"); !errors.Is(err, errBadBind) || p != old || *p != "bind:next" {
 		t.Fatalf("failed pointer binder: got (%v, %#v), want same previous pointer and errBadBind", err, p)
 	}
+
+	if err := setExisting(&p, nil); err != nil || p != old || *p != "bind:<nil>" {
+		t.Fatalf("nil pointer binder: got (%v, %#v), want same pointer to bind:<nil>", err, p)
+	}
 }
 
 func TestSetTextUnmarshalerValues(t *testing.T) {
 	ts := time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)
 	text := ts.Format(time.RFC3339)
 
-	got, err := setValue[time.Time](text)
+	got, err := setValue[time.Time](ts)
+	if err != nil || !got.Equal(ts) {
+		t.Fatalf("time from time: got (%v, %v), want (%v, nil)", got, err, ts)
+	}
+
+	got, err = setValue[time.Time](text)
 	if err != nil || !got.Equal(ts) {
 		t.Fatalf("time from string: got (%v, %v), want (%v, nil)", got, err, ts)
 	}
@@ -271,6 +284,29 @@ func TestSetTextUnmarshalerValues(t *testing.T) {
 	var ptr *time.Time
 	if err := setExisting(&ptr, text); err != nil || ptr == nil || !ptr.Equal(ts) {
 		t.Fatalf("*time from string: got (%v, %#v), want (%v, nil)", err, ptr, ts)
+	}
+
+	next := ts.Add(time.Hour)
+	if err := setExisting(&ptr, next); err != nil || ptr == nil || !ptr.Equal(next) {
+		t.Fatalf("*time from time: got (%v, %#v), want (%v, nil)", err, ptr, next)
+	}
+}
+
+func TestSetAssignableFallback(t *testing.T) {
+	src := unsupported(7)
+	got, err := setValue[unsupported](src)
+	if err != nil || got != src {
+		t.Fatalf("got (%v, %v), want (%v, nil)", got, err, src)
+	}
+
+	ptr := &src
+	var gotPtr *unsupported
+	if err := setExisting(&gotPtr, ptr); err != nil || gotPtr != ptr {
+		t.Fatalf("got (%v, %#v), want (%#v, nil)", err, gotPtr, ptr)
+	}
+
+	if err := setExisting(&gotPtr, (*unsupported)(nil)); err != nil || gotPtr != nil {
+		t.Fatalf("got (%v, %#v), want nil pointer", err, gotPtr)
 	}
 }
 

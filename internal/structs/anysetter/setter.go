@@ -58,6 +58,14 @@ func compilePointer(t reflect.Type) SetterFunc {
 
 	elemSetter := compileSetter(t.Elem())
 	return func(t reflect.Type, v reflect.Value, s any) (err error) {
+		if s == nil {
+			return unsupportedValueType(t, s)
+		}
+
+		if setAssignable(t, v, s) {
+			return nil
+		}
+
 		if !v.IsNil() {
 			return elemSetter(t.Elem(), v.Elem(), s)
 		}
@@ -108,13 +116,34 @@ func compileSetter(t reflect.Type) SetterFunc {
 
 	case reflect.Map:
 		return compileMap(t)
+	}
+	return setAny
+}
 
-	case reflect.Struct:
-		if reflectx.Implements(reflect.PointerTo(t), textUnmarshalerType) {
-			return setStruct
+func setAny(t reflect.Type, dst reflect.Value, src any) error {
+	if src == nil {
+		return unsupportedValueType(t, src)
+	}
+
+	if setAssignable(t, dst, src) {
+		return nil
+	}
+
+	if t.Kind() == reflect.Struct && reflectx.Implements(reflect.PointerTo(t), textUnmarshalerType) {
+		if b, ok := textBytes(src); ok {
+			return dst.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText(b)
 		}
 	}
-	return unsupportedType
+
+	return unsupportedValueType(t, src)
+}
+
+func setAssignable(t reflect.Type, dst reflect.Value, src any) (ok bool) {
+	sv := reflect.ValueOf(src)
+	if ok = sv.Type().AssignableTo(t); ok {
+		dst.Set(sv)
+	}
+	return
 }
 
 func compileSlice(t reflect.Type) SetterFunc {
@@ -133,13 +162,6 @@ func compileMap(t reflect.Type) SetterFunc {
 	return func(t reflect.Type, dst reflect.Value, src any) error {
 		return setMap(t, keyType, elemType, keySetter, elemSetter, dst, src)
 	}
-}
-
-func setStruct(_ reflect.Type, dst reflect.Value, src any) error {
-	if b, ok := textBytes(src); ok {
-		return dst.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText(b)
-	}
-	return unsupportedValue(dst, src)
 }
 
 func textBytes(src any) ([]byte, bool) {
@@ -817,8 +839,4 @@ func unsupportedValueType(t reflect.Type, src any) error {
 
 func duplicateMapKey(t reflect.Type, key any) error {
 	return fmt.Errorf("duplicate converted map key %v for field type %s", key, t)
-}
-
-func unsupportedType(_ reflect.Type, dst reflect.Value, _ any) error {
-	return fmt.Errorf("unsupported field type %s", dst.Type())
 }
