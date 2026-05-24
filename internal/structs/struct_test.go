@@ -108,6 +108,24 @@ func TestCompileAnySetter(t *testing.T) {
 	checkFields(t, s, "a", "b", "c", "WrapTime")
 }
 
+func TestAnySetterTimeField(t *testing.T) {
+	type holder struct {
+		At time.Time `q:"at"`
+	}
+
+	s := AnyParser.Parse(reflect.TypeFor[holder](), "q")
+	checkFields(t, s, "at")
+
+	ts := time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)
+	var dst holder
+	if err := s.Fields[0].SetValue(reflect.ValueOf(&dst).Elem(), ts.Format(time.RFC3339)); err != nil {
+		t.Fatalf("SetValue(time string): %v", err)
+	}
+	if !dst.At.Equal(ts) {
+		t.Fatalf("got %v, want %v", dst.At, ts)
+	}
+}
+
 // Named struct embedded anonymously from the same package — should expand.
 func TestExpandNamedStruct(t *testing.T) {
 	s := StringParser.Parse(reflect.TypeFor[embedNamed](), "q")

@@ -16,6 +16,7 @@
 package anysetter
 
 import (
+	"encoding"
 	"fmt"
 	"math"
 	"reflect"
@@ -23,9 +24,11 @@ import (
 	"time"
 
 	"github.com/xgfone/go-toolkit/reflectx"
+	"github.com/xgfone/go-toolkit/unsafex"
 )
 
 var binderType = reflect.TypeFor[_Binder]()
+var textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 
 type _Binder interface {
 	Bind(any) error
@@ -106,9 +109,12 @@ func compileSetter(t reflect.Type) SetterFunc {
 	case reflect.Map:
 		return compileMap(t)
 
-	default:
-		return unsupportedType
+	case reflect.Struct:
+		if reflectx.Implements(reflect.PointerTo(t), textUnmarshalerType) {
+			return setStruct
+		}
 	}
+	return unsupportedType
 }
 
 func compileSlice(t reflect.Type) SetterFunc {
@@ -127,6 +133,39 @@ func compileMap(t reflect.Type) SetterFunc {
 	return func(t reflect.Type, dst reflect.Value, src any) error {
 		return setMap(t, keyType, elemType, keySetter, elemSetter, dst, src)
 	}
+}
+
+func setStruct(_ reflect.Type, dst reflect.Value, src any) error {
+	if b, ok := textBytes(src); ok {
+		return dst.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText(b)
+	}
+	return unsupportedValue(dst, src)
+}
+
+func textBytes(src any) ([]byte, bool) {
+	if src == nil {
+		return nil, false
+	}
+
+	switch v := src.(type) {
+	case string:
+		return unsafex.Bytes(v), true
+
+	case []byte:
+		return v, true
+	}
+
+	switch v := reflect.ValueOf(src); v.Kind() {
+	case reflect.String:
+		return unsafex.Bytes(v.String()), true
+
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			return v.Bytes(), true
+		}
+	}
+
+	return nil, false
 }
 
 func setString(t reflect.Type, dst reflect.Value, src any) (err error) {

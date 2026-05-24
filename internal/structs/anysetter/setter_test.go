@@ -33,6 +33,7 @@ type (
 	namedFloat64  float64
 	namedFloat32  float32
 	namedString   string
+	namedBytes    []byte
 	stringerValue string
 	bindValue     string
 	unsupported   complex64
@@ -240,6 +241,36 @@ func TestSetBinderValues(t *testing.T) {
 
 	if err := setExisting(&p, "bad"); !errors.Is(err, errBadBind) || p != old || *p != "bind:next" {
 		t.Fatalf("failed pointer binder: got (%v, %#v), want same previous pointer and errBadBind", err, p)
+	}
+}
+
+func TestSetTextUnmarshalerValues(t *testing.T) {
+	ts := time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)
+	text := ts.Format(time.RFC3339)
+
+	got, err := setValue[time.Time](text)
+	if err != nil || !got.Equal(ts) {
+		t.Fatalf("time from string: got (%v, %v), want (%v, nil)", got, err, ts)
+	}
+
+	got, err = setValue[time.Time]([]byte(text))
+	if err != nil || !got.Equal(ts) {
+		t.Fatalf("time from []byte: got (%v, %v), want (%v, nil)", got, err, ts)
+	}
+
+	got, err = setValue[time.Time](namedString(text))
+	if err != nil || !got.Equal(ts) {
+		t.Fatalf("time from named string: got (%v, %v), want (%v, nil)", got, err, ts)
+	}
+
+	got, err = setValue[time.Time](namedBytes(text))
+	if err != nil || !got.Equal(ts) {
+		t.Fatalf("time from named bytes: got (%v, %v), want (%v, nil)", got, err, ts)
+	}
+
+	var ptr *time.Time
+	if err := setExisting(&ptr, text); err != nil || ptr == nil || !ptr.Equal(ts) {
+		t.Fatalf("*time from string: got (%v, %#v), want (%v, nil)", err, ptr, ts)
 	}
 }
 
