@@ -28,6 +28,12 @@ var errBadBind = errors.New("bad bind")
 
 type textValue string
 type bindValue string
+type textStruct struct {
+	X int
+}
+type bindStruct struct {
+	X int
+}
 
 func (t *textValue) UnmarshalText(b []byte) error {
 	if string(b) == "bad" {
@@ -44,6 +50,20 @@ func (b *bindValue) Bind(v any) error {
 	}
 
 	*b = bindValue("bind:" + fmt.Sprint(v))
+	return nil
+}
+
+func (t *textStruct) UnmarshalText(b []byte) error {
+	t.X = len(b)
+	return nil
+}
+
+func (b *bindStruct) Bind(v any) error {
+	if v == "bad" {
+		return errBadBind
+	}
+
+	b.X = len(fmt.Sprint(v))
 	return nil
 }
 
@@ -78,6 +98,20 @@ func TestBindValuesTextUnmarshaler(t *testing.T) {
 	}
 
 	if target.Text != "tv:ok" || target.PText == nil || *target.PText != "tv:pt" {
+		t.Fatalf("unexpected bind result: %#v", target)
+	}
+}
+
+func TestBindValuesTextUnmarshalerStructAsWhole(t *testing.T) {
+	type targetStruct struct {
+		Value textStruct `q:"value"`
+	}
+
+	var target targetStruct
+	if err := BindValues(&target, mapx.SMap[string]{"value": "hello"}, "q"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if target.Value.X != 5 {
 		t.Fatalf("unexpected bind result: %#v", target)
 	}
 }
@@ -228,6 +262,34 @@ func TestBindMapBinder(t *testing.T) {
 	}
 
 	if target.Value != "bind:10" || target.PValue == nil || *target.PValue != "bind:ok" {
+		t.Fatalf("unexpected bind result: %#v", target)
+	}
+}
+
+func TestBindMapBinderStructAsWhole(t *testing.T) {
+	type targetStruct struct {
+		Value bindStruct `json:"value"`
+	}
+
+	var target targetStruct
+	if err := BindMap(&target, map[string]any{"value": "hello"}, "json"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if target.Value.X != 5 {
+		t.Fatalf("unexpected bind result: %#v", target)
+	}
+}
+
+func TestBindMapTextUnmarshalerStructCanExpand(t *testing.T) {
+	type targetStruct struct {
+		Value textStruct `json:"value"`
+	}
+
+	var target targetStruct
+	if err := BindMap(&target, map[string]any{"value": map[string]any{"X": 7}}, "json"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if target.Value.X != 7 {
 		t.Fatalf("unexpected bind result: %#v", target)
 	}
 }

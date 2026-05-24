@@ -25,6 +25,11 @@ type embedMe struct {
 	B string `q:"b"`
 }
 
+type ExportedEmbed struct {
+	A int    `q:"a"`
+	B string `q:"b"`
+}
+
 type WrapTime time.Time
 
 //nolint:unused
@@ -37,8 +42,28 @@ type unexportedEmb struct {
 	X string `q:"x"`
 }
 
+type opaqueBindStruct struct {
+	X int `q:"x"`
+}
+
+func (*opaqueBindStruct) Bind(any) error { return nil }
+
+type opaqueTextStruct struct {
+	X int `q:"x"`
+}
+
+func (t *opaqueTextStruct) UnmarshalText(b []byte) error {
+	t.X = len(b)
+	return nil
+}
+
 type embedPointer struct {
 	*embedMe
+	P *WrapTime `q:"p"`
+}
+
+type embedExportedPointer struct {
+	*ExportedEmbed
 	P *WrapTime `q:"p"`
 }
 
@@ -57,6 +82,27 @@ type embedHidden struct {
 	noExported //nolint:unused
 	unexportedEmb
 	A int `q:"a"`
+}
+
+type embedHiddenPointer struct {
+	*unexportedEmb     //nolint:unused
+	A              int `q:"a"`
+}
+
+type unexportedOpaqueTextEmbed struct {
+	X int `q:"x"`
+}
+
+func (*unexportedOpaqueTextEmbed) UnmarshalText([]byte) error { return nil }
+
+type embedHiddenOpaqueText struct {
+	unexportedOpaqueTextEmbed
+	A int `q:"a"`
+}
+
+type doublePointerStruct struct {
+	P **ExportedEmbed `q:"p"`
+	A int             `q:"a"`
 }
 
 type flatFields struct {
@@ -126,16 +172,24 @@ func TestAnySetterTimeField(t *testing.T) {
 	}
 }
 
-// Named struct embedded anonymously from the same package — should expand.
 func TestExpandNamedStruct(t *testing.T) {
 	s := StringParser.Parse(reflect.TypeFor[embedNamed](), "q")
 	checkFields(t, s, "a", "b", "c", "WrapTime")
 }
 
-// Pointer to named struct embedded anonymously — should dereference and expand.
-func TestExpandPointerEmbed(t *testing.T) {
+func TestNotExpandUnexportedPointerEmbed(t *testing.T) {
 	s := StringParser.Parse(reflect.TypeFor[embedPointer](), "q")
+	checkFields(t, s, "p")
+}
+
+func TestExpandExportedPointerEmbed(t *testing.T) {
+	s := StringParser.Parse(reflect.TypeFor[embedExportedPointer](), "q")
 	checkFields(t, s, "a", "b", "p")
+}
+
+func TestNotExpandDoublePointerStruct(t *testing.T) {
+	s := StringParser.Parse(reflect.TypeFor[doublePointerStruct](), "q")
+	checkFields(t, s, "p", "a")
 }
 
 // Literal named field with anonymous struct type (not anonymous embed) — not expanded.
@@ -169,6 +223,31 @@ func TestNotExpandWrappedExternal(t *testing.T) {
 // Unexported anonymous embed with exported sub-fields — still expanded before IsExported check.
 func TestExpandUnexportedEmbed(t *testing.T) {
 	typ := reflect.TypeFor[embedHidden]()
+	s := StringParser.Parse(typ, "q")
+	checkFields(t, s, "x", "a")
+}
+
+func TestNotExpandUnexportedPointerEmbedOnly(t *testing.T) {
+	typ := reflect.TypeFor[embedHiddenPointer]()
+	s := StringParser.Parse(typ, "q")
+	checkFields(t, s, "a")
+}
+
+func TestNotExpandOpaqueSetterStruct(t *testing.T) {
+	type anyOuter struct {
+		Field opaqueBindStruct `q:"field"`
+	}
+	type stringOuter struct {
+		Field opaqueTextStruct `q:"field"`
+	}
+
+	checkFields(t, AnyParser.Parse(reflect.TypeFor[anyOuter](), "q"), "field")
+	checkFields(t, AnyParser.Parse(reflect.TypeFor[stringOuter](), "q"), "x")
+	checkFields(t, StringParser.Parse(reflect.TypeFor[stringOuter](), "q"), "field")
+}
+
+func TestExpandUnexportedOpaqueValueEmbed(t *testing.T) {
+	typ := reflect.TypeFor[embedHiddenOpaqueText]()
 	s := StringParser.Parse(typ, "q")
 	checkFields(t, s, "x", "a")
 }

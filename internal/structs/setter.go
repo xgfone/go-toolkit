@@ -15,15 +15,17 @@
 package structs
 
 import (
+	"encoding"
 	"reflect"
 
 	"github.com/xgfone/go-toolkit/internal/structs/anysetter"
 	"github.com/xgfone/go-toolkit/internal/structs/strsetter"
+	"github.com/xgfone/go-toolkit/reflectx"
 )
 
 var (
-	AnyParser    = NewParser(CompileAnySetter)
-	StringParser = NewParser(CompileStringSetter)
+	AnyParser    = NewParserWithOpaqueType(CompileAnySetter, isAnyOpaqueType)
+	StringParser = NewParserWithOpaqueType(CompileStringSetter, isStringOpaqueType)
 )
 
 type (
@@ -37,4 +39,17 @@ func CompileStringSetter(t reflect.Type) SetterFunc[string] {
 
 func CompileAnySetter(t reflect.Type) SetterFunc[any] {
 	return SetterFunc[any](anysetter.Compile(t))
+}
+
+var (
+	binderType          = reflect.TypeFor[interface{ Bind(any) error }]()
+	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
+)
+
+func isAnyOpaqueType(t reflect.Type) bool {
+	return reflectx.Implements(reflect.PointerTo(t), binderType)
+}
+
+func isStringOpaqueType(t reflect.Type) bool {
+	return reflectx.Implements(reflect.PointerTo(t), textUnmarshalerType)
 }

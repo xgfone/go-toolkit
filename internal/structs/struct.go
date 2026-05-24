@@ -53,6 +53,8 @@ func (f *Field[T]) SetValue(root reflect.Value, value T) error {
 type Parser[T any] struct {
 	compile SetterCompiler[T]
 	structs sync.Map // map[mapKey]*Struct[T]
+
+	opaqueType func(reflect.Type) bool
 }
 
 func NewParser[T any](compile SetterCompiler[T]) *Parser[T] {
@@ -62,19 +64,28 @@ func NewParser[T any](compile SetterCompiler[T]) *Parser[T] {
 	return &Parser[T]{compile: compile}
 }
 
+// NewParserWithOpaqueType returns a new parser that treats struct types
+// matching opaqueType as single fields instead of expanding their sub-fields.
+func NewParserWithOpaqueType[T any](compile SetterCompiler[T], opaqueType func(reflect.Type) bool) *Parser[T] {
+	p := NewParser(compile)
+	p.opaqueType = opaqueType
+	return p
+}
+
 func (p *Parser[T]) Parse(t reflect.Type, tag string) (s *Struct[T]) {
 	key := mapKey{typ: t, tag: tag}
 	if v, ok := p.structs.Load(key); ok {
 		return v.(*Struct[T])
 	}
 
-	parser := _Parser[T]{CompileSetter: p.compile, Tag: tag}
+	parser := _Parser[T]{CompileSetter: p.compile, OpaqueType: p.opaqueType, Tag: tag}
 	actual, _ := p.structs.LoadOrStore(key, parser.Parse(t))
 	return actual.(*Struct[T])
 }
 
 type _Parser[T any] struct {
 	CompileSetter SetterCompiler[T]
+	OpaqueType    func(reflect.Type) bool
 
 	Tag string
 }
@@ -101,7 +112,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		}
 
 		ft := sf.Type
-		for ft.Kind() == reflect.Pointer {
+		if ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 
@@ -111,18 +122,24 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 		// Expand struct-typed fields by recursively parsing their
 		// sub-fields so they are discoverable by callers.
 		//
-		// A struct field is expanded only when it has at least one exported
-		// sub-field (hasExportedField) AND it is either:
+		// A struct field is expanded only when its immediate type has at
+		// least one direct exported field (hasExportedField) AND it is either:
 		//   - an anonymous embedded field, or
 		//   - an exported named field.
 		//
-		// Anonymous embedded structs are checked before the IsExported test
-		// below because reflect.FieldByIndex permits traversing through an
-		// unexported anonymous struct to reach its exported sub-fields.
+		// Anonymous embedded value structs are checked before the IsExported
+		// test below because reflect.FieldByIndex permits traversing through
+		// an unexported anonymous value struct to reach its direct exported
+		// fields. This does not recursively pierce additional hidden
+		// anonymous fields; those remain intentional visibility boundaries.
+		// Unexported anonymous pointer structs are not expanded because nil
+		// values cannot be allocated safely via reflection.
 		//
-		// Struct-typed fields without exported sub-fields fall through to
-		// the normal path below and are added as a single opaque field.
-		if !opaque && ft.Kind() == reflect.Struct && hasExportedField(ft) && (sf.Anonymous || sf.IsExported()) {
+		// Struct-typed fields without exported sub-fields, fields marked
+		// opaque, and fields whose type is considered opaque by the parser
+		// fall through to the normal path below and are added as single
+		// fields when exported.
+		if !opaque && ft.Kind() == reflect.Struct && p.canExpand(sf, ft) {
 			if sf.Anonymous {
 				names = parentNames
 			}
@@ -150,10 +167,23 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 	return
 }
 
-// hasExportedField reports whether the struct type t has at least one
-// exported field. It is used to decide whether to expand an anonymous
-// struct field: only structs with at least one exported field are
-// candidates for expansion.
+func (p *_Parser[T]) canExpand(sf reflect.StructField, ft reflect.Type) bool {
+	if !hasExportedField(ft) {
+		return false
+	}
+	if !sf.Anonymous && !sf.IsExported() {
+		return false
+	}
+	if sf.Anonymous && !sf.IsExported() && sf.Type.Kind() == reflect.Pointer {
+		return false
+	}
+	return !sf.IsExported() || p.OpaqueType == nil || !p.OpaqueType(ft)
+}
+
+// hasExportedField reports whether the struct type t has at least one direct
+// exported field. It is intentionally shallow: unexported embedded fields are
+// treated as visibility boundaries for deciding whether their parent should be
+// expanded.
 func hasExportedField(t reflect.Type) bool {
 	for i := 0; i < t.NumField(); i++ {
 		if t.Field(i).IsExported() {
@@ -230,7 +260,7 @@ func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {
 			return f
 		}
 
-		// When traversing through an anonymous (embedded) pointer field,
+		// When traversing through a pointer field in an expanded path,
 		// reflect.Value.Field returns a value that is NOT addressable/settable
 		// even if the parent struct is addressable. We must use FieldByIndex
 		// on the original addressable value instead.

@@ -45,8 +45,9 @@ func BindValuesAny(dst any, src interface{ Get(string) string }, tag string) err
 // BindValues walks all exported fields of the destination struct type T. For
 // each field, it resolves the src name from the given tag. If the tag value
 // is empty, the field name itself is used. A tag value of "-" skips the field.
-// Struct-typed fields are recursively parsed when they have exported
-// sub-fields and are either anonymous embedded fields or exported named fields.
+// Struct-typed fields are recursively parsed when their immediate type has
+// direct exported fields and they are either anonymous embedded fields or
+// exported named fields.
 // Add the "opaque" tag option to stop recursive parsing and bind the struct
 // field as a single field instead, for example `q:"field,opaque"`.
 //
@@ -57,10 +58,21 @@ func BindValuesAny(dst any, src interface{ Get(string) string }, tag string) err
 //
 // A field whose type is T or *T may customize string binding by making *T
 // implement encoding.TextUnmarshaler. Pointer-to-pointer fields are not
-// supported.
+// supported. Nested struct expansion supports struct values and single
+// pointers to structs only. Self-referential struct graphs are not cycle
+// detected; mark recursive fields as opaque or bind them through
+// encoding.TextUnmarshaler.
+//
+// If a struct field implements encoding.TextUnmarshaler through its pointer
+// type, it is bound as a whole and is not recursively expanded.
 //
 // BindValues treats a missing src value and an explicitly provided empty
 // string identically, because src exposes only Get(string) string.
+//
+// BindValues is a flat binding API. When nested struct fields are expanded,
+// each expanded field reads from its leaf field name, not from the full nested
+// path. If multiple expanded fields have the same leaf name, they read the same
+// source key. Use BindMap when path-aware nested binding is required.
 func BindValues[Struct any, Getter interface{ Get(string) string }](dst *Struct, src Getter, tag string) error {
 	if dst == nil {
 		return errors.New("dst is nil")
@@ -109,18 +121,32 @@ func BindMapAny(dst any, src map[string]any, tag string) error {
 // BindMap walks all exported fields of the destination struct type T. For each
 // field, it resolves the src name from the given tag. If the tag value is
 // empty, the field name itself is used. A tag value of "-" skips the field.
-// Struct-typed fields are recursively parsed when they have exported
-// sub-fields and are either anonymous embedded fields or exported named fields.
+// Struct-typed fields are recursively parsed when their immediate type has
+// direct exported fields and they are either anonymous embedded fields or
+// exported named fields.
 // Add the "opaque" tag option to stop recursive parsing and bind the struct
 // field as a single field instead, for example `json:"field,opaque"`.
 //
 // A field whose type is T or *T may customize any-value binding by making *T
 // implement interface{ Bind(any) error }. Pointer-to-pointer fields are not
-// supported.
+// supported. Nested struct expansion supports struct values and single
+// pointers to structs only. Self-referential struct graphs are not cycle
+// detected; mark recursive fields as opaque or bind them through
+// interface{ Bind(any) error }.
+//
+// If a struct field implements interface{ Bind(any) error } through its
+// pointer type, it is bound as a whole and is not recursively expanded.
+// Non-expanded struct fields whose pointer type implements
+// encoding.TextUnmarshaler may also be assigned from string, []byte,
+// or named types whose underlying kind is string or []byte.
 //
 // For nested struct fields, BindMap follows the parsed field path through
-// nested map[string]any values. A nil or missing src value is ignored.
-// Non-nil values are converted and assigned using the any-value setter.
+// nested map[string]any values. Named map types are accepted only for the
+// top-level src argument; nested maps must have the exact type map[string]any.
+//
+// A nil or missing src value is ignored. But a typed nil value,
+// such as (*T)(nil), is still treated as an explicit value
+// because the interface value itself is non-nil.
 func BindMap[Struct any, Map ~map[string]any](dst *Struct, src Map, tag string) error {
 	if dst == nil {
 		return errors.New("dst is nil")

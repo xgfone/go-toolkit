@@ -58,6 +58,19 @@ func SetDefaultAny(structptr any) (err error) {
 // If a field has a "default" tag and its current value is the zero value
 // of its type, SetDefault will set it to the value parsed from the tag.
 // Otherwise, the field is left unchanged.
+//
+// Defaults are intended for fields that can be parsed from strings, such as
+// bools, integers, floats, strings, their named types, pointers to those types,
+// and fields whose pointer type implements encoding.TextUnmarshaler.
+//
+// Struct fields are normally expanded when their immediate type has direct
+// exported fields, and defaults are applied to their expanded leaf fields.
+// Struct fields whose pointer type implements encoding.TextUnmarshaler are
+// treated as whole fields automatically and may receive defaults as a whole.
+// Nested struct expansion supports struct values and single pointers to
+// structs only. Self-referential struct graphs are not cycle detected; avoid
+// applying SetDefault to those graphs or make the recursive field type
+// implement encoding.TextUnmarshaler so it is treated as a whole field.
 func SetDefault[Struct any](structptr *Struct) (err error) {
 	if structptr == nil {
 		return errDefaultNilPointer
