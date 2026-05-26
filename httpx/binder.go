@@ -39,7 +39,11 @@ var errNilRequest = errors.New("httpx: request is nil")
 //
 // For JSON and XML bodies, BindBody uses the standard struct tags "json" and
 // "xml". For form and multipart form bodies, it uses the "form" struct tag.
-func BindBody(r *http.Request, dst any) error {
+func BindBody[T any](r *http.Request, dst *T) error {
+	return bindBodyRequest(r, dst)
+}
+
+func bindBodyRequest(r *http.Request, dst any) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -85,7 +89,11 @@ func BindBody(r *http.Request, dst any) error {
 
 // BindHeader binds the request headers into dst using the "header" struct tag,
 // then sets defaults and validates dst.
-func BindHeader(r *http.Request, dst any) error {
+func BindHeader[T any](r *http.Request, dst *T) error {
+	return bindHeaderRequest(r, dst)
+}
+
+func bindHeaderRequest(r *http.Request, dst any) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -99,7 +107,11 @@ func BindHeader(r *http.Request, dst any) error {
 
 // BindQuery binds the request query parameters into dst using the "query"
 // struct tag, then sets defaults and validates dst.
-func BindQuery(r *http.Request, dst any) error {
+func BindQuery[T any](r *http.Request, dst *T) error {
+	return bindQueryRequest(r, dst)
+}
+
+func bindQueryRequest(r *http.Request, dst any) error {
 	if r == nil {
 		return errNilRequest
 	}

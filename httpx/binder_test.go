@@ -103,35 +103,30 @@ func TestBindBody(t *testing.T) {
 	tests := []struct {
 		name     string
 		req      *http.Request
-		dst      any
 		wantName string
 		wantAge  int
 	}{
 		{
 			name:     "json",
 			req:      newBindRequest(http.MethodPost, "/", MIMEApplicationJSONCharsetUTF8, `{"age":12}`),
-			dst:      new(bindValidatingBody),
 			wantName: "anonymous",
 			wantAge:  12,
 		},
 		{
 			name:     "xml",
 			req:      newBindRequest(http.MethodPost, "/", MIMEApplicationXML, `<request><name>alice</name><age>9</age></request>`),
-			dst:      new(bindValidatingBody),
 			wantName: "alice",
 			wantAge:  9,
 		},
 		{
 			name:     "form",
 			req:      newBindRequest(http.MethodPost, "/?age=99", MIMEApplicationForm, form.Encode()),
-			dst:      new(bindValidatingBody),
 			wantName: "alice",
 			wantAge:  10,
 		},
 		{
 			name:     "multipart form",
 			req:      newBindRequest(http.MethodPost, "/", multipartContentType, multipartBody),
-			dst:      new(bindValidatingBody),
 			wantName: "alice",
 			wantAge:  11,
 		},
@@ -139,13 +134,13 @@ func TestBindBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := BindBody(tt.req, tt.dst); err != nil {
+			var dst bindValidatingBody
+			if err := BindBody(tt.req, &dst); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			got := tt.dst.(*bindValidatingBody)
-			if got.Name != tt.wantName || got.Age != tt.wantAge {
-				t.Fatalf("unexpected bind result: %#v", got)
+			if dst.Name != tt.wantName || dst.Age != tt.wantAge {
+				t.Fatalf("unexpected bind result: %#v", dst)
 			}
 		})
 	}
