@@ -79,14 +79,14 @@ func BenchmarkBindValuesFlat(b *testing.B) {
 		"score": "12.5",
 		"count": "7",
 	}
-	var warm benchValuesFlat
-	_ = BindValues(&warm, source, "q")
+	target := new(benchValuesFlat)
+	_ = BindValues(target, source, "q")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var target benchValuesFlat
-		if err := BindValues(&target, source, "q"); err != nil {
+		*target = benchValuesFlat{}
+		if err := BindValues(target, source, "q"); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -100,14 +100,14 @@ func BenchmarkBindMapFlat(b *testing.B) {
 		"score": 12.5,
 		"count": uint(7),
 	}
-	var warm benchMapFlat
-	_ = BindMap(&warm, source, "json")
+	target := new(benchMapFlat)
+	_ = BindMap(target, source, "json")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var target benchMapFlat
-		if err := BindMap(&target, source, "json"); err != nil {
+		*target = benchMapFlat{}
+		if err := BindMap(target, source, "json"); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -127,14 +127,14 @@ func BenchmarkBindMapNestedPointersAndBinders(b *testing.B) {
 			"weights": []any{1.5, 2.5, 3.5},
 		},
 	}
-	var warm benchMapNested
-	_ = BindMap(&warm, source, "json")
+	target := new(benchMapNested)
+	_ = BindMap(target, source, "json")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var target benchMapNested
-		if err := BindMap(&target, source, "json"); err != nil {
+		*target = benchMapNested{}
+		if err := BindMap(target, source, "json"); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -147,14 +147,14 @@ func BenchmarkBindValuesPointersAndText(b *testing.B) {
 		"text":  "tv",
 		"ptext": "ptv",
 	}
-	var warm benchValuesPointers
-	_ = BindValues(&warm, source, "q")
+	target := new(benchValuesPointers)
+	_ = BindValues(target, source, "q")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var target benchValuesPointers
-		if err := BindValues(&target, source, "q"); err != nil {
+		*target = benchValuesPointers{}
+		if err := BindValues(target, source, "q"); err != nil {
 			b.Fatal(err)
 		}
 	}
