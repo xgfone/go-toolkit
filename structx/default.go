@@ -90,8 +90,8 @@ func SetDefault[Struct any](structptr *Struct) (err error) {
 var _setdefault = setDefault
 
 func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
-	for _, f := range structs.StringParser.Parse(rtype, "").Fields {
-		if f.Default == "" {
+	for _, f := range defaultParser.Parse(rtype, "").Fields {
+		if f.Data.TagValue == "" {
 			continue
 		}
 
@@ -100,9 +100,11 @@ func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
 			continue
 		}
 
-		if err = f.SetField(f.Type, rvalue, f.Default); err != nil {
+		if err = f.Data.SetField(f.Type, rvalue, f.Data.TagValue); err != nil {
 			return fmt.Errorf("%q: %w", f.Name, err)
 		}
 	}
 	return
 }
+
+var defaultParser = structs.NewStringSetterParser("default")

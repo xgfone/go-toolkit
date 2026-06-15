@@ -16,676 +16,283 @@ package structs
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 )
 
-type embedMe struct {
-	A int    `q:"a"`
-	B string `q:"b"`
+type parserData struct {
+	fieldName string
+	marker    string
 }
 
-type ExportedEmbed struct {
-	A int    `q:"a"`
-	B string `q:"b"`
+func newTestParser(isOpaque OpaqueFieldFunc) *Parser[parserData] {
+	return NewParser(func(sf reflect.StructField) parserData {
+		return parserData{fieldName: sf.Name, marker: sf.Tag.Get("marker")}
+	}, isOpaque)
 }
 
-type WrapTime time.Time
-
-//nolint:unused
-type noExported struct {
-	x int
-	y string
+func checkFieldNames[Data any](t *testing.T, s *Struct[Data], want ...string) {
+	t.Helper()
+	got := make([]string, len(s.Fields))
+	for i, f := range s.Fields {
+		got[i] = f.Name
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got fields %v, want %v", got, want)
+	}
 }
 
-type unexportedEmb struct {
-	X string `q:"x"`
-}
-
-type opaqueBindStruct struct {
-	X int `q:"x"`
-}
-
-func (*opaqueBindStruct) Bind(any) error { return nil }
-
-type opaqueTextStruct struct {
-	X int `q:"x"`
-}
-
-func (t *opaqueTextStruct) UnmarshalText(b []byte) error {
-	t.X = len(b)
+func fieldByName[Data any](t *testing.T, s *Struct[Data], name string) *Field[Data] {
+	t.Helper()
+	for i := range s.Fields {
+		if s.Fields[i].Name == name {
+			return &s.Fields[i]
+		}
+	}
+	t.Fatalf("missing field %q", name)
 	return nil
 }
 
-type embedPointer struct {
-	*embedMe
-	P *WrapTime `q:"p"`
-}
-
-type embedExportedPointer struct {
-	*ExportedEmbed
-	P *WrapTime `q:"p"`
-}
-
-type embedNamed struct {
-	embedMe
-	WrapTime
-	C int `q:"c"`
-}
-
-type embedExternal struct {
-	time.Time
-	C int `q:"c"`
-}
-
-type embedHidden struct {
-	noExported //nolint:unused
-	unexportedEmb
-	A int `q:"a"`
-}
-
-type embedHiddenPointer struct {
-	*unexportedEmb     //nolint:unused
-	A              int `q:"a"`
-}
-
-type unexportedOpaqueTextEmbed struct {
-	X int `q:"x"`
-}
-
-func (*unexportedOpaqueTextEmbed) UnmarshalText([]byte) error { return nil }
-
-type embedHiddenOpaqueText struct {
-	unexportedOpaqueTextEmbed
-	A int `q:"a"`
-}
-
-type doublePointerStruct struct {
-	P **ExportedEmbed `q:"p"`
-	A int             `q:"a"`
-}
-
-type flatFields struct {
-	Name  string `q:"name"`
-	Value int    `q:"value"`
-}
-
-// --- Helper ---
-
-func mustSet(t *testing.T, f Field[string], root reflect.Value, s string) {
-	t.Helper()
-	if err := f.SetValue(root, s); err != nil {
-		t.Fatalf("SetValue(%q): %v", s, err)
-	}
-}
-
-func checkFields[T any](t *testing.T, s *Struct[T], want ...string) {
-	t.Helper()
-	if len(s.Fields) != len(want) {
-		t.Fatalf("got %d fields, want %d: %v", len(s.Fields), len(want), fieldNames(s.Fields))
-	}
-	m := make(map[string]bool, len(want))
-	for _, n := range want {
-		m[n] = true
-	}
-	for _, f := range s.Fields {
-		if !m[f.Name] {
-			t.Fatalf("unexpected field %q in %v", f.Name, fieldNames(s.Fields))
-		}
-		delete(m, f.Name)
-	}
-	if len(m) > 0 {
-		t.Fatalf("missing fields: %v", m)
-	}
-}
-
-func fieldNames[T any](fields []Field[T]) []string {
-	ns := make([]string, len(fields))
-	for i, f := range fields {
-		ns[i] = f.Name
-	}
-	return ns
-}
-
-// --- Requirements tests ---
-
-func TestCompileAnySetter(t *testing.T) {
-	s := AnyParser.Parse(reflect.TypeFor[embedNamed](), "q")
-	checkFields(t, s, "a", "b", "c", "WrapTime")
-}
-
-func TestAnySetterTimeField(t *testing.T) {
-	type holder struct {
-		At time.Time `q:"at"`
-	}
-
-	s := AnyParser.Parse(reflect.TypeFor[holder](), "q")
-	checkFields(t, s, "at")
-
-	ts := time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)
-	var dst holder
-	if err := s.Fields[0].SetValue(reflect.ValueOf(&dst).Elem(), ts.Format(time.RFC3339)); err != nil {
-		t.Fatalf("SetValue(time string): %v", err)
-	}
-	if !dst.At.Equal(ts) {
-		t.Fatalf("got %v, want %v", dst.At, ts)
-	}
-}
-
-func TestExpandNamedStruct(t *testing.T) {
-	s := StringParser.Parse(reflect.TypeFor[embedNamed](), "q")
-	checkFields(t, s, "a", "b", "c", "WrapTime")
-}
-
-func TestNotExpandUnexportedPointerEmbed(t *testing.T) {
-	s := StringParser.Parse(reflect.TypeFor[embedPointer](), "q")
-	checkFields(t, s, "p")
-}
-
-func TestExpandExportedPointerEmbed(t *testing.T) {
-	s := StringParser.Parse(reflect.TypeFor[embedExportedPointer](), "q")
-	checkFields(t, s, "a", "b", "p")
-}
-
-func TestNotExpandDoublePointerStruct(t *testing.T) {
-	s := StringParser.Parse(reflect.TypeFor[doublePointerStruct](), "q")
-	checkFields(t, s, "p", "a")
-}
-
-// Literal named field with anonymous struct type (not anonymous embed) — not expanded.
-type embedLiteral struct {
-	_ struct {
-		X int
-		Y string
-	} `q:"-"`
-	Z int `q:"z"`
-}
-
-func TestExpandAnonymousStruct(t *testing.T) {
-	s := StringParser.Parse(reflect.TypeFor[embedLiteral](), "q")
-	checkFields(t, s, "z")
-}
-
-// External struct (time.Time) embedded anonymously — NOT expanded, added as regular field.
-func TestNotExpandExternalStruct(t *testing.T) {
-	typ := reflect.TypeFor[embedExternal]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "Time", "c")
-}
-
-// Named type wrapping an external struct (type T time.Time) — NOT expanded.
-func TestNotExpandWrappedExternal(t *testing.T) {
-	typ := reflect.TypeFor[embedNamed]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "a", "b", "c", "WrapTime")
-}
-
-// Unexported anonymous embed with exported sub-fields — still expanded before IsExported check.
-func TestExpandUnexportedEmbed(t *testing.T) {
-	typ := reflect.TypeFor[embedHidden]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "x", "a")
-}
-
-func TestNotExpandUnexportedPointerEmbedOnly(t *testing.T) {
-	typ := reflect.TypeFor[embedHiddenPointer]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "a")
-}
-
-func TestNotExpandOpaqueSetterStruct(t *testing.T) {
-	type anyOuter struct {
-		Field opaqueBindStruct `q:"field"`
-	}
-	type stringOuter struct {
-		Field opaqueTextStruct `q:"field"`
-	}
-
-	checkFields(t, AnyParser.Parse(reflect.TypeFor[anyOuter](), "q"), "field")
-	checkFields(t, AnyParser.Parse(reflect.TypeFor[stringOuter](), "q"), "x")
-	checkFields(t, StringParser.Parse(reflect.TypeFor[stringOuter](), "q"), "field")
-}
-
-func TestExpandUnexportedOpaqueValueEmbed(t *testing.T) {
-	typ := reflect.TypeFor[embedHiddenOpaqueText]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "x", "a")
-}
-
-// --- SetValue tests ---
-
-func TestSetValueSuccess(t *testing.T) {
-	typ := reflect.TypeFor[embedNamed]()
-	s := StringParser.Parse(typ, "q")
-
-	fields := make(map[string]Field[string], len(s.Fields))
-	for _, f := range s.Fields {
-		fields[f.Name] = f
-	}
-
-	var dst embedNamed
-	root := reflect.ValueOf(&dst).Elem()
-	mustSet(t, fields["a"], root, "10")
-	mustSet(t, fields["b"], root, "hello")
-	mustSet(t, fields["c"], root, "99")
-	if dst.A != 10 || dst.B != "hello" || dst.C != 99 {
-		t.Fatalf("got A=%d B=%q C=%d", dst.A, dst.B, dst.C)
-	}
-}
-
-// --- Error path ---
-
-func TestFieldByIndexAllocErrors(t *testing.T) {
-	func() {
-		defer func() {
-			r := recover()
-			if r == nil {
-				t.Fatal("expected panic for empty field index")
-			}
-			if msg, ok := r.(string); !ok || msg != "empty field index" {
-				t.Fatalf("unexpected panic message: %v", r)
-			}
-		}()
-		fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), nil)
-	}()
-
-	// index [2]: C int, not struct. But it's len=1 so returns C directly (no error).
-	// Use [2, 0] instead: C int is not the last level -> "invalid field path".
-	func() {
-		defer func() {
-			r := recover()
-			if r == nil {
-				t.Fatal("expected panic for invalid field path")
-			}
-			if msg, ok := r.(string); !ok || msg != "invalid field path" {
-				t.Fatalf("unexpected panic message: %v", r)
-			}
-		}()
-		fieldByIndexAlloc(reflect.ValueOf(embedNamed{}), []int{2, 0})
-	}()
-}
-
-func TestFieldByIndexAllocPointerStruct(t *testing.T) {
-	type nested struct{ N int }
-	type holder struct{ P *nested }
-	type badHolder struct{ P *int }
-
-	h := holder{}
-	v := fieldByIndexAlloc(reflect.ValueOf(&h).Elem(), []int{0, 0})
-	if !v.IsValid() || h.P == nil {
-		t.Fatalf("unexpected result: %v %#v", v, h)
-	}
-
-	func() {
-		defer func() {
-			r := recover()
-			if r == nil {
-				t.Fatal("expected panic for non-struct pointer in field path")
-			}
-			if msg, ok := r.(string); !ok || msg != "non-struct pointer in field path" {
-				t.Fatalf("unexpected panic message: %v", r)
-			}
-		}()
-		fieldByIndexAlloc(reflect.ValueOf(badHolder{}), []int{0, 0})
-	}()
-}
-
-func TestFieldByIndexAllocPointerNonNil(t *testing.T) {
-	// Covers the "else" branch in fieldByIndexAlloc where a non-nil
-	// pointer field is an intermediate node (not the last index element).
-	type inner struct{ X int }
-	type outer struct{ P *inner }
-
-	v := &outer{P: &inner{X: 42}}
-	rv := reflect.ValueOf(v).Elem()
-	fv := fieldByIndexAlloc(rv, []int{0, 0})
-	if !fv.IsValid() {
-		t.Fatal("returned value is invalid")
-	}
-	if fv.Int() != 42 {
-		t.Fatalf("expected 42, got %d", fv.Int())
-	}
-}
-
-// Named struct field (not anonymous) — expanded into its sub-fields.
-type namedStructFieldHost struct {
-	Key string `q:"key"`
-}
-
-type namedStructFieldOuter struct {
-	Inner namedStructFieldHost
-	Label string `q:"label"`
-}
-
-func TestExpandNamedStructField(t *testing.T) {
-	typ := reflect.TypeFor[namedStructFieldOuter]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "key", "label")
-}
-
-type opaqueNamedStructOuter struct {
-	Inner namedStructFieldHost `q:"inner,opaque"`
-	Outer namedStructFieldHost `q:",opaque"`
-	Label string               `q:"label"`
-}
-
-func TestOpaqueNamedStructField(t *testing.T) {
-	typ := reflect.TypeFor[opaqueNamedStructOuter]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "inner", "Outer", "label")
-
-	fields := make(map[string]Field[string], len(s.Fields))
-	for _, f := range s.Fields {
-		fields[f.Name] = f
-	}
-	if got := fields["inner"].GetValue(map[string]any{"inner": "value"}); got != "value" {
-		t.Fatalf("expected opaque field value, got %v", got)
-	}
-}
-
-// Named pointer-to-struct field — expanded into its sub-fields.
-type taggedNestedHost struct {
-	Key   string `q:"key"`
-	Count int    `q:"count"`
-}
-
-type taggedNestedOuter struct {
-	Inner taggedNestedHost `q:"inner"`
-	Label string           `q:"label"`
-}
-
-type namedPtrStructFieldHost struct {
-	N int `q:"n"`
-}
-
-type namedPtrStructFieldOuter struct {
-	Inner *namedPtrStructFieldHost
-	Name  string `q:"name"`
-}
-
-func TestExpandNamedPointerStructField(t *testing.T) {
-	typ := reflect.TypeFor[namedPtrStructFieldOuter]()
-	s := StringParser.Parse(typ, "q")
-	checkFields(t, s, "n", "name")
-}
-
-// Named struct field without exported sub-fields — not expanded.
-type namedStructNoExport struct {
-	Named struct {
-		x int // unexported
-	}
-	Tag string `q:"tag"`
-}
-
-func TestNotExpandNamedStructNoExportedFields(t *testing.T) {
-	typ := reflect.TypeFor[namedStructNoExport]()
-	s := StringParser.Parse(typ, "q")
-	// Named has no exported sub-fields, so it stays as a single field.
-	checkFields(t, s, "Named", "tag")
-}
-
-// Unexported named struct field with exported sub-fields
-// covers the "!sf.IsExported()" branch in parseWithParent
-// when processing struct-typed named fields.
-type unexportedNamedStructFieldHost struct { //nolint:unused
-	Val int `q:"val"`
-}
-
-type unexportedNamedStructOuter struct {
-	inner unexportedNamedStructFieldHost //nolint:unused
-
-	Tag string `q:"tag"`
-}
-
-func TestNotExpandUnexportedNamedStructField(t *testing.T) {
-	typ := reflect.TypeFor[unexportedNamedStructOuter]()
-	s := StringParser.Parse(typ, "q")
-	// inner is unexported, so it is skipped entirely.
-	checkFields(t, s, "tag")
-}
-
-// --- GetValue tests ---
-
-func TestGetValueNonNil(t *testing.T) {
-	typ := reflect.TypeFor[embedNamed]()
-	s := StringParser.Parse(typ, "q")
-	for _, f := range s.Fields {
-		if f.GetValue == nil {
-			t.Fatalf("field %q has nil GetValue", f.Name)
-		}
-	}
-}
-
-func TestGetValueFlatFields(t *testing.T) {
-	typ := reflect.TypeFor[flatFields]()
-	s := StringParser.Parse(typ, "q")
-
-	// Nil map → returns nil
-	for _, f := range s.Fields {
-		if got := f.GetValue(nil); got != nil {
-			t.Fatalf("field %q: expected nil, got %v", f.Name, got)
-		}
-	}
-
-	// Key exists → returns value
-	m := map[string]any{"name": "hello", "value": 42}
-	for _, f := range s.Fields {
-		switch f.Name {
-		case "name":
-			if got := f.GetValue(m); got != "hello" {
-				t.Fatalf("expected 'hello', got %v", got)
-			}
-		case "value":
-			if got := f.GetValue(m); got != 42 {
-				t.Fatalf("expected 42, got %v", got)
-			}
-		}
-	}
-
-	// Key missing → returns nil
-	m = map[string]any{"name": "hello"}
-	for _, f := range s.Fields {
-		if f.Name == "value" {
-			if got := f.GetValue(m); got != nil {
-				t.Fatalf("expected nil, got %v", got)
-			}
-			return
-		}
-	}
-}
-
-func TestGetValueNestedFields(t *testing.T) {
-	typ := reflect.TypeFor[taggedNestedOuter]()
-	s := StringParser.Parse(typ, "q")
-
-	// Key has a nested path ["inner", "key"] because the named struct
-	// field "Inner" (tag "inner") is expanded during parsing.
-	var key Field[string]
-	for _, f := range s.Fields {
-		if f.Name == "key" {
-			key = f
-			break
-		}
-	}
-
-	// Key exists
-	if got := key.GetValue(map[string]any{
-		"inner": map[string]any{"key": "v"},
-	}); got != "v" {
-		t.Fatalf("expected 'v', got %v", got)
-	}
-
-	// Missing intermediate key
-	if got := key.GetValue(map[string]any{}); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-
-	// Wrong intermediate type
-	if got := key.GetValue(map[string]any{"inner": "bad"}); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-
-	// Nil intermediate map (type assertion succeeds, nil-map read returns nil)
-	if got := key.GetValue(map[string]any{"inner": map[string]any(nil)}); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-}
-
-func TestGetValueNestedFieldsWithoutTag(t *testing.T) {
-	type inner struct {
-		Key string
-	}
-	type outer struct {
-		Inner inner
-	}
-
-	typ := reflect.TypeFor[outer]()
-	s := StringParser.Parse(typ, "")
-	checkFields(t, s, "Key")
-
-	key := s.Fields[0]
-	if got := key.GetValue(map[string]any{
-		"Inner": map[string]any{"Key": "v"},
-	}); got != "v" {
-		t.Fatalf("expected 'v', got %v", got)
-	}
-
-	if got := key.GetValue(map[string]any{
-		"": map[string]any{"Key": "bad"},
-	}); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-}
-
-func TestGetValuePathNamesAreIndependent(t *testing.T) {
-	type inner struct {
-		A string
-		B string
-	}
-
-	parentNames := make([]string, 1, 2)
-	parentNames[0] = "Root"
-	parser := _Parser[string]{CompileSetter: CompileStringSetter}
-	fields := parser.parse(reflect.TypeFor[inner](), nil, parentNames)
-	checkFields(t, &Struct[string]{Fields: fields}, "A", "B")
-
-	values := map[string]any{"Root": map[string]any{"A": "a", "B": "b"}}
-	for _, f := range fields {
-		if f.Name == "A" {
-			if got := f.GetValue(values); got != "a" {
-				t.Fatalf("expected 'a', got %v", got)
-			}
-			return
-		}
-	}
-	t.Fatal("missing field A")
-}
-
-func TestGetterPathsAreIndependentFromPublicPaths(t *testing.T) {
-	typ := reflect.TypeFor[flatFields]()
-	parser := _Parser[string]{CompileSetter: CompileStringSetter, Tag: "q"}
-	s := parser.Parse(typ)
-
-	var name *Field[string]
-	for i := range s.Fields {
-		if s.Fields[i].Name == "name" {
-			name = &s.Fields[i]
-			break
-		}
-	}
-	if name == nil {
-		t.Fatal("missing field name")
-	}
-
-	name.Names[0] = "value"
-	if got := name.GetValue(map[string]any{"name": "hello", "value": "bad"}); got != "hello" {
-		t.Fatalf("expected 'hello', got %v", got)
-	}
-
-	name.Indexes[0] = 1
-	root := reflect.ValueOf(flatFields{Name: "hello", Value: 42})
-	if got := name.GetField(root).String(); got != "hello" {
-		t.Fatalf("expected 'hello', got %v", got)
-	}
-}
-
-func TestMakeMapValueGetterEmptyNames(t *testing.T) {
-	getter := makeMapValueGetter(nil)
-	if got := getter(map[string]any{"x": 1}); got != nil {
-		t.Fatalf("expected nil, got %v", got)
-	}
-}
-
-// --- Other ---
-
-func TestParserNil(t *testing.T) {
+func TestNewParserPanicsWithoutCompiler(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic")
 		}
 	}()
-	_ = NewParser[string](nil)
+	_ = NewParser[string](nil, nil)
 }
 
 func TestParseCache(t *testing.T) {
-	typ := reflect.TypeFor[flatFields]()
-	s1 := StringParser.Parse(typ, "q")
-	s2 := StringParser.Parse(typ, "q")
+	type target struct {
+		Name string `q:"name"`
+	}
+
+	parser := newTestParser(nil)
+	typ := reflect.TypeFor[target]()
+	s1 := parser.Parse(typ, "q")
+	s2 := parser.Parse(typ, "q")
+	s3 := parser.Parse(typ, "")
 	if s1 != s2 {
-		t.Fatal("cache miss")
+		t.Fatal("cache miss for same type and tag")
+	}
+	if s1 == s3 {
+		t.Fatal("cache should distinguish parse tags")
+	}
+}
+
+func TestParseStructFields(t *testing.T) {
+	type ExportedEmbed struct {
+		A int `q:"a"`
+	}
+	type unexportedEmbed struct {
+		X int `q:"x"`
+	}
+	type opaqueStruct struct {
+		Y int `q:"y"`
+	}
+
+	tests := []struct {
+		name     string
+		typ      reflect.Type
+		isOpaque OpaqueFieldFunc
+		want     []string
+	}{
+		{
+			name: "anonymous and named structs expand",
+			typ: reflect.TypeFor[struct {
+				ExportedEmbed
+				Inner ExportedEmbed `q:"inner"`
+				T     time.Time     `q:"t"`
+				Skip  string        `q:"-"`
+			}](),
+			want: []string{"a", "a", "t"},
+		},
+		{
+			name: "exported pointer embed expands",
+			typ: reflect.TypeFor[struct {
+				*ExportedEmbed
+				B int `q:"b"`
+			}](),
+			want: []string{"a", "b"},
+		},
+		{
+			name: "unexported pointer embed is skipped",
+			typ: reflect.TypeFor[struct {
+				*unexportedEmbed
+				A int `q:"a"`
+			}](),
+			want: []string{"a"},
+		},
+		{
+			name: "unexported value embed can expose direct exported fields",
+			typ: reflect.TypeFor[struct {
+				unexportedEmbed
+				A int `q:"a"`
+			}](),
+			want: []string{"x", "a"},
+		},
+		{
+			name: "tag opaque keeps struct as one field",
+			typ: reflect.TypeFor[struct {
+				Inner ExportedEmbed `q:"inner,opaque"`
+				A     int           `q:"a"`
+			}](),
+			want: []string{"inner", "a"},
+		},
+		{
+			name: "type opaque keeps struct as one field",
+			typ: reflect.TypeFor[struct {
+				Opaque opaqueStruct `q:"opaque"`
+				A      int          `q:"a"`
+			}](),
+			isOpaque: func(sf reflect.StructField) bool { return sf.Type == reflect.TypeFor[opaqueStruct]() },
+			want:     []string{"opaque", "a"},
+		},
+		{
+			name: "unexported named field is skipped",
+			typ: reflect.TypeFor[struct {
+				inner ExportedEmbed //nolint:unused
+				A     int           `q:"a"`
+			}](),
+			want: []string{"a"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checkFieldNames(t, newTestParser(tt.isOpaque).Parse(tt.typ, "q"), tt.want...)
+		})
+	}
+}
+
+func TestFieldCompilerReceivesLeafStructField(t *testing.T) {
+	type inner struct {
+		Value int `q:"value" marker:"inner-value"`
+	}
+	type outer struct {
+		Name  string `q:"name" marker:"outer-name"`
+		Inner inner  `q:"inner" marker:"outer-inner"`
+	}
+
+	s := newTestParser(nil).Parse(reflect.TypeFor[outer](), "q")
+	checkFieldNames(t, s, "name", "value")
+
+	if got := fieldByName(t, s, "name").Data.marker; got != "outer-name" {
+		t.Fatalf("got name marker %q", got)
+	}
+	if got := fieldByName(t, s, "value").Data.marker; got != "inner-value" {
+		t.Fatalf("got nested marker %q", got)
+	}
+}
+
+func TestGetValue(t *testing.T) {
+	type inner struct {
+		Key string `q:"key"`
+	}
+	type outer struct {
+		Inner inner `q:"inner"`
+	}
+
+	s := newTestParser(nil).Parse(reflect.TypeFor[outer](), "q")
+	key := fieldByName(t, s, "key")
+
+	if got := key.GetValue(map[string]any{"inner": map[string]any{"key": "v"}}); got != "v" {
+		t.Fatalf("expected v, got %v", got)
+	}
+	if got := key.GetValue(nil); got != nil {
+		t.Fatalf("expected nil for nil map, got %v", got)
+	}
+	if got := key.GetValue(map[string]any{"inner": "bad"}); got != nil {
+		t.Fatalf("expected nil for wrong intermediate type, got %v", got)
+	}
+}
+
+func TestGetFieldAllocatesPointerStructPath(t *testing.T) {
+	type inner struct {
+		N int `q:"n"`
+	}
+	type outer struct {
+		Inner *inner `q:"inner"`
+	}
+
+	s := newTestParser(nil).Parse(reflect.TypeFor[outer](), "q")
+	var dst outer
+	field := fieldByName(t, s, "n")
+	field.GetField(reflect.ValueOf(&dst).Elem()).SetInt(12)
+	if dst.Inner == nil || dst.Inner.N != 12 {
+		t.Fatalf("unexpected target: %#v", dst)
+	}
+
+	field.GetField(reflect.ValueOf(&dst).Elem()).SetInt(13)
+	valueDst := struct{ Value inner }{}
+	fieldByIndexAlloc(reflect.ValueOf(&valueDst).Elem(), []int{0, 0}).SetInt(14)
+	if dst.Inner.N != 13 || valueDst.Value.N != 14 {
+		t.Fatalf("unexpected target: %#v", dst)
+	}
+}
+
+func TestFieldByIndexAllocPanics(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		index []int
+		panic string
+	}{
+		{name: "empty", value: struct{}{}, panic: "empty field index"},
+		{name: "invalid path", value: struct{ N int }{}, index: []int{0, 0}, panic: "invalid field path"},
+		{name: "non struct pointer", value: struct{ P *int }{}, index: []int{0, 0}, panic: "non-struct pointer in field path"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("expected panic")
+				}
+				if r != tt.panic {
+					t.Fatalf("got panic %v, want %q", r, tt.panic)
+				}
+			}()
+			fieldByIndexAlloc(reflect.ValueOf(tt.value), tt.index)
+		})
 	}
 }
 
 func TestParserCachesAreIndependent(t *testing.T) {
-	typ := reflect.TypeFor[flatFields]()
-	compile := func(prefix string) SetterCompiler[string] {
-		return func(reflect.Type) SetterFunc[string] {
-			return func(_ reflect.Type, dst reflect.Value, src string) error {
-				dst.SetString(prefix + src)
-				return nil
-			}
-		}
+	type target struct {
+		Name string `q:"name"`
 	}
 
-	p1 := NewParser(compile("p1:"))
-	p2 := NewParser(compile("p2:"))
-	s1 := p1.Parse(typ, "q")
-	s2 := p2.Parse(typ, "q")
+	newParser := func(prefix string) *Parser[parserData] {
+		return NewParser(func(sf reflect.StructField) parserData {
+			return parserData{fieldName: prefix + sf.Name}
+		}, nil)
+	}
+
+	s1 := newParser("p1:").Parse(reflect.TypeFor[target](), "q")
+	s2 := newParser("p2:").Parse(reflect.TypeFor[target](), "q")
 	if s1 == s2 {
 		t.Fatal("different parsers shared a cached struct")
 	}
-
-	root1 := reflect.ValueOf(&flatFields{}).Elem()
-	root2 := reflect.ValueOf(&flatFields{}).Elem()
-	if err := s1.Fields[0].SetValue(root1, "value"); err != nil {
-		t.Fatal(err)
-	}
-	if err := s2.Fields[0].SetValue(root2, "value"); err != nil {
-		t.Fatal(err)
-	}
-	if got := root1.FieldByName("Name").String(); got != "p1:value" {
-		t.Fatalf("unexpected parser 1 value: %q", got)
-	}
-	if got := root2.FieldByName("Name").String(); got != "p2:value" {
-		t.Fatalf("unexpected parser 2 value: %q", got)
+	if s1.Fields[0].Data.fieldName != "p1:Name" || s2.Fields[0].Data.fieldName != "p2:Name" {
+		t.Fatalf("unexpected parser data: %#v %#v", s1.Fields[0].Data, s2.Fields[0].Data)
 	}
 }
 
 func TestParseHelpers(t *testing.T) {
-	if name, opaque := parseTag(""); name != "" || opaque {
-		t.Fatal("unexpected empty tag parse")
-	}
-	if name, opaque := parseTag("name,omitempty"); name != "name" || opaque {
-		t.Fatal("unexpected tag parse")
-	}
 	if name, opaque := parseTag("name,omitempty,opaque"); name != "name" || !opaque {
-		t.Fatal("expected opaque option")
+		t.Fatalf("unexpected tag parse: %q %v", name, opaque)
 	}
 	if name, opaque := parseTag("name"); name != "name" || opaque {
-		t.Fatal("unexpected name-only tag parse")
+		t.Fatalf("unexpected name-only tag parse: %q %v", name, opaque)
 	}
-	idx := appendSlice([]int{1, 2}, 3)
-	if len(idx) != 3 || idx[2] != 3 {
-		t.Fatalf("unexpected index: %#v", idx)
+
+	if got := appendSlice([]int{1, 2}, 3); !slices.Equal(got, []int{1, 2, 3}) {
+		t.Fatalf("unexpected index: %#v", got)
+	}
+	if got := makeMapValueGetter(nil)(map[string]any{"x": 1}); got != nil {
+		t.Fatalf("expected nil, got %v", got)
 	}
 }

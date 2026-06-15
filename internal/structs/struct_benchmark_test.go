@@ -35,60 +35,43 @@ type benchStruct struct {
 
 func BenchmarkParseHit(b *testing.B) {
 	typ := reflect.TypeFor[benchStruct]()
-	_ = StringParser.Parse(typ, "q")
+	parser := NewStringSetterParser("")
+	_ = parser.Parse(typ, "q")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = StringParser.Parse(typ, "q")
+		_ = parser.Parse(typ, "q")
 	}
 }
 
 func BenchmarkRawParse(b *testing.B) {
 	typ := reflect.TypeFor[benchStruct]()
+	parser := NewParser(NewSetterFieldCompiler(CompileStringSetter, ""), isStringOpaqueField)
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		parser := _Parser[string]{CompileSetter: CompileStringSetter, Tag: "q"}
-		_ = parser.Parse(typ)
+		_ = parser._Parse(typ, "q")
 	}
 }
 
-func BenchmarkFieldSetValueInt(b *testing.B) {
-	rtype := reflect.TypeFor[int]()
-	field := Field[string]{
-		Type:     rtype,
-		SetField: CompileStringSetter(rtype),
-		GetField: makeFieldGetter([]int{0}),
+func BenchmarkGetValueNested(b *testing.B) {
+	type inner struct {
+		Key string `q:"key"`
+	}
+	type outer struct {
+		Inner inner `q:"inner"`
 	}
 
-	root := reflect.ValueOf(&struct{ N int }{}).Elem()
+	s := NewStringSetterParser("").Parse(reflect.TypeFor[outer](), "q")
+	field := s.Fields[0]
+	values := map[string]any{"inner": map[string]any{"key": "value"}}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := field.SetValue(root, "123"); err != nil {
-			b.Fatal(err)
-		}
-	}
-
-}
-
-func BenchmarkFieldSetValueText(b *testing.B) {
-	rtype := reflect.TypeFor[benchText]()
-	field := Field[string]{
-		Type:     rtype,
-		SetField: CompileStringSetter(rtype),
-		GetField: makeFieldGetter([]int{0}),
-	}
-
-	root := reflect.ValueOf(&struct{ T benchText }{}).Elem()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := field.SetValue(root, "abc"); err != nil {
-			b.Fatal(err)
+		if got := field.GetValue(values); got != "value" {
+			b.Fatalf("got %v", got)
 		}
 	}
 }

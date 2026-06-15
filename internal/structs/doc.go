@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package structs provides a struct parser and binder.
+// package structs provides a struct parser.
 package structs

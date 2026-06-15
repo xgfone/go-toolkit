@@ -21,88 +21,78 @@ import (
 	"sync"
 )
 
+type (
+	ValueGetter func(map[string]any) any
+	FieldGetter func(root reflect.Value) reflect.Value
+
+	FieldCompiler[Data any] func(reflect.StructField) Data
+	OpaqueFieldFunc         func(reflect.StructField) bool
+)
+
+type Struct[Data any] struct {
+	Fields []Field[Data]
+}
+
+type Field[Data any] struct {
+	Type reflect.Type
+	Name string
+	Data Data
+
+	getValue ValueGetter
+	getField FieldGetter
+}
+
+// Missing values are returned as nil.
+func (f *Field[Data]) GetValue(m map[string]any) any {
+	return f.getValue(m)
+}
+
+func (f *Field[Data]) GetField(root reflect.Value) reflect.Value {
+	return f.getField(root)
+}
+
 type mapKey struct {
 	typ reflect.Type
 	tag string
 }
 
-type Struct[T any] struct {
-	Fields []Field[T]
+type Parser[Data any] struct {
+	structs sync.Map // map[mapKey]*Struct[Data]
+
+	compileField  FieldCompiler[Data]
+	fieldIsOpaque OpaqueFieldFunc
 }
 
-type Field[T any] struct {
-	Type    reflect.Type
-	Name    string
-	Default string
-
-	Names   []string // Read-only map field name path.
-	Indexes []int    // Read-only struct field index path.
-
-	SetField SetterFunc[T]
-	GetField FieldGetter
-	GetValue func(map[string]any) any // Missing values are returned as nil.
-}
-
-type FieldGetter func(root reflect.Value) reflect.Value
-
-func (f *Field[T]) SetValue(root reflect.Value, value T) error {
-	rvalue := f.GetField(root)
-	return f.SetField(f.Type, rvalue, value)
-}
-
-type Parser[T any] struct {
-	compile SetterCompiler[T]
-	structs sync.Map // map[mapKey]*Struct[T]
-
-	opaqueType func(reflect.Type) bool
-}
-
-func NewParser[T any](compile SetterCompiler[T]) *Parser[T] {
+func NewParser[Data any](compile FieldCompiler[Data], isOpaque OpaqueFieldFunc) *Parser[Data] {
 	if compile == nil {
-		panic("structs.NewParser: compile is nil")
+		panic("structs.NewParser: field compile function is nil")
 	}
-	return &Parser[T]{compile: compile}
+	return &Parser[Data]{compileField: compile, fieldIsOpaque: isOpaque}
 }
 
-// NewParserWithOpaqueType returns a new parser that treats struct types
-// matching opaqueType as single fields instead of expanding their sub-fields.
-func NewParserWithOpaqueType[T any](compile SetterCompiler[T], opaqueType func(reflect.Type) bool) *Parser[T] {
-	p := NewParser(compile)
-	p.opaqueType = opaqueType
-	return p
-}
-
-func (p *Parser[T]) Parse(t reflect.Type, tag string) (s *Struct[T]) {
+func (p *Parser[Data]) Parse(t reflect.Type, tag string) (s *Struct[Data]) {
 	key := mapKey{typ: t, tag: tag}
 	if v, ok := p.structs.Load(key); ok {
-		return v.(*Struct[T])
+		return v.(*Struct[Data])
 	}
 
-	parser := _Parser[T]{CompileSetter: p.compile, OpaqueType: p.opaqueType, Tag: tag}
-	actual, _ := p.structs.LoadOrStore(key, parser.Parse(t))
-	return actual.(*Struct[T])
+	actual, _ := p.structs.LoadOrStore(key, p._Parse(t, tag))
+	return actual.(*Struct[Data])
 }
 
-type _Parser[T any] struct {
-	CompileSetter SetterCompiler[T]
-	OpaqueType    func(reflect.Type) bool
-
-	Tag string
+func (p *Parser[Data]) _Parse(t reflect.Type, tag string) *Struct[Data] {
+	fields := p.parse(t, nil, nil, tag)
+	return &Struct[Data]{Fields: fields}
 }
 
-func (p *_Parser[T]) Parse(t reflect.Type) *Struct[T] {
-	fields := p.parse(t, nil, nil)
-	return &Struct[T]{Fields: fields}
-}
-
-func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []string) (fields []Field[T]) {
+func (p *Parser[Data]) parse(t reflect.Type, parentIndex []int, parentNames []string, tag string) (fields []Field[Data]) {
 	for i := 0; i < t.NumField(); i++ {
 		sf := t.Field(i)
 
 		var name string
 		var opaque bool
-		if p.Tag != "" {
-			name, opaque = parseTag(sf.Tag.Get(p.Tag))
+		if tag != "" {
+			name, opaque = parseTag(sf.Tag.Get(tag))
 			if name == "-" {
 				continue
 			}
@@ -143,7 +133,7 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 			if sf.Anonymous {
 				names = parentNames
 			}
-			fields = append(fields, p.parse(ft, index, names)...)
+			fields = append(fields, p.parse(ft, index, names, tag)...)
 			continue
 		}
 
@@ -151,23 +141,19 @@ func (p *_Parser[T]) parse(t reflect.Type, parentIndex []int, parentNames []stri
 			continue
 		}
 
-		fields = append(fields, Field[T]{
-			Name:    name,
-			Type:    sf.Type,
-			Default: sf.Tag.Get("default"),
+		fields = append(fields, Field[Data]{
+			Name: name,
+			Type: sf.Type,
+			Data: p.compileField(sf),
 
-			Names:   names,
-			Indexes: index,
-
-			SetField: p.CompileSetter(sf.Type),
-			GetField: makeFieldGetter(slices.Clone(index)),
-			GetValue: makeMapValueGetter(slices.Clone(names)),
+			getField: makeFieldGetter(slices.Clone(index)),
+			getValue: makeMapValueGetter(slices.Clone(names)),
 		})
 	}
 	return
 }
 
-func (p *_Parser[T]) canExpand(sf reflect.StructField, ft reflect.Type) bool {
+func (p *Parser[Data]) canExpand(sf reflect.StructField, ft reflect.Type) bool {
 	if !hasExportedField(ft) {
 		return false
 	}
@@ -177,7 +163,7 @@ func (p *_Parser[T]) canExpand(sf reflect.StructField, ft reflect.Type) bool {
 	if sf.Anonymous && !sf.IsExported() && sf.Type.Kind() == reflect.Pointer {
 		return false
 	}
-	return !sf.IsExported() || p.OpaqueType == nil || !p.OpaqueType(ft)
+	return !sf.IsExported() || p.fieldIsOpaque == nil || !p.fieldIsOpaque(sf)
 }
 
 // hasExportedField reports whether the struct type t has at least one direct

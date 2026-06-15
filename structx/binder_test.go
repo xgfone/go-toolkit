@@ -70,7 +70,7 @@ func (b *bindStruct) Bind(v any) error {
 type bindValuesTarget struct {
 	Name  string     `q:"name"`
 	Age   *int       `q:"age"`
-	Flag  bool       `q:"flag" default:"true"`
+	Flag  bool       `q:"flag"`
 	Text  textValue  `q:"text"`
 	PText *textValue `q:"ptext"`
 }
@@ -83,7 +83,7 @@ func TestBindStringMap(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if target.Name != "alice" || target.Age == nil || *target.Age != 12 || !target.Flag ||
+	if target.Name != "alice" || target.Age == nil || *target.Age != 12 || target.Flag ||
 		target.Text != "tv:ok" || target.PText == nil || *target.PText != "tv:pt" {
 		t.Fatalf("unexpected bind result: %#v", target)
 	}
@@ -127,7 +127,7 @@ func TestBindValuesAny(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if target.Name != "alice" || target.Age == nil || *target.Age != 12 || !target.Flag ||
+		if target.Name != "alice" || target.Age == nil || *target.Age != 12 || target.Flag ||
 			target.Text != "tv:ok" || target.PText == nil || *target.PText != "tv:pt" {
 			t.Fatalf("unexpected bind result: %#v", target)
 		}
