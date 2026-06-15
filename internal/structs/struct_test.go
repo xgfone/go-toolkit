@@ -292,7 +292,7 @@ func TestParseHelpers(t *testing.T) {
 	if got := appendSlice([]int{1, 2}, 3); !slices.Equal(got, []int{1, 2, 3}) {
 		t.Fatalf("unexpected index: %#v", got)
 	}
-	if got := makeMapValueGetter(nil)(map[string]any{"x": 1}); got != nil {
+	if got := getValueFromMap(map[string]any{"x": 1}, nil); got != nil {
 		t.Fatalf("expected nil, got %v", got)
 	}
 }

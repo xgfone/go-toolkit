@@ -16,7 +16,6 @@ package structs
 
 import (
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 )
@@ -38,17 +37,18 @@ type Field[Data any] struct {
 	Name string
 	Data Data
 
-	getValue ValueGetter
-	getField FieldGetter
+	// Read-Only
+	Names   []string
+	Indexes []int
 }
 
 // Missing values are returned as nil.
 func (f *Field[Data]) GetValue(m map[string]any) any {
-	return f.getValue(m)
+	return getValueFromMap(m, f.Names)
 }
 
 func (f *Field[Data]) GetField(root reflect.Value) reflect.Value {
-	return f.getField(root)
+	return fieldByIndexAlloc(root, f.Indexes)
 }
 
 type mapKey struct {
@@ -146,8 +146,8 @@ func (p *Parser[Data]) parse(t reflect.Type, parentIndex []int, parentNames []st
 			Type: sf.Type,
 			Data: p.compileField(sf),
 
-			getField: makeFieldGetter(slices.Clone(index)),
-			getValue: makeMapValueGetter(slices.Clone(names)),
+			Names:   names,
+			Indexes: index,
 		})
 	}
 	return
@@ -207,34 +207,26 @@ func appendSlice[T any](parent []T, i T) []T {
 	return s
 }
 
-func makeFieldGetter(index []int) FieldGetter {
-	return func(root reflect.Value) reflect.Value {
-		return fieldByIndexAlloc(root, index)
-	}
-}
-
-func makeMapValueGetter(names []string) func(map[string]any) any {
-	return func(m map[string]any) any {
-		if m == nil {
-			return nil
-		}
-
-		for i := range names {
-			name := names[i]
-
-			if i == len(names)-1 {
-				return m[name]
-			}
-
-			if v, ok := m[name].(map[string]any); ok {
-				m = v
-			} else {
-				return nil
-			}
-		}
-
+func getValueFromMap(m map[string]any, names []string) any {
+	if m == nil {
 		return nil
 	}
+
+	for i := range names {
+		name := names[i]
+
+		if i == len(names)-1 {
+			return m[name]
+		}
+
+		if v, ok := m[name].(map[string]any); ok {
+			m = v
+		} else {
+			return nil
+		}
+	}
+
+	return nil
 }
 
 func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {

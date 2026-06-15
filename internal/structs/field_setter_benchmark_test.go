@@ -22,9 +22,10 @@ import (
 func BenchmarkFieldSetValueInt(b *testing.B) {
 	rtype := reflect.TypeFor[int]()
 	field := Field[FieldSetter[string]]{
-		Type:     rtype,
-		Data:     FieldSetter[string]{SetField: CompileStringSetter(rtype)},
-		getField: makeFieldGetter([]int{0}),
+		Type: rtype,
+		Data: FieldSetter[string]{SetField: CompileStringSetter(rtype)},
+
+		Indexes: []int{0},
 	}
 	root := reflect.ValueOf(&struct{ N int }{}).Elem()
 
@@ -40,9 +41,10 @@ func BenchmarkFieldSetValueInt(b *testing.B) {
 func BenchmarkFieldSetValueText(b *testing.B) {
 	rtype := reflect.TypeFor[benchText]()
 	field := Field[FieldSetter[string]]{
-		Type:     rtype,
-		Data:     FieldSetter[string]{SetField: CompileStringSetter(rtype)},
-		getField: makeFieldGetter([]int{0}),
+		Type: rtype,
+		Data: FieldSetter[string]{SetField: CompileStringSetter(rtype)},
+
+		Indexes: []int{0},
 	}
 	root := reflect.ValueOf(&struct{ T benchText }{}).Elem()
 
