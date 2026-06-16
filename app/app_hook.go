@@ -30,20 +30,6 @@ type namedHook struct {
 // Hook is a function type that can be used as a hook for the App.
 type Hook func(ctx context.Context, app *App) error
 
-// On is short for DefaultApp.On(stage, hook).
-//
-// It must be called before Run.
-func On(stage Stage, hook Hook) {
-	DefaultApp.On(stage, hook)
-}
-
-// OnNamed is short for DefaultApp.OnNamed(stage, name, hook).
-//
-// It must be called before Run.
-func OnNamed(stage Stage, name string, hook Hook) {
-	DefaultApp.OnNamed(stage, name, hook)
-}
-
 // On is short for App.OnNamed(stage, "", hook).
 //
 // It must be called before Run.
