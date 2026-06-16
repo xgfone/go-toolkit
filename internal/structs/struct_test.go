@@ -226,9 +226,14 @@ func TestGetFieldAllocatesPointerStructPath(t *testing.T) {
 
 	field.GetField(reflect.ValueOf(&dst).Elem()).SetInt(13)
 	valueDst := struct{ Value inner }{}
-	fieldByIndexAlloc(reflect.ValueOf(&valueDst).Elem(), []int{0, 0}).SetInt(14)
+	GetFieldByIndex(reflect.ValueOf(&valueDst).Elem(), []int{0, 0}, true).SetInt(14)
 	if dst.Inner.N != 13 || valueDst.Value.N != 14 {
 		t.Fatalf("unexpected target: %#v", dst)
+	}
+
+	invalid := GetFieldByIndex(reflect.ValueOf(new(outer)).Elem(), []int{0, 0}, false)
+	if invalid.IsValid() {
+		t.Error("expect the field is invalid")
 	}
 }
 
@@ -255,7 +260,7 @@ func TestFieldByIndexAllocPanics(t *testing.T) {
 					t.Fatalf("got panic %v, want %q", r, tt.panic)
 				}
 			}()
-			fieldByIndexAlloc(reflect.ValueOf(tt.value), tt.index)
+			GetFieldByIndex(reflect.ValueOf(tt.value), tt.index, true)
 		})
 	}
 }

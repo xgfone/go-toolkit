@@ -47,8 +47,12 @@ func (f *Field[Data]) GetValue(m map[string]any) any {
 	return getValueFromMap(m, f.Names)
 }
 
+// GetField returns the field value, allocating nil intermediate struct
+// pointers while traversing the field path.
+//
+// Notice: Use GetFieldByIndex with alloc=false for non-allocating lookup.
 func (f *Field[Data]) GetField(root reflect.Value) reflect.Value {
-	return fieldByIndexAlloc(root, f.Indexes)
+	return GetFieldByIndex(root, f.Indexes, true)
 }
 
 type mapKey struct {
@@ -229,12 +233,12 @@ func getValueFromMap(m map[string]any, names []string) any {
 	return nil
 }
 
-func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {
+func GetFieldByIndex(v reflect.Value, index []int, alloc bool) reflect.Value {
 	cur := v
 
-	for i, x := range index {
-		f := cur.Field(x)
-		if i == len(index)-1 {
+	for i, _len := 0, len(index)-1; i <= _len; i++ {
+		f := cur.Field(index[i])
+		if i == _len {
 			return f
 		}
 
@@ -247,14 +251,16 @@ func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {
 				panic("non-struct pointer in field path")
 			}
 
-			if f.IsNil() {
+			if !f.IsNil() {
+				f = f.Elem()
+			} else if alloc {
 				// Allocate through the original struct by creating the
 				// intermediate pointer at index[:i+1].
 				f = v.FieldByIndex(index[:i+1])
 				f.Set(reflect.New(f.Type().Elem()))
 				f = f.Elem()
 			} else {
-				f = f.Elem()
+				return reflect.Value{}
 			}
 
 			cur = f
