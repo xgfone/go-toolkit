@@ -168,24 +168,27 @@ func (r Route) Handler(handler http.Handler) Route {
 		panic("Route.Handler: handler must not be nil")
 	}
 
-	if r.path == "" {
-		r.path = "/"
-	}
-
-	if r.auth != nil {
-		if len(r.mdws) == 0 {
-			r.mdws = httpx.Middlewares{r.auth}
-		} else {
-			r.mdws = slicex.Merge([]httpx.Middleware{r.auth}, r.mdws)
-		}
-	}
-
-	r.router.register(r.mdws, httpx.Route{
+	route := httpx.Route{
 		Host:    r.host,
 		Path:    r.path,
 		Method:  r.method,
 		Handler: handler,
-	})
+	}
+
+	if route.Path == "" {
+		route.Path = "/"
+	}
+
+	mdws := r.mdws
+	if r.auth != nil {
+		if len(mdws) == 0 {
+			mdws = httpx.Middlewares{r.auth}
+		} else {
+			mdws = slicex.Merge([]httpx.Middleware{r.auth}, r.mdws)
+		}
+	}
+
+	r.router.register(mdws, route)
 	return r
 }
 
