@@ -31,7 +31,6 @@ var DefaultRouter = New()
 type Router struct {
 	middlewares httpx.Middlewares
 	newBackend  func(routes []httpx.Route, notfound http.Handler) http.Handler
-	onroutes    func(httpx.Route, httpx.Middlewares) httpx.Route
 	notfound    http.Handler
 
 	routes []httpx.Route
@@ -44,7 +43,6 @@ func New() *Router {
 	r := &Router{}
 	r.SetBackend(newServeMuxBackend)
 	r.SetNotFound(httpx.Handler404)
-	r.OnRegister(r.onRegister)
 	return r
 }
 

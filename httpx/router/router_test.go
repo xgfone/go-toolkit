@@ -204,42 +204,6 @@ func TestRouter_ServeHTTP(t *testing.T) {
 	}
 }
 
-func TestRouter_OnRegister(t *testing.T) {
-	router := New()
-
-	// Test callback modifies route
-	modifiedPath := ""
-	router.OnRegister(func(route httpx.Route, mdws httpx.Middlewares) httpx.Route {
-		modifiedPath = route.Path + "-modified"
-		route.Path = modifiedPath
-		return route
-	})
-
-	// Register a route to trigger callback
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	router.Register(httpx.Route{
-		Path:    "/test",
-		Handler: handler,
-	})
-
-	// Check that callback modified the route
-	if modifiedPath != "/test-modified" {
-		t.Errorf("expected modified path '/test-modified', got '%s'", modifiedPath)
-	}
-
-	// Test nil callback should panic
-	func() {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("OnRegister with nil should panic")
-			}
-		}()
-		router.OnRegister(nil)
-	}()
-}
-
 func TestNewServeMuxBackend(t *testing.T) {
 	// Test with root route
 	routes := []httpx.Route{

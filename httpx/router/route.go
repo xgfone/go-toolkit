@@ -16,6 +16,7 @@ package router
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/xgfone/go-toolkit/httpx"
@@ -27,21 +28,8 @@ func normalizePath(path string) string {
 }
 
 func (r *Router) register(mdws httpx.Middlewares, route httpx.Route) {
-	r.routes = append(r.routes, r.onroutes(route, mdws))
-}
-
-func (r *Router) onRegister(route httpx.Route, mdws httpx.Middlewares) httpx.Route {
-	mdws.Sort()
 	route.Handler = mdws.HTTPHandler(route.Handler)
-	return route
-}
-
-// OnRegister sets the callback function for route registration.
-func (r *Router) OnRegister(f func(httpx.Route, httpx.Middlewares) httpx.Route) {
-	if f == nil {
-		panic("Router.OnRegister: the callback function must not be nil")
-	}
-	r.onroutes = f
+	r.routes = append(r.routes, route)
 }
 
 // Register adds a route to the router.
@@ -52,7 +40,7 @@ func (r *Router) Register(route httpx.Route) {
 	if route.Handler == nil {
 		panic("Router.Register: the route handler must not be nil")
 	}
-	r.routes = append(r.routes, r.onroutes(route, nil))
+	r.register(nil, route)
 }
 
 // Routes returns all registered routes.
@@ -179,15 +167,16 @@ func (r Route) Handler(handler http.Handler) Route {
 		route.Path = "/"
 	}
 
-	mdws := r.mdws
-	if r.auth != nil {
-		if len(mdws) == 0 {
-			mdws = httpx.Middlewares{r.auth}
-		} else {
-			mdws = slicex.Merge([]httpx.Middleware{r.auth}, r.mdws)
-		}
+	var mdws httpx.Middlewares
+	if r.auth == nil {
+		mdws = slices.Clone(r.mdws)
+	} else if len(r.mdws) == 0 {
+		mdws = httpx.Middlewares{r.auth}
+	} else {
+		mdws = slicex.Merge([]httpx.Middleware{r.auth}, r.mdws)
 	}
 
+	mdws.Sort()
 	r.router.register(mdws, route)
 	return r
 }
