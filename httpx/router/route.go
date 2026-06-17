@@ -29,7 +29,10 @@ func normalizePath(path string) string {
 
 func (r *Router) register(mdws httpx.Middlewares, route httpx.Route) {
 	route.Handler = mdws.HTTPHandler(route.Handler)
+
+	r.rmutex.Lock()
 	r.routes = append(r.routes, route)
+	r.rmutex.Unlock()
 }
 
 // Register adds a route to the router.
@@ -47,7 +50,10 @@ func (r *Router) Register(route httpx.Route) {
 //
 // Note: The returned routes should not be modified.
 func (r *Router) Routes() []httpx.Route {
-	return r.routes
+	r.rmutex.RLock()
+	routes := r.routes
+	r.rmutex.RUnlock()
+	return routes
 }
 
 // Group returns a new route with the group path prefix.

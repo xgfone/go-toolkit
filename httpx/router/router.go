@@ -33,7 +33,9 @@ type Router struct {
 	newBackend  func(routes []httpx.Route, notfound http.Handler) http.Handler
 	notfound    http.Handler
 
+	rmutex sync.RWMutex
 	routes []httpx.Route
+
 	server http.Handler
 	once   sync.Once
 }
@@ -78,6 +80,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Router) initServer() {
+	r.rmutex.Lock()
+	defer r.rmutex.Unlock()
+
 	r.middlewares.Sort()
 	r.server = r.newBackend(r.routes, r.notfound)
 	r.server = r.middlewares.HTTPHandler(r.server)
