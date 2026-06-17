@@ -46,7 +46,7 @@ func (ms Middlewares) HTTPHandler(next http.Handler) http.Handler {
 	return next
 }
 
-// Sort tries to sort the middlewares by priority.
+// Sort tries to sort the middlewares by priority from big to small.
 //
 // If the middleware implements the interface{ Priority() int }, use it.
 // Otherwise, use 1 instead.
