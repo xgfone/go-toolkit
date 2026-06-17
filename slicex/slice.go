@@ -16,6 +16,8 @@
 package slicex
 
 // Empty returns itself if vs is not nil, otherwise returns an empty slice.
+//
+// DEPRECATED. DO NOT USE IT.
 func Empty[S ~[]E, E any](vs S) S {
 	if vs == nil {
 		return S{}
