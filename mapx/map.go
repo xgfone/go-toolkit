@@ -22,6 +22,8 @@ type Pair[K comparable, V any] struct {
 }
 
 // Empty returns itself if vs is not nil, otherwise returns an empty map.
+//
+// DEPRECATED. DO NOT USE IT.
 func Empty[M ~map[K]V, K comparable, V any](m M) M {
 	if m == nil {
 		return M{}
