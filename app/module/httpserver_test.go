@@ -46,6 +46,9 @@ func TestHttpServerLifecycle(t *testing.T) {
 	if err := m.Init(ctx, nil); err != nil {
 		t.Fatalf("Init: unexpected error: %v", err)
 	}
+	if !m.IsValid() {
+		t.Fatal("server should be valid after Init")
+	}
 
 	// Start is blocking; run it in a goroutine.
 	errCh := make(chan error, 1)
@@ -98,14 +101,34 @@ func TestHttpServerWrapListener(t *testing.T) {
 	}
 }
 
-// TestHttpServerEmptyAddr verifies that an empty address defaults to ":http"
-// and Init returns an error because port 80 is not available without privileges.
-func TestHttpServerEmptyAddr(t *testing.T) {
-	m := NewHttpServer("empty", getAddrFunc(""), http.NotFoundHandler())
-	err := m.Init(context.Background(), nil)
-	if err == nil {
-		// If we somehow have permission, clean up properly.
-		m.server.Close()
+func TestHttpServerInvalidAddr(t *testing.T) {
+	tests := []struct {
+		name string
+		addr func() string
+	}{
+		{name: "nil"},
+		{name: "empty", addr: getAddrFunc("")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewHttpServer(tt.name, tt.addr, http.NotFoundHandler())
+			if err := m.Init(context.Background(), nil); err != nil {
+				t.Fatalf("Init: unexpected error: %v", err)
+			}
+			if m.IsValid() {
+				t.Fatal("server should be invalid")
+			}
+			if m.listen != nil || m.server != nil {
+				t.Fatal("invalid server should not create a listener or server")
+			}
+			if err := m.Start(context.Background(), nil); err != nil {
+				t.Fatalf("Start: unexpected error: %v", err)
+			}
+			if err := m.Stop(context.Background(), nil); err != nil {
+				t.Fatalf("Stop: unexpected error: %v", err)
+			}
+		})
 	}
 }
 
