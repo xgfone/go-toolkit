@@ -16,10 +16,13 @@ package module
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+type wrappedListener struct{ net.Listener }
 
 func getAddrFunc(addr string) func() string {
 	return func() string { return addr }
@@ -72,6 +75,29 @@ func TestHttpServerInitFail(t *testing.T) {
 	}
 }
 
+func TestHttpServerWrapListener(t *testing.T) {
+	m := NewHttpServer("wrap", getAddrFunc(":0"), http.NotFoundHandler())
+	var captured net.Listener
+	wrapped := new(wrappedListener)
+	m.WrapListener(func(ln net.Listener) net.Listener {
+		captured = ln
+		wrapped.Listener = ln
+		return wrapped
+	})
+
+	if err := m.Init(context.Background(), nil); err != nil {
+		t.Fatalf("Init: unexpected error: %v", err)
+	}
+	defer m.listen.Close()
+
+	if captured == nil {
+		t.Fatal("WrapListener was not called")
+	}
+	if m.listen != wrapped {
+		t.Fatal("Init did not use the wrapped listener")
+	}
+}
+
 // TestHttpServerEmptyAddr verifies that an empty address defaults to ":http"
 // and Init returns an error because port 80 is not available without privileges.
 func TestHttpServerEmptyAddr(t *testing.T) {
@@ -79,7 +105,7 @@ func TestHttpServerEmptyAddr(t *testing.T) {
 	err := m.Init(context.Background(), nil)
 	if err == nil {
 		// If we somehow have permission, clean up properly.
-		m.(*httpServer).server.Close()
+		m.server.Close()
 	}
 }
 

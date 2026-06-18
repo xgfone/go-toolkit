@@ -26,12 +26,13 @@ import (
 	"github.com/xgfone/go-toolkit/app"
 )
 
-// NewHttpServer returns a new app module that starts an HTTP server.
-func NewHttpServer(name string, addr func() string, handler http.Handler) app.Module {
-	return &httpServer{name: name, getAddr: addr, handler: handler}
+// NewHttpServer returns a new HttpServer instance.
+func NewHttpServer(name string, addr func() string, handler http.Handler) *HttpServer {
+	return &HttpServer{name: name, getAddr: addr, handler: handler}
 }
 
-type httpServer struct {
+// HttpServer is an app module that starts an HTTP server.
+type HttpServer struct {
 	name string
 	addr string
 
@@ -39,13 +40,20 @@ type httpServer struct {
 	handler http.Handler
 	server  *http.Server
 	listen  net.Listener
+	wrapln  func(net.Listener) net.Listener
 }
 
-func (s *httpServer) Name() string {
+// WrapListener registers wrap to replace the listener created by Init,
+// which must be called before app runs.
+func (s *HttpServer) WrapListener(wrap func(net.Listener) net.Listener) {
+	s.wrapln = wrap
+}
+
+func (s *HttpServer) Name() string {
 	return s.name
 }
 
-func (s *httpServer) Init(ctx context.Context, a *app.App) (err error) {
+func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 	if s.getAddr != nil {
 		s.addr = s.getAddr()
 	}
@@ -67,6 +75,10 @@ func (s *httpServer) Init(ctx context.Context, a *app.App) (err error) {
 		return
 	}
 
+	if s.wrapln != nil {
+		s.listen = s.wrapln(s.listen)
+	}
+
 	s.server = &http.Server{
 		Addr:    s.addr,
 		Handler: s.handler,
@@ -80,13 +92,13 @@ func (s *httpServer) Init(ctx context.Context, a *app.App) (err error) {
 	return
 }
 
-func (s *httpServer) Start(context.Context, *app.App) (err error) {
+func (s *HttpServer) Start(context.Context, *app.App) (err error) {
 	slog.Info("start the http server", "addr", s.addr)
 	go s.server.Serve(s.listen)
 	return
 }
 
-func (s *httpServer) Stop(ctx context.Context, app *app.App) (err error) {
+func (s *HttpServer) Stop(ctx context.Context, app *app.App) (err error) {
 	slog.Info("stop the http server", "addr", s.addr)
 	return s.server.Shutdown(ctx)
 }
