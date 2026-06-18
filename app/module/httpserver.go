@@ -105,7 +105,7 @@ func (s *HttpServer) Start(context.Context, *app.App) (err error) {
 		return
 	}
 
-	slog.Info("start the http server", "addr", s.addr)
+	slog.Info("start the http server", "modname", s.name, "addr", s.addr)
 	go s.server.Serve(s.listen)
 	return
 }
@@ -115,6 +115,6 @@ func (s *HttpServer) Stop(ctx context.Context, app *app.App) (err error) {
 		return
 	}
 
-	slog.Info("stop the http server", "addr", s.addr)
+	slog.Info("stop the http server", "modname", s.name, "addr", s.addr)
 	return s.server.Shutdown(ctx)
 }
