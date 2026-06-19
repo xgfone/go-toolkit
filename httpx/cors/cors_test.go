@@ -17,6 +17,7 @@ package cors
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -114,6 +115,36 @@ func TestCORSPreflightRequest(t *testing.T) {
 	}
 }
 
+func TestCORSDefaultConfigPreflight(t *testing.T) {
+	handler := NewDefaultConfig().CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler was called")
+	}))
+
+	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "HEAD, GET, POST, PUT, PATCH, DELETE" {
+		t.Fatalf("unexpected Access-Control-Allow-Methods: %q", got)
+	}
+	if varyContains(rec.Header(), "Origin") {
+		t.Fatal("Vary contains Origin for static wildcard origin")
+	}
+	for _, field := range []string{"Access-Control-Request-Method", "Access-Control-Request-Headers"} {
+		if !varyContains(rec.Header(), field) {
+			t.Fatalf("Vary does not contain %s", field)
+		}
+	}
+}
+
 func TestCORSPreflightForbidden(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -127,6 +158,12 @@ func TestCORSPreflightForbidden(t *testing.T) {
 			config:        Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodGet}},
 			origin:        "https://example.com",
 			requestMethod: http.MethodPut,
+		},
+		{
+			name:          "invalid request method token",
+			config:        Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodPut}},
+			origin:        "https://example.com",
+			requestMethod: "BAD METHOD",
 		},
 		{
 			name:          "disallowed origin",
@@ -201,6 +238,24 @@ func TestCORSPreflightAllowHeaders(t *testing.T) {
 			want:           "X-Token, X-Trace",
 		},
 		{
+			name:           "default reflects comma separated request headers",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			requestHeaders: []string{"X-One, X-Two, X-Three, X-Four"},
+			want:           "X-One, X-Two, X-Three, X-Four",
+		},
+		{
+			name:           "default reflects multiple request header lines",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			requestHeaders: []string{"X-One", "X-Two", "X-Three", "X-Four"},
+			want:           "X-One, X-Two, X-Three, X-Four",
+		},
+		{
+			name:           "default ignores empty request header lines",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			requestHeaders: []string{"", "X-Token"},
+			want:           "X-Token",
+		},
+		{
 			name:   "credentialed wildcard allows no request header",
 			config: Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowCredentials: true, AllowHeaders: []string{"*"}},
 		},
@@ -264,6 +319,46 @@ func TestCORSCredentialedWildcardPreflightReflectsRequest(t *testing.T) {
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("unexpected Access-Control-Allow-Credentials: %q", got)
+	}
+}
+
+func TestCORSActualRequestWithoutOrigin(t *testing.T) {
+	called := false
+	handler := Config{AllowOrigins: []string{"https://example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if !called {
+		t.Fatal("next handler was not called")
+	}
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusAccepted)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	}
+	if !varyContains(rec.Header(), "Origin") {
+		t.Fatal("Vary does not contain Origin")
+	}
+}
+
+func TestCORSNullOrigin(t *testing.T) {
+	handler := Config{AllowOrigins: []string{"null"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "null")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "null" {
+		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
 	}
 }
 
@@ -354,6 +449,27 @@ func TestCORSWildcardStaticOrigin(t *testing.T) {
 				t.Fatal("Vary contains Origin for wildcard origin")
 			}
 		})
+	}
+}
+
+func TestCORSWildcardStaticOriginWithExposeHeaders(t *testing.T) {
+	handler := Config{
+		AllowOrigins:  []string{"*"},
+		ExposeHeaders: []string{"X-Request-Id"},
+	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-Id" {
+		t.Fatalf("unexpected Access-Control-Expose-Headers: %q", got)
 	}
 }
 
@@ -532,6 +648,43 @@ func TestCORSNormalizesOrigin(t *testing.T) {
 	}
 }
 
+func TestCORSConfigTrimsEmptyValues(t *testing.T) {
+	handler := Config{
+		AllowOrigins:  []string{"", " https://example.com "},
+		AllowMethods:  []string{"", http.MethodPut, " "},
+		AllowHeaders:  []string{"", "X-Token", " "},
+		ExposeHeaders: []string{"", "X-Request-Id", " "},
+	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	preflight := httptest.NewRequest(http.MethodOptions, "/", nil)
+	preflight.Header.Set("Origin", "https://example.com")
+	preflight.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	preflight.Header.Set("Access-Control-Request-Headers", "X-Token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, preflight)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != http.MethodPut {
+		t.Fatalf("unexpected Access-Control-Allow-Methods: %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "X-Token" {
+		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
+	}
+
+	actual := httptest.NewRequest(http.MethodGet, "/", nil)
+	actual.Header.Set("Origin", "https://example.com")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, actual)
+
+	if got := rec.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-Id" {
+		t.Fatalf("unexpected Access-Control-Expose-Headers: %q", got)
+	}
+}
+
 func TestCORSNormalizeHost(t *testing.T) {
 	normalizeHost := func(host string) (string, bool) {
 		switch host {
@@ -555,6 +708,21 @@ func TestCORSNormalizeHost(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://xn--fsqu00a.xn--0zwm56d" {
+		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	}
+}
+
+func TestCORSSubdomainPatternRejectsOverlongHost(t *testing.T) {
+	handler := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "https://"+strings.Repeat("a", 250)+".example.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
 	}
 }
@@ -676,6 +844,134 @@ func TestCORSPriority(t *testing.T) {
 	if got := c.Priority(); got != 123 {
 		t.Fatalf("unexpected priority: got %d, want %d", got, 123)
 	}
+}
+
+func TestCORSHTTPHandlerNilPanics(t *testing.T) {
+	assertPanics(t, func() {
+		_ = Config{}.CORS(0).HTTPHandler(nil)
+	})
+}
+
+func TestCORSServeHTTPWithoutNext(t *testing.T) {
+	rec := httptest.NewRecorder()
+	Config{}.CORS(0).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+	if got := rec.Body.String(); got != "NO NEXT HANDLER" {
+		t.Fatalf("unexpected body: %q", got)
+	}
+}
+
+func TestCORSOriginHelperEdgeCases(t *testing.T) {
+	c := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0)
+	if c.matchSubdomainOrigin("not an origin") {
+		t.Fatal("invalid origin matched subdomain pattern")
+	}
+
+	if _, ok := parseSubdomainOriginPattern("not an origin"); ok {
+		t.Fatal("invalid subdomain origin pattern parsed")
+	}
+	if _, ok := parseSubdomainOriginPattern("https://*.*.example.com"); ok {
+		t.Fatal("invalid wildcard suffix parsed")
+	}
+
+	if got, ok := normalizeSubdomainPattern("https://example.com", nil); ok || got != "" {
+		t.Fatalf("unexpected normalized subdomain pattern: %q, %v", got, ok)
+	}
+	if got, ok := normalizeSubdomainPattern("https://*.example.com:bad", nil); ok || got != "" {
+		t.Fatalf("unexpected normalized subdomain pattern: %q, %v", got, ok)
+	}
+	if got, ok := normalizeSubdomainPattern("https://*.*.example.com", nil); ok || got != "" {
+		t.Fatalf("unexpected normalized subdomain pattern: %q, %v", got, ok)
+	}
+}
+
+func TestCORSURLHelperEdgeCases(t *testing.T) {
+	if _, ok := parseOriginURL("https://example.com bad"); ok {
+		t.Fatal("origin with space parsed")
+	}
+	if _, ok := parseOriginURL("https://:80"); ok {
+		t.Fatal("origin with empty host parsed")
+	}
+
+	if got := serializeOriginURL(&url.URL{Scheme: "https", Host: "bad host"}, nil); got != "" {
+		t.Fatalf("unexpected serialized origin: %q", got)
+	}
+	if got := serializeOriginURL(&url.URL{Scheme: "https", Host: "example.com:bad"}, nil); got != "" {
+		t.Fatalf("unexpected serialized origin: %q", got)
+	}
+	if got := serializeOriginURL(&url.URL{Scheme: "https", Host: "example.com:65536"}, nil); got != "" {
+		t.Fatalf("unexpected serialized origin: %q", got)
+	}
+
+	if host, ok := serializeOriginHost("", nil); ok || host != "" {
+		t.Fatalf("unexpected serialized host: %q, %v", host, ok)
+	}
+	if host, ok := serializeOriginHost("fe80::1%en0", nil); ok || host != "" {
+		t.Fatalf("unexpected serialized host: %q, %v", host, ok)
+	}
+	if host, ok := serializeOriginHost("example.com", func(string) (string, bool) {
+		return "", false
+	}); ok || host != "" {
+		t.Fatalf("unexpected serialized host: %q, %v", host, ok)
+	}
+
+	if host, ok := serializeSubdomainPatternHost("", nil); ok || host != "" {
+		t.Fatalf("unexpected serialized pattern host: %q, %v", host, ok)
+	}
+	if host, ok := serializeSubdomainPatternHost("example.com", nil); ok || host != "" {
+		t.Fatalf("unexpected serialized pattern host: %q, %v", host, ok)
+	}
+	if host, ok := serializeSubdomainPatternHost("*.bad:host", nil); ok || host != "" {
+		t.Fatalf("unexpected serialized pattern host: %q, %v", host, ok)
+	}
+
+	if port, ok := normalizeURLPort("https", "bad"); ok || port != "" {
+		t.Fatalf("unexpected normalized port: %q, %v", port, ok)
+	}
+	if isDefaultOriginPort("ftp", 21) {
+		t.Fatal("ftp port treated as default origin port")
+	}
+	if port, ok := parsePort(""); ok || port != 0 {
+		t.Fatalf("unexpected parsed port: %d, %v", port, ok)
+	}
+	if port, ok := parsePort("bad"); ok || port != 0 {
+		t.Fatalf("unexpected parsed port: %d, %v", port, ok)
+	}
+	if validToken("") {
+		t.Fatal("empty token accepted")
+	}
+}
+
+func TestCORSAddVaryHeaderEdgeCases(t *testing.T) {
+	h := http.Header{}
+	h.Add("Vary", "Accept-Encoding, , Origin")
+	addVaryHeader(h, " , Access-Control-Request-Method")
+	for _, field := range []string{"Accept-Encoding", "Origin", "Access-Control-Request-Method"} {
+		if !varyContains(h, field) {
+			t.Fatalf("Vary does not contain %s", field)
+		}
+	}
+
+	h = http.Header{}
+	h.Set("Vary", "*")
+	addVaryHeader(h, "Origin")
+	if got := h.Get("Vary"); got != "*" {
+		t.Fatalf("unexpected Vary: %q", got)
+	}
+}
+
+func assertPanics(t *testing.T, f func()) {
+	t.Helper()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("function did not panic")
+		}
+	}()
+	f()
 }
 
 func varyContains(h http.Header, value string) bool {

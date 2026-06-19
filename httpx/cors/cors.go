@@ -685,10 +685,13 @@ func normalizeSubdomainPattern(pattern string, normalizeHost HostNormalizer) (st
 	}
 
 	scheme := strings.ToLower(u.Scheme)
-	if port, ok := normalizeURLPort(scheme, u.Port()); ok && port != "" {
-		host = net.JoinHostPort(host, port)
-	} else if !ok {
-		return "", false
+	if uport := u.Port(); uport != "" {
+		// parseOriginURL can ensure the port is valid (0-65535),
+		// so we can safely ignore the error returned by strconv.ParseUint.
+		port, _ := strconv.ParseUint(uport, 10, 16)
+		if !isDefaultOriginPort(scheme, port) {
+			host = net.JoinHostPort(host, strconv.FormatUint(port, 10))
+		}
 	}
 	return scheme + "://" + host, true
 }
