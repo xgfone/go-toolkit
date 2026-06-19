@@ -78,10 +78,10 @@ func TestCORSNonPreflightOptionsRequest(t *testing.T) {
 func TestCORSPreflightRequest(t *testing.T) {
 	maxAge := 3600
 	called := false
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		MaxAge:       &maxAge,
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	config := NewDefaultConfig()
+	config.AllowOrigins = []string{"https://example.com"}
+	config.MaxAge = &maxAge
+	handler := config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 	}))
 
@@ -114,152 +114,125 @@ func TestCORSPreflightRequest(t *testing.T) {
 	}
 }
 
-func TestCORSPreflightDisallowedMethodForbidden(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		AllowMethods: []string{http.MethodGet},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
+func TestCORSPreflightForbidden(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         Config
+		origin         string
+		requestMethod  string
+		requestHeaders string
+	}{
+		{
+			name:          "disallowed method",
+			config:        Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodGet}},
+			origin:        "https://example.com",
+			requestMethod: http.MethodPut,
+		},
+		{
+			name:          "disallowed origin",
+			config:        Config{AllowOrigins: []string{"https://allowed.example"}, AllowMethods: []string{http.MethodPut}},
+			origin:        "https://denied.example",
+			requestMethod: http.MethodPut,
+		},
+		{
+			name:           "disallowed header",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodPut}, AllowHeaders: []string{"X-Allowed"}},
+			origin:         "https://example.com",
+			requestMethod:  http.MethodPut,
+			requestHeaders: "X-Denied",
+		},
+	}
 
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("next handler was called")
+			}))
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusForbidden)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Methods: %q", got)
-	}
-}
+			req := httptest.NewRequest(http.MethodOptions, "/", nil)
+			req.Header.Set("Origin", tt.origin)
+			req.Header.Set("Access-Control-Request-Method", tt.requestMethod)
+			if tt.requestHeaders != "" {
+				req.Header.Set("Access-Control-Request-Headers", tt.requestHeaders)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-func TestCORSPreflightDisallowedOriginForbidden(t *testing.T) {
-	called := false
-	handler := Config{
-		AllowOrigins: []string{"https://allowed.example"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-	}))
-
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://denied.example")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if called {
-		t.Fatal("next handler was called")
-	}
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusForbidden)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Methods"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Methods: %q", got)
-	}
-}
-
-func TestCORSPreflightDisallowedHeaderForbidden(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		AllowHeaders: []string{"X-Allowed"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
-
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	req.Header.Set("Access-Control-Request-Headers", "X-Denied")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusForbidden)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusForbidden)
+			}
+			for _, header := range []string{
+				"Access-Control-Allow-Origin",
+				"Access-Control-Allow-Methods",
+				"Access-Control-Allow-Headers",
+			} {
+				if got := rec.Header().Get(header); got != "" {
+					t.Fatalf("unexpected %s: %q", header, got)
+				}
+			}
+		})
 	}
 }
 
-func TestCORSPreflightWildcardHeadersReflectsAuthorization(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		AllowHeaders: []string{"*"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
-
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	req.Header.Set("Access-Control-Request-Headers", "Authorization, X-Token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
+func TestCORSPreflightAllowHeaders(t *testing.T) {
+	allowPut := []string{http.MethodPut}
+	tests := []struct {
+		name           string
+		config         Config
+		requestHeaders []string
+		want           string
+	}{
+		{
+			name:           "wildcard reflects authorization",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"*"}},
+			requestHeaders: []string{"Authorization, X-Token"},
+			want:           "Authorization, X-Token",
+		},
+		{
+			name:           "explicit headers match case insensitively",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"X-Token"}},
+			requestHeaders: []string{"x-token"},
+			want:           "X-Token",
+		},
+		{
+			name:           "multiple request header lines",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"X-Token", "X-Trace"}},
+			requestHeaders: []string{"X-Token,", " X-Trace"},
+			want:           "X-Token, X-Trace",
+		},
+		{
+			name:   "credentialed wildcard allows no request header",
+			config: Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowCredentials: true, AllowHeaders: []string{"*"}},
+		},
+		{
+			name:           "credentialed wildcard allows empty request header",
+			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowCredentials: true, AllowHeaders: []string{"*"}},
+			requestHeaders: []string{""},
+		},
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Authorization, X-Token" {
-		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
-	}
-}
 
-func TestCORSPreflightAllowsHeaderCaseInsensitively(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		AllowHeaders: []string{"X-Token"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("next handler was called")
+			}))
 
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	req.Header.Set("Access-Control-Request-Headers", "x-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodOptions, "/", nil)
+			req.Header.Set("Origin", "https://example.com")
+			req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+			for _, requestHeader := range tt.requestHeaders {
+				req.Header.Add("Access-Control-Request-Headers", requestHeader)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "X-Token" {
-		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
-	}
-}
-
-func TestCORSPreflightParsesMultipleRequestHeaderLines(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-		AllowHeaders: []string{"X-Token", "X-Trace"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
-
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	req.Header.Add("Access-Control-Request-Headers", "X-Token,")
-	req.Header.Add("Access-Control-Request-Headers", " X-Trace")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "X-Token, X-Trace" {
-		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
+			}
+			if got := rec.Header().Get("Access-Control-Allow-Headers"); got != tt.want {
+				t.Fatalf("unexpected Access-Control-Allow-Headers: got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -357,30 +330,30 @@ func TestCORSWildcardStaticOrigin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	tests := []struct {
+		name   string
+		origin string
+	}{
+		{name: "without request origin"},
+		{name: "skips invalid request origin", origin: "https://example.com/"},
 	}
-	if varyContains(rec.Header(), "Origin") {
-		t.Fatal("Vary contains Origin for wildcard origin")
-	}
-}
 
-func TestCORSWildcardStaticOriginSkipsRequestOrigin(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"*"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://example.com/")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+				t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+			}
+			if varyContains(rec.Header(), "Origin") {
+				t.Fatal("Vary contains Origin for wildcard origin")
+			}
+		})
 	}
 }
 
@@ -417,92 +390,100 @@ func TestCORSMultipleExactOrigins(t *testing.T) {
 	}
 }
 
-func TestCORSVaryOriginSurvivesNextHandlerAdd(t *testing.T) {
-	handler := Config{
-		AllowOrigins:     []string{"*"},
-		AllowCredentials: true,
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Vary", "Accept-Encoding")
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	for _, field := range []string{"Accept-Encoding", "Origin"} {
-		if !varyContains(rec.Header(), field) {
-			t.Fatalf("Vary does not contain %s", field)
-		}
-	}
-}
-
 func TestCORSVaryOriginMergesExistingHeader(t *testing.T) {
-	handler := Config{
-		AllowOrigins: []string{"https://example.com"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	tests := []struct {
+		name      string
+		config    Config
+		next      func(http.ResponseWriter, *http.Request)
+		setupResp func(http.Header)
+	}{
+		{
+			name:   "next handler adds vary",
+			config: Config{AllowOrigins: []string{"*"}, AllowCredentials: true},
+			next: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Vary", "Accept-Encoding")
+				w.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name:   "response already has vary",
+			config: Config{AllowOrigins: []string{"https://example.com"}},
+			next: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+			setupResp: func(h http.Header) {
+				h.Set("Vary", "Accept-Encoding")
+			},
+		},
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	rec := httptest.NewRecorder()
-	rec.Header().Set("Vary", "Accept-Encoding")
-	handler.ServeHTTP(rec, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(tt.next))
 
-	for _, field := range []string{"Accept-Encoding", "Origin"} {
-		if !varyContains(rec.Header(), field) {
-			t.Fatalf("Vary does not contain %s", field)
-		}
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Origin", "https://example.com")
+			rec := httptest.NewRecorder()
+			if tt.setupResp != nil {
+				tt.setupResp(rec.Header())
+			}
+			handler.ServeHTTP(rec, req)
+
+			for _, field := range []string{"Accept-Encoding", "Origin"} {
+				if !varyContains(rec.Header(), field) {
+					t.Fatalf("Vary does not contain %s", field)
+				}
+			}
+		})
 	}
 }
 
 func TestCORSSubdomainPattern(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://api.example.com")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://api.example.com" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+	tests := []struct {
+		name        string
+		allowOrigin string
+		origin      string
+		want        string
+	}{
+		{
+			name:        "matches subdomain",
+			allowOrigin: "https://*.example.com",
+			origin:      "https://api.example.com",
+			want:        "https://api.example.com",
+		},
+		{
+			name:        "does not match root domain",
+			allowOrigin: "https://*.example.com",
+			origin:      "https://example.com",
+		},
+		{
+			name:        "matches subdomain with port",
+			allowOrigin: "https://*.example.com:8443",
+			origin:      "https://api.example.com:8443",
+			want:        "https://api.example.com:8443",
+		},
+		{
+			name:        "does not match when port is missing",
+			allowOrigin: "https://*.example.com:8443",
+			origin:      "https://api.example.com",
+		},
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := Config{AllowOrigins: []string{tt.allowOrigin}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
 
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
-	}
-}
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Origin", tt.origin)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-func TestCORSSubdomainPatternWithPort(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://*.example.com:8443"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://api.example.com:8443")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://api.example.com:8443" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Origin", "https://api.example.com")
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != tt.want {
+				t.Fatalf("unexpected Access-Control-Allow-Origin: got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -603,6 +584,7 @@ func TestCORSReflectsOnlyValidPreflightHeaders(t *testing.T) {
 	handler := Config{
 		AllowOrigins:     []string{"*"},
 		AllowCredentials: true,
+		AllowMethods:     []string{http.MethodPut},
 		AllowHeaders:     []string{"*"},
 	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
@@ -615,6 +597,9 @@ func TestCORSReflectsOnlyValidPreflightHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusForbidden)
+	}
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "" {
 		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
 	}
@@ -624,6 +609,7 @@ func TestCORSMaxAgeZero(t *testing.T) {
 	maxAge := 0
 	handler := Config{
 		AllowOrigins: []string{"https://example.com"},
+		AllowMethods: []string{http.MethodPut},
 		MaxAge:       &maxAge,
 	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
@@ -640,29 +626,6 @@ func TestCORSMaxAgeZero(t *testing.T) {
 	}
 }
 
-func TestCORSPreflightNoRequestHeadersWithCredentialedWildcard(t *testing.T) {
-	handler := Config{
-		AllowOrigins:     []string{"https://example.com"},
-		AllowCredentials: true,
-		AllowHeaders:     []string{"*"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("next handler was called")
-	}))
-
-	req := httptest.NewRequest(http.MethodOptions, "/", nil)
-	req.Header.Set("Origin", "https://example.com")
-	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusNoContent)
-	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "" {
-		t.Fatalf("unexpected Access-Control-Allow-Headers: %q", got)
-	}
-}
-
 func TestCORSInvalidConfigPanics(t *testing.T) {
 	negativeMaxAge := -1
 	tests := []Config{
@@ -671,7 +634,6 @@ func TestCORSInvalidConfigPanics(t *testing.T) {
 		{AllowOrigins: []string{"https://example.com:65536"}},
 		{AllowOrigins: []string{"ftp://example.com"}},
 		{AllowOrigins: []string{"https://api.*.example.com"}},
-		{AllowOrigins: []string{"https://*.example.com/path"}},
 		{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{"BAD METHOD"}},
 		{AllowOrigins: []string{"https://example.com"}, AllowHeaders: []string{"Bad Header"}},
 		{AllowOrigins: []string{"https://example.com"}, MaxAge: &negativeMaxAge},

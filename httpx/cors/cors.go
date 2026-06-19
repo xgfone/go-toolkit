@@ -53,7 +53,7 @@ type Config struct {
 	// If AllowCredentials is true, "*" is also reflected from the request
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
-	// Optional. Default: []string{}.
+	// Optional. Default: nil.
 	AllowHeaders []string `json:"allowHeaders" yaml:"allowHeaders"`
 
 	// AllowMethods indicates methods allowed when accessing the resource.
@@ -61,14 +61,14 @@ type Config struct {
 	// true, "*" is reflected from the request because browsers do not treat it
 	// as a wildcard for credentialed requests.
 	//
-	// Optional. Default: DefaultAllowMethods.
+	// Optional. Default: nil.
 	AllowMethods []string `json:"allowMethods" yaml:"allowMethods"`
 
 	// ExposeHeaders indicates response headers browsers are allowed to access
 	// from an actual CORS response. If AllowCredentials is true, "*" is omitted
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
-	// Optional. Default: []string{}.
+	// Optional. Default: nil.
 	ExposeHeaders []string `json:"exposeHeaders" yaml:"exposeHeaders"`
 
 	// AllowCredentials indicates whether or not the response to the request
@@ -95,18 +95,24 @@ type Config struct {
 	NormalizeHost HostNormalizer `json:"-" yaml:"-"`
 }
 
-var DefaultAllowMethods = []string{
+var defaultAllowMethods = []string{
 	http.MethodHead, http.MethodGet,
 	http.MethodPost, http.MethodPut,
 	http.MethodPatch, http.MethodDelete,
 }
 
-// CORS returns a CORS middleware.
-func (c Config) CORS(priority int) *CORS {
-	if len(c.AllowMethods) == 0 {
-		c.AllowMethods = slices.Clone(DefaultAllowMethods)
+// NewDefaultConfig returns a default CORS config that only presets
+//   - AllowOrigins: []string{"*"}
+//   - AllowMethods: []string{"GET", "PUT", "HEAD", "POST", "PATCH", "DELETE"}
+func NewDefaultConfig() Config {
+	return Config{
+		AllowOrigins: []string{"*"},
+		AllowMethods: slices.Clone(defaultAllowMethods),
 	}
+}
 
+// CORS returns a CORS middleware with the given priority.
+func (c Config) CORS(priority int) *CORS {
 	cors := &CORS{
 		priority: priority,
 
