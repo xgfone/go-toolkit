@@ -201,6 +201,10 @@ func (c *CORS) HTTPHandler(next http.Handler) http.Handler {
 // handler. Therefore, downstream handlers should use Header().Add("Vary", field)
 // instead of Header().Set when adding their own Vary fields, otherwise they may
 // overwrite the CORS fields.
+//
+// A failed preflight request is rejected with 403. A rejected or invalid Origin
+// on an actual request is passed to the next handler without CORS allow headers;
+// use CSRF or application-level origin checks when server-side rejection is required.
 func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.next == nil {
 		w.WriteHeader(500)
@@ -226,6 +230,7 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			addVaryHeader(respHeader, c.varyPreflight)
 			w.WriteHeader(http.StatusForbidden)
 		} else {
+			// CORS only controls browser access to the response for actual requests.
 			addVaryHeader(respHeader, c.varyActual)
 			c.next.ServeHTTP(w, r)
 		}
