@@ -92,3 +92,24 @@ func TestIsFloat(t *testing.T) {
 		})
 	}
 }
+
+func TestIsASCIIDigits(t *testing.T) {
+	tests := []struct {
+		name  string
+		digit string
+		want  bool
+	}{
+		{"empty", "", false},
+		{"digits", "123", true},
+		{"float", ".123", false},
+		{"not number", "12a34", false},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsASCIIDigits(tt.digit); got != tt.want {
+				t.Errorf("%d: IsASCIIDigits(%q) = %v, want %v", i, tt.digit, got, tt.want)
+			}
+		})
+	}
+}

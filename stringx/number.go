@@ -48,7 +48,7 @@ func IsInteger(s string) bool {
 		return false
 	}
 
-	return isnumber(s)
+	return isASCIIDigits(s)
 }
 
 // IsFloat reports whether s represents a valid decimal floating‑point number
@@ -85,10 +85,17 @@ func IsFloat(s string) bool {
 		return false
 	}
 
-	return isnumber(fractional)
+	return isASCIIDigits(fractional)
 }
 
-func isnumber(s string) bool {
+func IsASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	return isASCIIDigits(s)
+}
+
+func isASCIIDigits(s string) bool {
 	for _, r := range s {
 		if r < '0' || r > '9' {
 			return false
