@@ -20,10 +20,18 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 )
+
+// HostNormalizer normalizes a non-IP origin host. It may be used to apply
+// optional features such as IDNA ToASCII outside this package.
+//
+// It must return a host without a port or brackets. Returning false rejects it.
+type HostNormalizer func(host string) (normalized string, ok bool)
 
 // Config is used to configure CORS.
 type Config struct {
@@ -36,7 +44,12 @@ type Config struct {
 
 	// AllowHeaders indicates a list of request headers used in response to
 	// a preflight request to indicate which HTTP headers can be used when
-	// making the actual request. If empty, requested headers are reflected.
+	// making the actual request.
+	//
+	// If empty, all valid requested headers are reflected, so the preflight
+	// succeeds for any non-safelisted request header the browser asks to use.
+	// Prefer an explicit allow-list for stricter APIs.
+	//
 	// If AllowCredentials is true, "*" is also reflected from the request
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
@@ -71,6 +84,15 @@ type Config struct {
 	//
 	// Optional. Default: nil.
 	MaxAge *int `json:"maxAge" yaml:"maxAge"`
+
+	// NormalizeHost optionally normalizes non-IP origin hosts in AllowOrigins
+	// and request Origin headers.
+	//
+	// If nil, hosts are only lower-cased; IDNA is intentionally not handled
+	// by default. A caller may provide an IDNA ToASCII implementation here.
+	//
+	// Optional. Default: nil.
+	NormalizeHost HostNormalizer `json:"-" yaml:"-"`
 }
 
 var DefaultAllowMethods = []string{
@@ -85,12 +107,13 @@ func (c Config) CORS(priority int) *CORS {
 		c.AllowMethods = slices.Clone(DefaultAllowMethods)
 	}
 
-	allowOrigins := normalizeAllowOrigins(c.AllowOrigins)
+	allowOrigins := normalizeAllowOrigins(c.AllowOrigins, c.NormalizeHost)
 	cors := &CORS{
 		priority: priority,
 
 		allowOrigins:     allowOrigins,
 		allowCredentials: c.AllowCredentials,
+		normalizeHost:    c.NormalizeHost,
 	}
 
 	if c.MaxAge != nil {
@@ -98,7 +121,6 @@ func (c Config) CORS(priority int) *CORS {
 			panic(fmt.Errorf("cors.Config.MaxAge: invalid value %d", *c.MaxAge))
 		}
 		cors.maxAgeStr = fmt.Sprintf("%d", *c.MaxAge)
-		cors.maxAgeSet = true
 	}
 
 	cors.staticAllowOrigin, cors.varyOrigin = originResponseMode(allowOrigins, c.AllowCredentials)
@@ -112,6 +134,8 @@ func (c Config) CORS(priority int) *CORS {
 	cors.allowMethods = joinHeaderValues("AllowMethods", c.AllowMethods, true)
 	cors.allowHeaders = joinHeaderValues("AllowHeaders", c.AllowHeaders, true)
 	cors.exposeHeaders = joinHeaderValues("ExposeHeaders", c.ExposeHeaders, true)
+	cors.allowMethodsList = splitHeaderValues([]string{cors.allowMethods})
+	cors.allowHeadersList = splitHeaderValues([]string{cors.allowHeaders})
 
 	return cors
 }
@@ -121,6 +145,7 @@ type CORS struct {
 	allowCredentials  bool
 	allowOrigins      []string
 	staticAllowOrigin string
+	normalizeHost     HostNormalizer
 
 	priority      int
 	allowMethods  string
@@ -128,10 +153,12 @@ type CORS struct {
 	exposeHeaders string
 	maxAgeStr     string
 
+	allowMethodsList []string
+	allowHeadersList []string
+
 	allowMethodsWildcard bool
 	allowHeadersWildcard bool
 	varyOrigin           bool
-	maxAgeSet            bool
 
 	next http.Handler
 }
@@ -151,6 +178,11 @@ func (c *CORS) HTTPHandler(next http.Handler) http.Handler {
 }
 
 // ServeHTTP implements the interface http.Handler.
+//
+// The method writes CORS Vary fields before passing actual requests to the next
+// handler. Therefore, downstream handlers should use Header().Add("Vary", field)
+// instead of Header().Set when adding their own Vary fields, otherwise they may
+// overwrite the CORS fields.
 func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.next == nil {
 		w.WriteHeader(500)
@@ -164,10 +196,51 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		vary = append(vary, "Origin")
 	}
 
-	origin, hasOrigin := normalizeRequestOrigin(r.Header.Get("Origin"))
+	rawOrigin := r.Header.Get("Origin")
+	origin, hasOrigin := normalizeRequestOrigin(rawOrigin, c.normalizeHost)
 	allowOrigin, ok := c.allowOrigin(origin)
 	if !ok {
-		c.serveNext(w, r, vary...)
+		if isPreflightRequest(r, rawOrigin != "") {
+			vary = append(vary, "Access-Control-Request-Method", "Access-Control-Request-Headers")
+			addVaryValues(respHeader, vary...)
+			w.WriteHeader(http.StatusForbidden)
+		} else {
+			addVaryValues(w.Header(), vary...)
+			c.next.ServeHTTP(w, r)
+		}
+		return
+	}
+
+	if isPreflightRequest(r, hasOrigin) {
+		// Preflight request
+		vary = append(vary, "Access-Control-Request-Method", "Access-Control-Request-Headers")
+		methods, methodsOK := c.preflightAllowMethods(r)
+		headers, headersOK := c.preflightAllowHeaders(r)
+		if !methodsOK || !headersOK {
+			addVaryValues(respHeader, vary...)
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		respHeader.Set("Access-Control-Allow-Origin", allowOrigin)
+		if c.allowCredentials {
+			respHeader.Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		if methods != "" {
+			respHeader.Set("Access-Control-Allow-Methods", methods)
+		}
+
+		if headers != "" {
+			respHeader.Set("Access-Control-Allow-Headers", headers)
+		}
+
+		if c.maxAgeStr != "" {
+			respHeader.Set("Access-Control-Max-Age", c.maxAgeStr)
+		}
+
+		addVaryValues(respHeader, vary...)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -176,42 +249,13 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respHeader.Set("Access-Control-Allow-Credentials", "true")
 	}
 
-	if !isPreflightRequest(r, hasOrigin) {
-		// Actual CORS request.
-		if c.exposeHeaders != "" {
-			respHeader.Set("Access-Control-Expose-Headers", c.exposeHeaders)
-		}
-		c.serveNext(w, r, vary...)
-		return
+	// Actual CORS request.
+	if c.exposeHeaders != "" {
+		respHeader.Set("Access-Control-Expose-Headers", c.exposeHeaders)
 	}
 
-	// Preflight request
-	vary = append(vary, "Access-Control-Request-Method", "Access-Control-Request-Headers")
-	addVaryValues(respHeader, vary...)
-	if h := c.preflightAllowMethods(r); h != "" {
-		respHeader.Set("Access-Control-Allow-Methods", h)
-	}
-
-	if h := c.preflightAllowHeaders(r); h != "" {
-		respHeader.Set("Access-Control-Allow-Headers", h)
-	}
-
-	if c.maxAgeSet {
-		respHeader.Set("Access-Control-Max-Age", c.maxAgeStr)
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (c *CORS) serveNext(w http.ResponseWriter, r *http.Request, vary ...string) {
-	if len(vary) == 0 {
-		c.next.ServeHTTP(w, r)
-		return
-	}
-
-	vw := &varyResponseWriter{ResponseWriter: w, vary: vary}
-	c.next.ServeHTTP(vw, r)
-	vw.ensureVary()
+	addVaryValues(w.Header(), vary...)
+	c.next.ServeHTTP(w, r)
 }
 
 func (c *CORS) allowOrigin(origin string) (string, bool) {
@@ -240,25 +284,44 @@ func (c *CORS) allowOrigin(origin string) (string, bool) {
 	return "", false
 }
 
-func (c *CORS) preflightAllowMethods(r *http.Request) string {
-	if c.allowCredentials && c.allowMethodsWildcard {
-		if method := strings.TrimSpace(r.Header.Get("Access-Control-Request-Method")); validToken(method) {
-			return method
-		}
-		return ""
+func (c *CORS) preflightAllowMethods(r *http.Request) (string, bool) {
+	method := strings.TrimSpace(r.Header.Get("Access-Control-Request-Method"))
+	if !validToken(method) {
+		return "", false
 	}
-	return c.allowMethods
+
+	if c.allowCredentials && c.allowMethodsWildcard {
+		return method, true
+	}
+
+	if c.allowMethodsWildcard || slices.Contains(c.allowMethodsList, method) {
+		return c.allowMethods, true
+	}
+
+	return "", false
 }
 
-func (c *CORS) preflightAllowHeaders(r *http.Request) string {
-	if c.allowHeaders == "" || (c.allowCredentials && c.allowHeadersWildcard) {
-		return joinRequestHeaderValues(splitHeaderValues(r.Header.Values("Access-Control-Request-Headers")))
+func (c *CORS) preflightAllowHeaders(r *http.Request) (string, bool) {
+	requestHeaders := splitHeaderValues(r.Header.Values("Access-Control-Request-Headers"))
+	if !validRequestHeaderValues(requestHeaders) {
+		return "", false
 	}
-	return c.allowHeaders
+
+	if c.allowHeaders == "" || (c.allowHeadersWildcard && (c.allowCredentials || containsCORSNonWildcardRequestHeaderName(requestHeaders))) {
+		headers := joinRequestHeaderValues(requestHeaders)
+		return headers, true
+	}
+
+	if c.allowHeadersWildcard || allowedRequestHeaders(c.allowHeadersList, requestHeaders) {
+		return c.allowHeaders, true
+	}
+
+	return "", false
 }
 
 func isPreflightRequest(r *http.Request, hasOrigin bool) bool {
-	return hasOrigin && r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
+	return hasOrigin && r.Method == http.MethodOptions &&
+		r.Header.Get("Access-Control-Request-Method") != ""
 }
 
 func joinHeaderValues(name string, values []string, allowWildcard bool) string {
@@ -322,6 +385,41 @@ func joinRequestHeaderValues(values []string) string {
 	return strings.Join(hs, ", ")
 }
 
+func validRequestHeaderValues(values []string) bool {
+	for _, value := range values {
+		if !validToken(strings.TrimSpace(value)) {
+			return false
+		}
+	}
+	return true
+}
+
+func allowedRequestHeaders(allowed, requested []string) bool {
+	for _, request := range requested {
+		if !containsHeaderName(allowed, request) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsHeaderName(headers []string, header string) bool {
+	for _, h := range headers {
+		if strings.EqualFold(h, header) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsCORSNonWildcardRequestHeaderName(headers []string) bool {
+	return slices.ContainsFunc(headers, isCORSNonWildcardRequestHeaderName)
+}
+
+func isCORSNonWildcardRequestHeaderName(header string) bool {
+	return strings.EqualFold(header, "Authorization")
+}
+
 func containsWildcard(values []string) bool {
 	for _, value := range values {
 		if strings.TrimSpace(value) == "*" {
@@ -343,7 +441,7 @@ func removeWildcard(values []string) []string {
 	return values[:n]
 }
 
-func normalizeAllowOrigins(origins []string) []string {
+func normalizeAllowOrigins(origins []string, normalizeHost HostNormalizer) []string {
 	if len(origins) == 0 {
 		return nil
 	}
@@ -361,12 +459,16 @@ func normalizeAllowOrigins(origins []string) []string {
 		case origin == "*":
 			o = origin
 
-		case validSubdomainPattern(origin):
-			o = normalizeSubdomainPattern(origin)
+		case strings.Contains(origin, "://*."):
+			var ok bool
+			o, ok = normalizeSubdomainPattern(origin, normalizeHost)
+			if !ok {
+				panic(fmt.Errorf("cors.Config.AllowOrigins: invalid origin %q", origin))
+			}
 
 		default:
 			var ok bool
-			o, ok = normalizeOrigin(origin)
+			o, ok = normalizeOrigin(origin, normalizeHost)
 			if !ok {
 				panic(fmt.Errorf("cors.Config.AllowOrigins: invalid origin %q", origin))
 			}
@@ -398,43 +500,50 @@ func originResponseMode(origins []string, allowCredentials bool) (staticAllowOri
 	}
 }
 
-func normalizeRequestOrigin(origin string) (string, bool) {
+func normalizeRequestOrigin(origin string, normalizeHost HostNormalizer) (string, bool) {
+	origin = strings.TrimSpace(origin)
 	if origin == "" {
 		return "", false
 	}
-	return normalizeOrigin(strings.TrimSpace(origin))
+	return normalizeOrigin(origin, normalizeHost)
 }
 
-func normalizeOrigin(origin string) (string, bool) {
+func normalizeOrigin(origin string, normalizeHost HostNormalizer) (string, bool) {
 	if origin == "null" {
 		return origin, true
 	}
 
 	u, ok := parseOriginURL(origin)
-	if !ok || strings.Contains(u.Hostname(), "*") {
+	if !ok {
 		return "", false
 	}
 
-	return serializeOriginURL(u), true
+	origin = serializeOriginURL(u, normalizeHost)
+	return origin, origin != ""
 }
 
-func validSubdomainPattern(pattern string) bool {
+func normalizeSubdomainPattern(pattern string, normalizeHost HostNormalizer) (string, bool) {
 	if !strings.Contains(pattern, "://*.") {
-		return false
+		return "", false
 	}
 
 	u, ok := parseOriginURL(pattern)
 	if !ok {
-		return false
+		return "", false
 	}
 
-	host := strings.ToLower(u.Hostname())
-	return strings.HasPrefix(host, "*.") && !strings.Contains(host[2:], "*") && len(host) > 2
-}
+	host, ok := serializeSubdomainPatternHost(u.Hostname(), normalizeHost)
+	if !ok || len(host) <= 2 {
+		return "", false
+	}
 
-func normalizeSubdomainPattern(pattern string) string {
-	u, _ := parseOriginURL(pattern)
-	return serializeOriginURL(u)
+	scheme := strings.ToLower(u.Scheme)
+	if port, ok := normalizeURLPort(scheme, u.Port()); ok && port != "" {
+		host = net.JoinHostPort(host, port)
+	} else if !ok {
+		return "", false
+	}
+	return scheme + "://" + host, true
 }
 
 func parseOriginURL(origin string) (*url.URL, bool) {
@@ -443,7 +552,12 @@ func parseOriginURL(origin string) (*url.URL, bool) {
 	}
 
 	u, err := url.Parse(origin)
-	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil ||
+		u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return nil, false
+	}
+
+	if !supportedOriginScheme(u.Scheme) {
 		return nil, false
 	}
 
@@ -458,10 +572,25 @@ func parseOriginURL(origin string) (*url.URL, bool) {
 	return u, true
 }
 
-func serializeOriginURL(u *url.URL) string {
+func supportedOriginScheme(scheme string) bool {
+	switch strings.ToLower(scheme) {
+	case "http", "https", "ws", "wss":
+		return true
+	default:
+		return false
+	}
+}
+
+func serializeOriginURL(u *url.URL, normalizeHost HostNormalizer) string {
 	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(u.Hostname())
-	if port := u.Port(); port != "" {
+	host, ok := serializeOriginHost(u.Hostname(), normalizeHost)
+	if !ok {
+		return ""
+	}
+
+	if port, ok := normalizeURLPort(scheme, u.Port()); !ok {
+		return ""
+	} else if port != "" {
 		host = net.JoinHostPort(host, port)
 	} else if strings.Contains(host, ":") {
 		host = "[" + host + "]"
@@ -469,18 +598,97 @@ func serializeOriginURL(u *url.URL) string {
 	return scheme + "://" + host
 }
 
-func validPort(port string) bool {
+func serializeOriginHost(host string, normalizeHost HostNormalizer) (string, bool) {
+	if host == "" || strings.ContainsAny(host, "\r\n\t ") {
+		return "", false
+	}
+
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if addr.Zone() != "" {
+			return "", false
+		}
+		return strings.ToLower(addr.String()), true
+	}
+
+	if normalizeHost != nil {
+		var ok bool
+		host, ok = normalizeHost(host)
+		if !ok {
+			return "", false
+		}
+	}
+
+	if host == "" || strings.ContainsAny(host, "\r\n\t :[]") || strings.Contains(host, "*") {
+		return "", false
+	}
+	return strings.ToLower(host), true
+}
+
+func serializeSubdomainPatternHost(host string, normalizeHost HostNormalizer) (string, bool) {
+	if host == "" || strings.ContainsAny(host, "\r\n\t ") {
+		return "", false
+	}
+
+	host = strings.ToLower(host)
+	if !strings.HasPrefix(host, "*.") || strings.Contains(host[2:], "*") {
+		return "", false
+	}
+
+	suffix, ok := serializeOriginHost(host[2:], normalizeHost)
+	if !ok || strings.Contains(suffix, ":") {
+		return "", false
+	}
+
+	return "*." + suffix, true
+}
+
+func normalizeURLPort(scheme, port string) (string, bool) {
 	if port == "" {
+		return "", true
+	}
+
+	p, ok := parsePort(port)
+	if !ok {
+		return "", false
+	}
+
+	if isDefaultOriginPort(scheme, p) {
+		return "", true
+	}
+	return strconv.FormatUint(p, 10), true
+}
+
+func isDefaultOriginPort(scheme string, port uint64) bool {
+	switch strings.ToLower(scheme) {
+	case "http", "ws":
+		return port == 80
+
+	case "https", "wss":
+		return port == 443
+
+	default:
 		return false
+	}
+}
+
+func validPort(port string) bool {
+	_, ok := parsePort(port)
+	return ok
+}
+
+func parsePort(port string) (uint64, bool) {
+	if port == "" {
+		return 0, false
 	}
 
 	for _, r := range port {
 		if r < '0' || r > '9' {
-			return false
+			return 0, false
 		}
 	}
 
-	return true
+	p, err := strconv.ParseUint(port, 10, 16)
+	return p, err == nil
 }
 
 func validToken(value string) bool {
@@ -525,37 +733,6 @@ func matchSubdomain(domain, pattern string) bool {
 func isSubdomainPattern(pattern string) bool {
 	u, ok := parseOriginURL(pattern)
 	return ok && strings.HasPrefix(strings.ToLower(u.Hostname()), "*.")
-}
-
-type varyResponseWriter struct {
-	http.ResponseWriter
-	vary  []string
-	wrote bool
-}
-
-func (w *varyResponseWriter) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
-}
-
-func (w *varyResponseWriter) Write(p []byte) (int, error) {
-	if !w.wrote {
-		w.WriteHeader(http.StatusOK)
-	}
-	return w.ResponseWriter.Write(p)
-}
-
-func (w *varyResponseWriter) WriteHeader(code int) {
-	if w.wrote {
-		return
-	}
-
-	w.ensureVary()
-	w.wrote = true
-	w.ResponseWriter.WriteHeader(code)
-}
-
-func (w *varyResponseWriter) ensureVary() {
-	addVaryValues(w.Header(), w.vary...)
 }
 
 func addVaryValues(h http.Header, values ...string) {
