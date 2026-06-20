@@ -168,7 +168,7 @@ func ExampleContainsAll() {
 	fmt.Println(ContainsAll([]int{1, 2}, []int{3}))
 
 	// Output:
-	// true·
+	// true
 	// true
 	// false
 }

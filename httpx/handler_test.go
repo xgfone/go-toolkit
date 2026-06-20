@@ -128,7 +128,7 @@ func TestContextHandler_HTTPHandler(t *testing.T) {
 
 	// Test case 2: ContextHandler returns error
 	t.Run("HandlerError", func(t *testing.T) {
-		expectedErr := "test error"
+		const expectedErr = "test error"
 		handler := ContextHandler(func(c *Context) error { return fmt.Errorf(expectedErr) })
 
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
