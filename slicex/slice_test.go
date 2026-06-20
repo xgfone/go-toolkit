@@ -14,7 +14,11 @@
 
 package slicex
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
 
 func _convert2(_, v int) int64    { return int64(v) }
 func _convert(v int) int64        { return int64(v) }
@@ -156,4 +160,122 @@ func ExampleMerge() {
 	// []
 	// [1 2]
 	// [a b c d]
+}
+
+func ExampleContainsAll() {
+	fmt.Println(ContainsAll([]int{1, 2, 3}, []int{3, 1}))
+	fmt.Println(ContainsAll([]int{1, 2}, []int{2, 2}))
+	fmt.Println(ContainsAll([]int{1, 2}, []int{3}))
+
+	// Output:
+	// true·
+	// true
+	// false
+}
+
+func ExampleContainsAllFunc() {
+	allowed := []string{"X-Token", "X-Trace"}
+	requested := []string{"x-trace", "x-token"}
+	fmt.Println(ContainsAllFunc(allowed, requested, strings.EqualFold))
+
+	// Output:
+	// true
+}
+
+func TestContainsAll(t *testing.T) {
+	type ints []int
+
+	tests := []struct {
+		name     string
+		superset ints
+		subset   []int
+		want     bool
+	}{
+		{
+			name:     "all contained",
+			superset: ints{1, 2, 3},
+			subset:   []int{3, 1},
+			want:     true,
+		},
+		{
+			name:     "missing element",
+			superset: ints{1, 2, 3},
+			subset:   []int{4},
+		},
+		{
+			name:     "repeated subset element is ignored",
+			superset: ints{1, 2},
+			subset:   []int{2, 2},
+			want:     true,
+		},
+		{
+			name:     "repeated superset element is ignored",
+			superset: ints{1, 1},
+			subset:   []int{1},
+			want:     true,
+		},
+		{
+			name:     "empty subset",
+			superset: ints{1},
+			subset:   nil,
+			want:     true,
+		},
+		{
+			name:     "non-empty subset with empty superset",
+			superset: nil,
+			subset:   []int{1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ContainsAll(tt.superset, tt.subset); got != tt.want {
+				t.Fatalf("unexpected result: got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContainsAllFunc(t *testing.T) {
+	tests := []struct {
+		name     string
+		superset []string
+		subset   []string
+		want     bool
+	}{
+		{
+			name:     "case-insensitive match",
+			superset: []string{"X-Token", "X-Trace"},
+			subset:   []string{"x-trace", "x-token"},
+			want:     true,
+		},
+		{
+			name:     "missing element",
+			superset: []string{"X-Token"},
+			subset:   []string{"x-token", "x-trace"},
+		},
+		{
+			name:     "repeated subset element is ignored",
+			superset: []string{"X-Token"},
+			subset:   []string{"x-token", "X-TOKEN"},
+			want:     true,
+		},
+		{
+			name:   "empty subset",
+			subset: nil,
+			want:   true,
+		},
+		{
+			name:   "non-empty subset with empty superset",
+			subset: []string{"x-token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ContainsAllFunc(tt.superset, tt.subset, strings.EqualFold); got != tt.want {
+				t.Fatalf("unexpected result: got %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

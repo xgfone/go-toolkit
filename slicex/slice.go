@@ -121,3 +121,57 @@ func Merge[S ~[]E, E any](ss ...S) S {
 	}
 	return vs
 }
+
+// ContainsAll reports whether subset is a subset of superset.
+//
+// It treats the slices as sets: the element order and repeated elements do not
+// affect the result.
+func ContainsAll[S1 ~[]E, S2 ~[]E, E comparable](superset S1, subset S2) bool {
+	if len(subset) == 0 {
+		return true
+	}
+
+	if len(superset) == 0 {
+		return false
+	}
+
+	set := make(map[E]struct{}, len(superset))
+	for _, value := range superset {
+		set[value] = struct{}{}
+	}
+
+	for _, value := range subset {
+		if _, ok := set[value]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// ContainsAllFunc reports whether subset is a subset of superset using equal.
+//
+// It treats the slices as sets: the element order and repeated elements do not
+// affect the result.
+func ContainsAllFunc[S1 ~[]E1, S2 ~[]E2, E1, E2 any](superset S1, subset S2, equal func(E1, E2) bool) bool {
+	if len(subset) == 0 {
+		return true
+	}
+
+	if len(superset) == 0 {
+		return false
+	}
+
+	for _, sub := range subset {
+		found := false
+		for _, super := range superset {
+			if equal(super, sub) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
