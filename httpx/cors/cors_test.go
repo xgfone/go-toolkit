@@ -712,6 +712,57 @@ func TestCORSNormalizeHost(t *testing.T) {
 	}
 }
 
+func TestCORSRequestOriginIsNotNormalized(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		origin string
+	}{
+		{
+			name:   "uppercase scheme",
+			config: Config{AllowOrigins: []string{"https://example.com"}},
+			origin: "HTTPS://example.com",
+		},
+		{
+			name:   "uppercase host",
+			config: Config{AllowOrigins: []string{"https://example.com"}},
+			origin: "https://EXAMPLE.com",
+		},
+		{
+			name:   "default port",
+			config: Config{AllowOrigins: []string{"https://example.com"}},
+			origin: "https://example.com:443",
+		},
+		{
+			name:   "leading zero port",
+			config: Config{AllowOrigins: []string{"https://example.com:8443"}},
+			origin: "https://example.com:08443",
+		},
+		{
+			name:   "unicode host",
+			config: Config{AllowOrigins: []string{"https://xn--fsqu00a.xn--0zwm56d"}},
+			origin: "https://例子.测试",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Origin", tt.origin)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+				t.Fatalf("unexpected Access-Control-Allow-Origin: %q", got)
+			}
+		})
+	}
+}
+
 func TestCORSSubdomainPatternRejectsOverlongHost(t *testing.T) {
 	handler := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -866,8 +917,8 @@ func TestCORSServeHTTPWithoutNext(t *testing.T) {
 
 func TestCORSOriginHelperEdgeCases(t *testing.T) {
 	c := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0)
-	if c.matchSubdomainOrigin("not an origin") {
-		t.Fatal("invalid origin matched subdomain pattern")
+	if origin, ok := parseRequestOrigin("not an origin"); ok || c.matchSubdomainOrigin(origin) {
+		t.Fatal("invalid origin parsed or matched subdomain pattern")
 	}
 
 	if _, ok := parseSubdomainOriginPattern("not an origin"); ok {
@@ -885,6 +936,84 @@ func TestCORSOriginHelperEdgeCases(t *testing.T) {
 	}
 	if got, ok := normalizeSubdomainPattern("https://*.*.example.com", nil); ok || got != "" {
 		t.Fatalf("unexpected normalized subdomain pattern: %q, %v", got, ok)
+	}
+}
+
+func TestCORSRequestOriginHelperEdgeCases(t *testing.T) {
+	valids := []struct {
+		origin string
+		scheme string
+		host   string
+		port   string
+	}{
+		{
+			origin: "null",
+		},
+		{
+			origin: "http://example.com",
+			scheme: "http",
+			host:   "example.com",
+		},
+		{
+			origin: "https://api_example.com:8443",
+			scheme: "https",
+			host:   "api_example.com",
+			port:   "8443",
+		},
+		{
+			origin: "ws://example.com:0",
+			scheme: "ws",
+			host:   "example.com",
+			port:   "0",
+		},
+		{
+			origin: "wss://[::1]:8443",
+			scheme: "wss",
+			host:   "::1",
+			port:   "8443",
+		},
+	}
+
+	for _, tt := range valids {
+		t.Run("valid "+tt.origin, func(t *testing.T) {
+			origin, ok := parseRequestOrigin(tt.origin)
+			if !ok {
+				t.Fatal("origin was rejected")
+			}
+			if origin.value != tt.origin || origin.scheme != tt.scheme ||
+				origin.host != tt.host || origin.port != tt.port {
+				t.Fatalf("unexpected parsed origin: %#v", origin)
+			}
+		})
+	}
+
+	invalids := []string{
+		"",
+		"https://example.com\n",
+		"ftp://example.com",
+		"https://example.com/path",
+		"https://example.com?x=1",
+		"https://example.com#fragment",
+		"https://user@example.com",
+		"https://[]",
+		"https://[bad]",
+		"https://[ABCD::1]",
+		"https://[::1]x",
+		"https://[::1]:443",
+		"https://example.com]",
+		"https://a:b:c",
+		"https://:8443",
+		"https://exa$mple.com",
+		"https://example.com:",
+		"https://example.com:08443",
+	}
+
+	for _, origin := range invalids {
+		t.Run("invalid "+origin, func(t *testing.T) {
+			if got, ok := parseRequestOrigin(origin); ok || got.value != "" {
+				t.Fatalf("unexpected parsed origin: %#v, %v", got, ok)
+			}
+		})
 	}
 }
 
@@ -976,7 +1105,7 @@ func assertPanics(t *testing.T, f func()) {
 
 func varyContains(h http.Header, value string) bool {
 	for _, vary := range h.Values("Vary") {
-		for _, part := range strings.Split(vary, ",") {
+		for part := range strings.SplitSeq(vary, ",") {
 			if strings.EqualFold(strings.TrimSpace(part), value) {
 				return true
 			}

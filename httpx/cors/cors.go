@@ -18,13 +18,11 @@ package cors
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/netip"
-	"net/url"
 	"slices"
-	"strconv"
 	"strings"
+
+	"github.com/xgfone/go-toolkit/slicex"
 )
 
 // HostNormalizer normalizes a non-IP origin host. It may be used to apply
@@ -85,8 +83,7 @@ type Config struct {
 	// Optional. Default: nil.
 	MaxAge *int `json:"maxAge" yaml:"maxAge"`
 
-	// NormalizeHost optionally normalizes non-IP origin hosts in AllowOrigins
-	// and request Origin headers.
+	// NormalizeHost optionally normalizes non-IP origin hosts in AllowOrigins.
 	//
 	// If nil, hosts are only lower-cased; IDNA is intentionally not handled
 	// by default. A caller may provide an IDNA ToASCII implementation here.
@@ -116,7 +113,6 @@ func (c Config) CORS(priority int) *CORS {
 	cors := &CORS{
 		priority: priority,
 
-		normalizeHost:    c.NormalizeHost,
 		allowCredentials: c.AllowCredentials,
 	}
 
@@ -155,7 +151,6 @@ type CORS struct {
 	staticAllowOrigin string
 	allowOrigins      map[string]struct{}
 	subdomainOrigins  []subdomainOriginPattern
-	normalizeHost     HostNormalizer
 
 	priority      int
 	allowMethods  string
@@ -173,12 +168,6 @@ type CORS struct {
 	varyPreflight string
 
 	next http.Handler
-}
-
-type subdomainOriginPattern struct {
-	scheme string
-	suffix string
-	port   string
 }
 
 // Priority returns the priority, which may be used as the priority of httpx.Middleware.
@@ -223,7 +212,7 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	origin, hasOrigin := normalizeRequestOrigin(rawOrigin, c.normalizeHost)
+	origin, hasOrigin := parseRequestOrigin(rawOrigin)
 	allowOrigin, ok := c.allowOrigin(origin)
 	if !ok {
 		if isPreflightRequest(r, rawOrigin != "") {
@@ -283,56 +272,6 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.next.ServeHTTP(w, r)
 }
 
-func (c *CORS) allowOrigin(origin string) (string, bool) {
-	if c.staticAllowOrigin != "" {
-		return c.staticAllowOrigin, true
-	}
-
-	if origin == "" {
-		return "", false
-	}
-
-	if c.allowAllOrigins {
-		return origin, true
-	}
-
-	if c.exactAllowOrigin != "" && origin == c.exactAllowOrigin {
-		return origin, true
-	}
-
-	if _, ok := c.allowOrigins[origin]; ok {
-		return origin, true
-	}
-
-	if len(c.subdomainOrigins) > 0 && c.matchSubdomainOrigin(origin) {
-		return origin, true
-	}
-
-	return "", false
-}
-
-func (c *CORS) matchSubdomainOrigin(origin string) bool {
-	u, ok := parseOriginURL(origin)
-	if !ok {
-		return false
-	}
-
-	scheme := strings.ToLower(u.Scheme)
-	port := u.Port()
-	host := strings.ToLower(u.Hostname())
-	if len(host) > 253 {
-		return false
-	}
-
-	for _, pattern := range c.subdomainOrigins {
-		if scheme == pattern.scheme && port == pattern.port &&
-			strings.HasSuffix(host, "."+pattern.suffix) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *CORS) preflightAllowMethods(r *http.Request) (string, bool) {
 	method := strings.TrimSpace(r.Header.Get("Access-Control-Request-Method"))
 	if !validToken(method) {
@@ -368,7 +307,7 @@ func (c *CORS) preflightAllowHeaders(r *http.Request) (string, bool) {
 		return strings.Join(requestHeaders, ", "), true
 	}
 
-	if c.allowHeadersWildcard || allowedRequestHeaders(c.allowHeadersList, requestHeaders) {
+	if c.allowHeadersWildcard || slicex.ContainsAllFunc(c.allowHeadersList, requestHeaders, strings.EqualFold) {
 		return c.allowHeaders, true
 	}
 
@@ -376,511 +315,8 @@ func (c *CORS) preflightAllowHeaders(r *http.Request) (string, bool) {
 }
 
 func isPreflightRequest(r *http.Request, hasOrigin bool) bool {
-	return hasOrigin && r.Method == http.MethodOptions &&
-		r.Header.Get("Access-Control-Request-Method") != ""
+	return hasOrigin && r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
 }
-
-func joinHeaderValues(name string, values []string, allowWildcard bool) string {
-	if len(values) == 0 {
-		return ""
-	}
-
-	n := 0
-	values = slices.Clone(values)
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-
-		if value != "*" || !allowWildcard {
-			if !validToken(value) {
-				panic(fmt.Errorf("cors.Config.%s: invalid value %q", name, value))
-			}
-		}
-
-		if value != "" {
-			values[n] = value
-			n++
-		}
-	}
-
-	return strings.Join(values[:n], ", ")
-}
-
-func splitHeaderValues(values []string) []string {
-	var hs []string
-	for _, value := range values {
-		for _, h := range strings.Split(value, ",") {
-			if h = strings.TrimSpace(h); h != "" {
-				hs = append(hs, h)
-			}
-		}
-	}
-	return hs
-}
-
-func parseRequestHeaderValues(values []string) (headers []string, hasNonWildcardRequestHeader bool, ok bool) {
-	if capacity := estimateRequestHeaderCount(values); capacity > 0 {
-		headers = make([]string, 0, capacity)
-	}
-
-	for _, value := range values {
-		for {
-			part := value
-			if i := strings.IndexByte(value, ','); i >= 0 {
-				part = value[:i]
-				value = value[i+1:]
-			} else {
-				value = ""
-			}
-
-			header := strings.TrimSpace(part)
-			if header != "" {
-				if !validToken(header) {
-					return nil, false, false
-				}
-				if isCORSNonWildcardRequestHeaderName(header) {
-					hasNonWildcardRequestHeader = true
-				}
-				headers = append(headers, header)
-			}
-
-			if value == "" {
-				break
-			}
-		}
-	}
-	return headers, hasNonWildcardRequestHeader, true
-}
-
-func estimateRequestHeaderCount(values []string) int {
-	const maxRequestHeadersPrealloc = 4
-
-	count := 0
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-
-		count++
-		if count >= maxRequestHeadersPrealloc {
-			return maxRequestHeadersPrealloc
-		}
-
-		for i := 0; i < len(value); i++ {
-			if value[i] == ',' {
-				count++
-				if count >= maxRequestHeadersPrealloc {
-					return maxRequestHeadersPrealloc
-				}
-			}
-		}
-	}
-	return count
-}
-
-func allowedRequestHeaders(allowed, requested []string) bool {
-	for _, request := range requested {
-		if !containsHeaderName(allowed, request) {
-			return false
-		}
-	}
-	return true
-}
-
-func containsHeaderName(headers []string, header string) bool {
-	for _, h := range headers {
-		if strings.EqualFold(h, header) {
-			return true
-		}
-	}
-	return false
-}
-
-func isCORSNonWildcardRequestHeaderName(header string) bool {
-	return strings.EqualFold(header, "Authorization")
-}
-
-func containsWildcard(values []string) bool {
-	for _, value := range values {
-		if strings.TrimSpace(value) == "*" {
-			return true
-		}
-	}
-	return false
-}
-
-func removeWildcard(values []string) []string {
-	n := 0
-	values = slices.Clone(values)
-	for _, value := range values {
-		if strings.TrimSpace(value) != "*" {
-			values[n] = value
-			n++
-		}
-	}
-	return values[:n]
-}
-
-func normalizeAllowOrigins(origins []string, normalizeHost HostNormalizer) []string {
-	if len(origins) == 0 {
-		return nil
-	}
-
-	normalized := make([]string, 0, len(origins))
-	seen := make(map[string]struct{}, len(origins))
-	for _, origin := range origins {
-		origin = strings.TrimSpace(origin)
-		if origin == "" {
-			continue
-		}
-
-		var o string
-		switch {
-		case origin == "*":
-			o = origin
-
-		case strings.Contains(origin, "://*."):
-			var ok bool
-			o, ok = normalizeSubdomainPattern(origin, normalizeHost)
-			if !ok {
-				panic(fmt.Errorf("cors.Config.AllowOrigins: invalid origin %q", origin))
-			}
-
-		default:
-			var ok bool
-			o, ok = normalizeOrigin(origin, normalizeHost)
-			if !ok {
-				panic(fmt.Errorf("cors.Config.AllowOrigins: invalid origin %q", origin))
-			}
-		}
-
-		if o == "*" {
-			return []string{"*"}
-		}
-
-		if _, ok := seen[o]; !ok {
-			seen[o] = struct{}{}
-			normalized = append(normalized, o)
-		}
-	}
-
-	return normalized
-}
-
-func (c *CORS) compileAllowOrigins(origins []string) {
-	c.allowAllOrigins = false
-	c.exactAllowOrigin = ""
-	c.subdomainOrigins = nil
-	c.allowOrigins = nil
-
-	var exacts []string
-	for _, origin := range origins {
-		if origin == "*" {
-			c.allowAllOrigins = true
-			return
-		}
-
-		if pattern, ok := parseSubdomainOriginPattern(origin); ok {
-			c.subdomainOrigins = append(c.subdomainOrigins, pattern)
-			continue
-		}
-
-		exacts = append(exacts, origin)
-	}
-
-	switch len(exacts) {
-	case 0:
-
-	case 1:
-		c.exactAllowOrigin = exacts[0]
-
-	default:
-		c.allowOrigins = make(map[string]struct{}, len(exacts))
-		for _, origin := range exacts {
-			c.allowOrigins[origin] = struct{}{}
-		}
-	}
-}
-
-func parseSubdomainOriginPattern(origin string) (subdomainOriginPattern, bool) {
-	u, ok := parseOriginURL(origin)
-	if !ok {
-		return subdomainOriginPattern{}, false
-	}
-
-	host := strings.ToLower(u.Hostname())
-	if !strings.HasPrefix(host, "*.") {
-		return subdomainOriginPattern{}, false
-	}
-
-	suffix := host[2:]
-	if suffix == "" || strings.Contains(suffix, "*") {
-		return subdomainOriginPattern{}, false
-	}
-
-	return subdomainOriginPattern{
-		scheme: strings.ToLower(u.Scheme),
-		suffix: suffix,
-		port:   u.Port(),
-	}, true
-}
-
-func originResponseMode(origins []string, allowCredentials bool) (staticAllowOrigin string, varyOrigin bool) {
-	switch {
-	case len(origins) == 0:
-		return "", false
-
-	case len(origins) == 1 && origins[0] == "*" && !allowCredentials:
-		return "*", false
-
-	default:
-		return "", true
-	}
-}
-
-func varyResponseValues(varyOrigin bool) (actual, preflight string) {
-	if varyOrigin {
-		return "Origin", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
-	}
-	return "", "Access-Control-Request-Method, Access-Control-Request-Headers"
-}
-
-func normalizeRequestOrigin(origin string, normalizeHost HostNormalizer) (string, bool) {
-	origin = strings.TrimSpace(origin)
-	if origin == "" {
-		return "", false
-	}
-	return normalizeOrigin(origin, normalizeHost)
-}
-
-func normalizeOrigin(origin string, normalizeHost HostNormalizer) (string, bool) {
-	if origin == "null" {
-		return origin, true
-	}
-
-	u, ok := parseOriginURL(origin)
-	if !ok {
-		return "", false
-	}
-
-	origin = serializeOriginURL(u, normalizeHost)
-	return origin, origin != ""
-}
-
-func normalizeSubdomainPattern(pattern string, normalizeHost HostNormalizer) (string, bool) {
-	if !strings.Contains(pattern, "://*.") {
-		return "", false
-	}
-
-	u, ok := parseOriginURL(pattern)
-	if !ok {
-		return "", false
-	}
-
-	host, ok := serializeSubdomainPatternHost(u.Hostname(), normalizeHost)
-	if !ok || len(host) <= 2 {
-		return "", false
-	}
-
-	scheme := strings.ToLower(u.Scheme)
-	if uport := u.Port(); uport != "" {
-		// parseOriginURL can ensure the port is valid (0-65535),
-		// so we can safely ignore the error returned by strconv.ParseUint.
-		port, _ := strconv.ParseUint(uport, 10, 16)
-		if !isDefaultOriginPort(scheme, port) {
-			host = net.JoinHostPort(host, strconv.FormatUint(port, 10))
-		}
-	}
-	return scheme + "://" + host, true
-}
-
-func parseOriginURL(origin string) (*url.URL, bool) {
-	if strings.ContainsAny(origin, "\r\n\t ") {
-		return nil, false
-	}
-
-	u, err := url.Parse(origin)
-	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil ||
-		u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-		return nil, false
-	}
-
-	if !supportedOriginScheme(u.Scheme) {
-		return nil, false
-	}
-
-	if strings.ContainsAny(u.Host, "\r\n\t ") || u.Hostname() == "" {
-		return nil, false
-	}
-
-	if port := u.Port(); port != "" && !validPort(port) {
-		return nil, false
-	}
-
-	return u, true
-}
-
-func supportedOriginScheme(scheme string) bool {
-	switch strings.ToLower(scheme) {
-	case "http", "https", "ws", "wss":
-		return true
-	default:
-		return false
-	}
-}
-
-func serializeOriginURL(u *url.URL, normalizeHost HostNormalizer) string {
-	scheme := strings.ToLower(u.Scheme)
-	host, ok := serializeOriginHost(u.Hostname(), normalizeHost)
-	if !ok {
-		return ""
-	}
-
-	if port, ok := normalizeURLPort(scheme, u.Port()); !ok {
-		return ""
-	} else if port != "" {
-		host = net.JoinHostPort(host, port)
-	} else if strings.Contains(host, ":") {
-		host = "[" + host + "]"
-	}
-	return scheme + "://" + host
-}
-
-func serializeOriginHost(host string, normalizeHost HostNormalizer) (string, bool) {
-	if host == "" || strings.ContainsAny(host, "\r\n\t ") {
-		return "", false
-	}
-
-	if addr, err := netip.ParseAddr(host); err == nil {
-		if addr.Zone() != "" {
-			return "", false
-		}
-		return strings.ToLower(addr.String()), true
-	}
-
-	if normalizeHost != nil {
-		var ok bool
-		host, ok = normalizeHost(host)
-		if !ok {
-			return "", false
-		}
-	}
-
-	if host == "" || strings.ContainsAny(host, "\r\n\t :[]") || strings.Contains(host, "*") {
-		return "", false
-	}
-	return strings.ToLower(host), true
-}
-
-func serializeSubdomainPatternHost(host string, normalizeHost HostNormalizer) (string, bool) {
-	if host == "" || strings.ContainsAny(host, "\r\n\t ") {
-		return "", false
-	}
-
-	host = strings.ToLower(host)
-	if !strings.HasPrefix(host, "*.") || strings.Contains(host[2:], "*") {
-		return "", false
-	}
-
-	suffix, ok := serializeOriginHost(host[2:], normalizeHost)
-	if !ok || strings.Contains(suffix, ":") {
-		return "", false
-	}
-
-	return "*." + suffix, true
-}
-
-func normalizeURLPort(scheme, port string) (string, bool) {
-	if port == "" {
-		return "", true
-	}
-
-	p, ok := parsePort(port)
-	if !ok {
-		return "", false
-	}
-
-	if isDefaultOriginPort(scheme, p) {
-		return "", true
-	}
-	return strconv.FormatUint(p, 10), true
-}
-
-func isDefaultOriginPort(scheme string, port uint64) bool {
-	switch strings.ToLower(scheme) {
-	case "http", "ws":
-		return port == 80
-
-	case "https", "wss":
-		return port == 443
-
-	default:
-		return false
-	}
-}
-
-func validPort(port string) bool {
-	_, ok := parsePort(port)
-	return ok
-}
-
-func parsePort(port string) (uint64, bool) {
-	if port == "" {
-		return 0, false
-	}
-
-	var p uint64
-	for i := 0; i < len(port); i++ {
-		c := port[i]
-		if c < '0' || c > '9' {
-			return 0, false
-		}
-
-		p = p*10 + uint64(c-'0')
-		if p > 65535 {
-			return 0, false
-		}
-	}
-
-	return p, true
-}
-
-func validToken(value string) bool {
-	if value == "" {
-		return false
-	}
-
-	for i := 0; i < len(value); i++ {
-		if !isTChar(value[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isTChar(c byte) bool {
-	return tcharTable[c]
-}
-
-var tcharTable = func() [256]bool {
-	var table [256]bool
-	for c := byte('0'); c <= byte('9'); c++ {
-		table[c] = true
-	}
-	for c := byte('A'); c <= byte('Z'); c++ {
-		table[c] = true
-	}
-	for c := byte('a'); c <= byte('z'); c++ {
-		table[c] = true
-	}
-	for _, c := range []byte("!#$%&'*+-.^_`|~") {
-		table[c] = true
-	}
-	return table
-}()
 
 func addVaryHeader(h http.Header, value string) {
 	if value == "" {
@@ -893,10 +329,10 @@ func addVaryHeader(h http.Header, value string) {
 		return
 	}
 
-	var fields []string
+	fields := make([]string, 0, 4)
 	seen := make(map[string]struct{}, 4)
 	for _, varyValue := range varyValues {
-		for _, field := range strings.Split(varyValue, ",") {
+		for field := range strings.SplitSeq(varyValue, ",") {
 			field = strings.TrimSpace(field)
 			if field == "" {
 				continue
@@ -914,7 +350,7 @@ func addVaryHeader(h http.Header, value string) {
 		}
 	}
 
-	for _, field := range strings.Split(value, ",") {
+	for field := range strings.SplitSeq(value, ",") {
 		field = strings.TrimSpace(field)
 		if field == "" {
 			continue
