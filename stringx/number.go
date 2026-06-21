@@ -88,6 +88,7 @@ func IsFloat(s string) bool {
 	return isASCIIDigits(fractional)
 }
 
+// IsASCIIDigits reports whether s is non-empty and contains only ASCII digits.
 func IsASCIIDigits(s string) bool {
 	if s == "" {
 		return false
