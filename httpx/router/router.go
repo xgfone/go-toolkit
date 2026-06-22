@@ -52,7 +52,9 @@ func (r *Router) SetBackend(new func(routes []httpx.Route, notfound http.Handler
 	if new == nil {
 		panic("Router.SetBackend: new function must not be nil")
 	}
+	r.rmutex.Lock()
 	r.newBackend = new
+	r.rmutex.Unlock()
 }
 
 // SetNotFound sets the not found handler.
@@ -62,12 +64,16 @@ func (r *Router) SetNotFound(notfound http.Handler) {
 	if notfound == nil {
 		panic("Router.SetNotFound: the NotFound handler must not be nil")
 	}
+	r.rmutex.Lock()
 	r.notfound = notfound
+	r.rmutex.Unlock()
 }
 
 // Use adds global middlewares to the router, which are called before routing.
 func (r *Router) Use(mdws ...httpx.Middleware) {
+	r.rmutex.Lock()
 	r.middlewares = append(r.middlewares, mdws...)
+	r.rmutex.Unlock()
 }
 
 // ServeHTTP implements the http.Handler interface.
