@@ -61,8 +61,8 @@ type Config struct {
 }
 
 // Logger returns a new request logger middleware with the given priority.
-func (c Config) Logger(priority int) *Logger {
-	logger := &Logger{
+func (c Config) Logger(priority int) httpx.Middleware {
+	logger := &logger{
 		enabled:        c.Enabled,
 		preHandle:      c.PreHandle,
 		postHandle:     c.PostHandle,
@@ -116,8 +116,7 @@ func getResponse(w http.ResponseWriter, r *http.Request) (status int, response a
 	return
 }
 
-// Logger logs HTTP request and response information with slog.
-type Logger struct {
+type logger struct {
 	enabled        func(r *http.Request) bool
 	getRequestId   func(r *http.Request) string
 	getRequestBody func(r *http.Request) any
@@ -130,14 +129,11 @@ type Logger struct {
 	prio  int
 }
 
-// Priority returns the priority, which may be used as the priority
-// of httpx.Middleware.
-func (l *Logger) Priority() int {
+func (l *logger) Priority() int {
 	return l.prio
 }
 
-// HTTPHandler implements the interface httpx.Middleware.
-func (l *Logger) HTTPHandler(next http.Handler) http.Handler {
+func (l *logger) HTTPHandler(next http.Handler) http.Handler {
 	if next == nil {
 		panic("Logger.HTTPHandler: next http.Handler is nil")
 	}
@@ -151,8 +147,7 @@ func enableLevel(ctx context.Context, level slog.Level) bool {
 	return slog.Default().Enabled(ctx, level)
 }
 
-// ServeHTTP implements http.Handler.
-func (l *Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (l *logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if l.next == nil {
 		w.WriteHeader(500)
 		_, _ = io.WriteString(w, "Logger: NO NEXT HANDLER")

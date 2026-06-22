@@ -100,7 +100,7 @@ func TestLoggerSkipsWhenDisabled(t *testing.T) {
 }
 
 func TestLoggerEdgeCases(t *testing.T) {
-	logger := Config{}.Logger(3)
+	logger := Config{}.Logger(3).(*logger)
 	if got := logger.Priority(); got != 3 {
 		t.Fatalf("Priority() = %d, want 3", got)
 	}
