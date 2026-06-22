@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/xgfone/go-toolkit/httpx"
 	"github.com/xgfone/go-toolkit/slicex"
 )
 
@@ -109,8 +110,18 @@ func NewDefaultConfig() Config {
 }
 
 // CORS returns a CORS middleware with the given priority.
-func (c Config) CORS(priority int) *CORS {
-	cors := &CORS{
+//
+// The returned middleware will write the CORS Vary fields before passing actual
+// requests to the next handler. Therefore, the downstream handlers should use
+// Header().Add("Vary", field) instead of Header().Set when adding their own
+// Vary fields, otherwise they may overwrite the CORS fields.
+//
+// A failed preflight request is rejected with 403. A rejected or invalid Origin
+// on an actual request is passed to the next handler without CORS allow headers;
+// use CSRF or application-level origin checks when server-side rejection is
+// required.
+func (c Config) CORS(priority int) httpx.Middleware {
+	cors := &cors{
 		priority: priority,
 
 		allowCredentials: c.AllowCredentials,
@@ -143,8 +154,7 @@ func (c Config) CORS(priority int) *CORS {
 	return cors
 }
 
-// CORS is a CORS implementation.
-type CORS struct {
+type cors struct {
 	allowCredentials  bool
 	allowAllOrigins   bool
 	exactAllowOrigin  string
@@ -170,11 +180,9 @@ type CORS struct {
 	next http.Handler
 }
 
-// Priority returns the priority, which may be used as the priority of httpx.Middleware.
-func (c *CORS) Priority() int { return c.priority }
+func (c *cors) Priority() int { return c.priority }
 
-// HTTPHandler implements the interface httpx.Middleware.
-func (c *CORS) HTTPHandler(next http.Handler) http.Handler {
+func (c *cors) HTTPHandler(next http.Handler) http.Handler {
 	if next == nil {
 		panic("CORS.HTTPHandler: next http.Handler is nil")
 	}
@@ -184,17 +192,7 @@ func (c *CORS) HTTPHandler(next http.Handler) http.Handler {
 	return &_c
 }
 
-// ServeHTTP implements the interface http.Handler.
-//
-// The method writes CORS Vary fields before passing actual requests to the next
-// handler. Therefore, downstream handlers should use Header().Add("Vary", field)
-// instead of Header().Set when adding their own Vary fields, otherwise they may
-// overwrite the CORS fields.
-//
-// A failed preflight request is rejected with 403. A rejected or invalid Origin
-// on an actual request is passed to the next handler without CORS allow headers;
-// use CSRF or application-level origin checks when server-side rejection is required.
-func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (c *cors) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.next == nil {
 		w.WriteHeader(500)
 		_, _ = io.WriteString(w, "CORS: NO NEXT HANDLER")
@@ -272,7 +270,7 @@ func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.next.ServeHTTP(w, r)
 }
 
-func (c *CORS) preflightAllowMethods(r *http.Request) (string, bool) {
+func (c *cors) preflightAllowMethods(r *http.Request) (string, bool) {
 	method := strings.TrimSpace(r.Header.Get("Access-Control-Request-Method"))
 	if !validToken(method) {
 		return "", false
@@ -289,7 +287,7 @@ func (c *CORS) preflightAllowMethods(r *http.Request) (string, bool) {
 	return "", false
 }
 
-func (c *CORS) preflightAllowHeaders(r *http.Request) (string, bool) {
+func (c *cors) preflightAllowHeaders(r *http.Request) (string, bool) {
 	rheaders := r.Header.Values("Access-Control-Request-Headers")
 	if len(rheaders) == 0 || (len(rheaders) == 1 && rheaders[0] == "") {
 		if c.allowHeadersWildcard && c.allowCredentials {

@@ -891,7 +891,7 @@ func TestCORSInvalidSubdomainPatternPanicsWithConfigError(t *testing.T) {
 }
 
 func TestCORSPriority(t *testing.T) {
-	c := Config{}.CORS(123)
+	c := Config{}.CORS(123).(*cors)
 	if got := c.Priority(); got != 123 {
 		t.Fatalf("unexpected priority: got %d, want %d", got, 123)
 	}
@@ -905,7 +905,7 @@ func TestCORSHTTPHandlerNilPanics(t *testing.T) {
 
 func TestCORSServeHTTPWithoutNext(t *testing.T) {
 	rec := httptest.NewRecorder()
-	Config{}.CORS(0).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	Config{}.CORS(0).(*cors).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -916,7 +916,7 @@ func TestCORSServeHTTPWithoutNext(t *testing.T) {
 }
 
 func TestCORSOriginHelperEdgeCases(t *testing.T) {
-	c := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0)
+	c := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).(*cors)
 	if origin, ok := parseRequestOrigin("not an origin"); ok || c.matchSubdomainOrigin(origin) {
 		t.Fatal("invalid origin parsed or matched subdomain pattern")
 	}

@@ -75,7 +75,7 @@ func normalizeAllowOrigins(origins []string, normalizeHost HostNormalizer) []str
 	return normalized
 }
 
-func (c *CORS) compileAllowOrigins(origins []string) {
+func (c *cors) compileAllowOrigins(origins []string) {
 	c.allowAllOrigins = false
 	c.exactAllowOrigin = ""
 	c.subdomainOrigins = nil

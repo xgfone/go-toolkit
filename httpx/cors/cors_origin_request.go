@@ -26,7 +26,7 @@ type requestOrigin struct {
 	port   string
 }
 
-func (c *CORS) allowOrigin(origin requestOrigin) (string, bool) {
+func (c *cors) allowOrigin(origin requestOrigin) (string, bool) {
 	if c.staticAllowOrigin != "" {
 		return c.staticAllowOrigin, true
 	}
@@ -54,7 +54,7 @@ func (c *CORS) allowOrigin(origin requestOrigin) (string, bool) {
 	return "", false
 }
 
-func (c *CORS) matchSubdomainOrigin(origin requestOrigin) bool {
+func (c *cors) matchSubdomainOrigin(origin requestOrigin) bool {
 	if origin.host == "" || len(origin.host) > 253 || strings.Contains(origin.host, ":") {
 		return false
 	}
