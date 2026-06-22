@@ -60,8 +60,13 @@ type Config struct {
 	PreHandle func(w http.ResponseWriter, r *http.Request)
 }
 
-// Logger returns a new request logger middleware with the given priority.
+// Logger is the alias of Middleware.
 func (c Config) Logger(priority int) httpx.Middleware {
+	return c.Middleware(priority)
+}
+
+// Middleware returns a new logger middleware with the given priority.
+func (c Config) Middleware(priority int) httpx.Middleware {
 	logger := &logger{
 		enabled:        c.Enabled,
 		preHandle:      c.PreHandle,
