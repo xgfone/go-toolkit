@@ -208,7 +208,7 @@ func (c *Context) Respond(response result.Response) {
 
 var respond func(*Context, result.Response)
 
-func init() { SetRespond(defaultRespond) }
+func init() { SetRespond(DefaultRespond) }
 
 // SetRespond sets the respond function.
 func SetRespond(f func(*Context, result.Response)) {
@@ -218,7 +218,10 @@ func SetRespond(f func(*Context, result.Response)) {
 	respond = f
 }
 
-func defaultRespond(c *Context, response result.Response) {
+// DefaultRespond is the default respond implementation used by SetRespond.
+// It is exposed for callers who need to invoke the default logic directly
+// (e.g., in a custom SetRespond wrapper that delegates to the default).
+func DefaultRespond(c *Context, response result.Response) {
 	if !response.IsZero() {
 		c.Response = response
 	}

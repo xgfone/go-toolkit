@@ -306,7 +306,7 @@ func TestSetRespond(t *testing.T) {
 
 	SetRespond(customRespond)
 	defer func() {
-		SetRespond(defaultRespond)
+		SetRespond(DefaultRespond)
 	}()
 
 	ctx.Respond(result.Ok("test"))
@@ -333,7 +333,7 @@ func TestDefaultRespond(t *testing.T) {
 
 	// Test default respond with data
 	response := result.Ok("test data")
-	defaultRespond(ctx, response)
+	DefaultRespond(ctx, response)
 	if rec.Code != 200 {
 		t.Errorf("expected status code 200, got %d", rec.Code)
 	}
@@ -345,7 +345,7 @@ func TestDefaultRespond(t *testing.T) {
 	rec = httptest.NewRecorder()
 	ctx.Reset(rec, req)
 	response = result.Err(errors.New("test error"))
-	defaultRespond(ctx, response)
+	DefaultRespond(ctx, response)
 	if rec.Code != 500 {
 		t.Errorf("expected status code 500 for generic error, got %d", rec.Code)
 	}
@@ -354,7 +354,7 @@ func TestDefaultRespond(t *testing.T) {
 	rec = httptest.NewRecorder()
 	ctx.Reset(rec, req)
 	response = result.Response{}
-	defaultRespond(ctx, response)
+	DefaultRespond(ctx, response)
 	if rec.Code != 200 {
 		t.Errorf("expected status code 200 for no content, got %d", rec.Code)
 	}
