@@ -197,7 +197,7 @@ func (c *CORS) HTTPHandler(next http.Handler) http.Handler {
 func (c *CORS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.next == nil {
 		w.WriteHeader(500)
-		_, _ = io.WriteString(w, "NO NEXT HANDLER")
+		_, _ = io.WriteString(w, "CORS: NO NEXT HANDLER")
 		return
 	}
 

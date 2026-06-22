@@ -910,7 +910,7 @@ func TestCORSServeHTTPWithoutNext(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
-	if got := rec.Body.String(); got != "NO NEXT HANDLER" {
+	if got := rec.Body.String(); got != "CORS: NO NEXT HANDLER" {
 		t.Fatalf("unexpected body: %q", got)
 	}
 }
