@@ -1,27 +1,61 @@
 name: Go
+
 on: push
+
 env:
   DEBUG: true
+  LATEST_GO: "1.26"
+  GOTOOLCHAIN: local
+
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     name: Go ${{ matrix.go }}
+
+    permissions:
+      contents: read
+
     strategy:
       matrix:
         go:
-          - "1.23"
           - "1.24"
           - "1.25"
           - "1.26"
+
     steps:
       - uses: actions/checkout@v6
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
-      - run: |
-          # just for file path from stacks.
-          mkdir -p /home/runner/go/src/github.com/xgfone/go-toolkit
-          cp -r ./* /home/runner/go/src/github.com/xgfone/go-toolkit
-          cd /home/runner/go/src/github.com/xgfone/go-toolkit
-          sudo go test -cover -race ./...
+
+      - name: Run Tests
+        run: bash .github/scripts/go-test.sh
+
+  coverage:
+    runs-on: ubuntu-latest
+    name: Coverage
+    needs: test
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Latest Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.LATEST_GO }}
+
+      - name: Generate Coverage Report
+        run: bash .github/scripts/go-test.sh coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          flags: unittests
+          name: go-${{ env.LATEST_GO }}
