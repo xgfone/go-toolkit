@@ -84,6 +84,7 @@ func (c Config) Middleware(priority int) httpx.Middleware {
 
 // NewDefaultConfig returns a new default Config.
 //
+//   - Enabled: logs requests by default, except for the root path "/".
 //   - GetRequestId: reads the request id from the X-Request-Id header.
 //   - GetResponse: reads the response status, body, and error from the
 //     httpx.Context or httpx.ResponseWriter. If httpx.Context.BytesWritten
@@ -91,9 +92,14 @@ func (c Config) Middleware(priority int) httpx.Middleware {
 //     the response body.
 func NewDefaultConfig() Config {
 	return Config{
+		Enabled:      enabled,
 		GetResponse:  getResponse,
 		GetRequestId: getRequestId,
 	}
+}
+
+func enabled(r *http.Request) bool {
+	return r.URL.Path != "/"
 }
 
 func getRequestId(r *http.Request) string {
