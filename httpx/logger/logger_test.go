@@ -135,9 +135,9 @@ func TestGetResponseUnwrapsResponseWriter(t *testing.T) {
 
 	ctx.BytesWritten = 2049
 	status, response, err = getResponse(rw, reqWithContext)
-	if status != http.StatusPartialContent || response != "[RESPONSE TOO LONG: 2049]" || err != errBody {
+	if status != http.StatusPartialContent || response != "[BODY TOO LONG: 2049]" || err != errBody {
 		t.Fatalf("getResponse(long context) = %d, %#v, %v; want %d, %q, %v",
-			status, response, err, http.StatusPartialContent, "[RESPONSE TOO LONG: 2049]", errBody)
+			status, response, err, http.StatusPartialContent, "[BODY TOO LONG: 2049]", errBody)
 	}
 
 	status, response, err = getResponse(unwrapWriter{ResponseWriter: unwrapWriter{ResponseWriter: rw}}, req)

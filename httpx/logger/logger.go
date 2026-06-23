@@ -109,7 +109,7 @@ func getRequestId(r *http.Request) string {
 func getResponse(w http.ResponseWriter, r *http.Request) (status int, response any, err error) {
 	if c := httpx.GetContext(r.Context()); c != nil {
 		if c.BytesWritten > 2048 {
-			response = fmt.Sprintf("[RESPONSE TOO LONG: %d]", c.BytesWritten)
+			response = fmt.Sprintf("[BODY TOO LONG: %d]", c.BytesWritten)
 			return c.StatusCode(), response, c.Error
 		}
 		return c.StatusCode(), c.ResponseBody, c.Error
