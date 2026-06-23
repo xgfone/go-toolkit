@@ -22,6 +22,44 @@ import (
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
+func TestContextSet(t *testing.T) {
+	t.Run("SetAcquireContext with nil", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Error("should panic")
+			}
+		}()
+		SetAcquireContext(nil)
+	})
+
+	t.Run("SetReleaseContext with nil", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Error("should panic")
+			}
+		}()
+		SetReleaseContext(nil)
+	})
+
+	t.Run("SetAcquireContext without nil", func(t *testing.T) {
+		defer func() {
+			if recover() != nil {
+				t.Error("should not panic")
+			}
+		}()
+		SetAcquireContext(httpx.AcquireContext)
+	})
+
+	t.Run("SetReleaseContext without nil", func(t *testing.T) {
+		defer func() {
+			if recover() != nil {
+				t.Error("should not panic")
+			}
+		}()
+		SetReleaseContext(httpx.ReleaseContext)
+	})
+}
+
 func TestContextMiddleware(t *testing.T) {
 	t.Run("without existing context", func(t *testing.T) {
 		called := false

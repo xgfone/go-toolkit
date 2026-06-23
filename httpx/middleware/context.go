@@ -20,13 +20,43 @@ import (
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
+var (
+	ctxAcquireContext func() *httpx.Context
+	ctxReleaseContext func(*httpx.Context)
+)
+
+func init() {
+	SetAcquireContext(httpx.AcquireContext)
+	SetReleaseContext(httpx.ReleaseContext)
+}
+
+// SetAcquireContext resets the acquire function for the context.
+//
+// Default: httpx.AcquireContext
+func SetAcquireContext(acquire func() *httpx.Context) {
+	if acquire == nil {
+		panic("middleware.SetAcquireContext: acquire function is nil")
+	}
+	ctxAcquireContext = acquire
+}
+
+// SetReleaseContext resets the release function for the context.
+//
+// Default: httpx.ReleaseContext
+func SetReleaseContext(release func(*httpx.Context)) {
+	if release == nil {
+		panic("middleware.SetReleaseContext: release function is nil")
+	}
+	ctxReleaseContext = release
+}
+
 // Context is an http middleware to allocate a context and put it
 // into the http request, then release it after handling the http request.
 func Context(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c := httpx.GetContext(r.Context()); c == nil {
-			c = httpx.AcquireContext()
-			defer httpx.ReleaseContext(c)
+			c = ctxAcquireContext()
+			defer ctxReleaseContext(c)
 
 			c.Reset(w, r.WithContext(httpx.SetContext(r.Context(), c)))
 			next.ServeHTTP(c.ResponseWriter, c.Request)
