@@ -1,5 +1,6 @@
 # A Collections Of Base Tool Kits
 
+[![codecov](https://codecov.io/gh/xgfone/go-toolkit/branch/main/graph/badge.svg)](https://codecov.io/gh/xgfone/go-toolkit)
 [![Build Status](https://github.com/xgfone/go-toolkit/actions/workflows/go.yml/badge.svg)](https://github.com/xgfone/go-toolkit/actions/workflows/go.yml)
 [![GoDoc](https://pkg.go.dev/badge/github.com/xgfone/go-toolkit)](https://pkg.go.dev/github.com/xgfone/go-toolkit)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](https://raw.githubusercontent.com/xgfone/go-toolkit/master/LICENSE)
