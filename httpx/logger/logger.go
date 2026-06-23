@@ -98,7 +98,7 @@ func getRequestId(r *http.Request) string {
 
 func getResponse(w http.ResponseWriter, r *http.Request) (status int, response any, err error) {
 	if c := httpx.GetContext(r.Context()); c != nil {
-		return c.StatusCode(), c.Response, c.Error
+		return c.StatusCode(), c.ResponseBody, c.Error
 	}
 
 	for range 10 {

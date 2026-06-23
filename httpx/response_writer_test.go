@@ -77,8 +77,8 @@ func TestContextResponseWriter(t *testing.T) {
 		if rec.Code != 200 {
 			t.Errorf("Write should set status 200, got %d", rec.Code)
 		}
-		if ctx.Code != 200 {
-			t.Errorf("ctx.Code should be 200, got %d", ctx.Code)
+		if ctx.ResponseCode != 200 {
+			t.Errorf("ctx.Code should be 200, got %d", ctx.ResponseCode)
 		}
 	})
 
@@ -92,8 +92,8 @@ func TestContextResponseWriter(t *testing.T) {
 			if rec.Code != 201 {
 				t.Errorf("status code should be 201, got %d", rec.Code)
 			}
-			if ctx.Code != 201 {
-				t.Errorf("ctx.Code should be 201, got %d", ctx.Code)
+			if ctx.ResponseCode != 201 {
+				t.Errorf("ctx.Code should be 201, got %d", ctx.ResponseCode)
 			}
 		})
 
@@ -107,8 +107,8 @@ func TestContextResponseWriter(t *testing.T) {
 			if rec.Code != 200 {
 				t.Errorf("second WriteHeader should be ignored, got %d", rec.Code)
 			}
-			if ctx.Code != 200 {
-				t.Errorf("ctx.Code should remain 200, got %d", ctx.Code)
+			if ctx.ResponseCode != 200 {
+				t.Errorf("ctx.Code should remain 200, got %d", ctx.ResponseCode)
 			}
 		})
 

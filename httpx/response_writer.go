@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -43,9 +44,19 @@ func (w *_ContextResponseWriter) Header() http.Header {
 	return w.w.Header()
 }
 
+func (w *_ContextResponseWriter) written(n int, err error) (int, error) {
+	w.BytesWritten += n
+	return n, err
+}
+
 func (w *_ContextResponseWriter) Write(p []byte) (int, error) {
 	w.WriteHeader(200)
-	return w.w.Write(p)
+	return w.written(w.w.Write(p))
+}
+
+func (w *_ContextResponseWriter) WriteString(s string) (int, error) {
+	w.WriteHeader(200)
+	return w.written(io.WriteString(w.w, s))
 }
 
 func (w *_ContextResponseWriter) WriteHeader(code int) {
@@ -53,14 +64,14 @@ func (w *_ContextResponseWriter) WriteHeader(code int) {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
-	if w.Code == 0 {
-		w.Code = code
+	if w.ResponseCode == 0 {
+		w.ResponseCode = code
 		w.w.WriteHeader(code)
 	}
 }
 
 func (w *_ContextResponseWriter) StatusCode() int {
-	return w.Code
+	return w.ResponseCode
 }
 
 func (w *_ContextResponseWriter) JSON(code int, v any) {

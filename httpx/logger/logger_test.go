@@ -40,7 +40,7 @@ func TestLoggerLogsRequest(t *testing.T) {
 	raw := errors.New("secret")
 	handler := middleware.Context(config.Logger(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := httpx.GetContext(r.Context())
-		c.Response = "response-body"
+		c.ResponseBody = "response-body"
 		c.AppendError(errorx.Sensitive(raw, "safe"))
 		w.WriteHeader(http.StatusCreated)
 	})))

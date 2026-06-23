@@ -68,12 +68,14 @@ type Context struct {
 	http.ResponseWriter
 	*http.Request
 
-	Code int // StatusCode
 	Auth any
 	Data mapx.SMap[any]
 
-	Error    error // The error occurred during the request
-	Response any   // The response information, such as response body
+	Error error // The error occurred during the request
+
+	BytesWritten int // Total bytes written to the response body
+	ResponseCode int // Response StatusCode
+	ResponseBody any // The Response Body
 
 	// w is the original http.ResponseWriter never implement ResponseWriter.
 	w http.ResponseWriter
@@ -113,8 +115,8 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 //
 // Return 0 if the response header has not been written yet.
 func (c *Context) StatusCode() int {
-	if c.Code > 0 {
-		return c.Code
+	if c.ResponseCode > 0 {
+		return c.ResponseCode
 	}
 
 	if rw, ok := c.ResponseWriter.(ResponseWriter); ok {
@@ -223,7 +225,7 @@ func SetRespond(f func(*Context, result.Response)) {
 // (e.g., in a custom SetRespond wrapper that delegates to the default).
 func DefaultRespond(c *Context, response result.Response) {
 	if !response.IsZero() {
-		c.Response = response
+		c.ResponseBody = response
 	}
 
 	if response.Error != nil {
