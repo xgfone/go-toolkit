@@ -118,8 +118,29 @@ func TestLoggerEdgeCases(t *testing.T) {
 func TestGetResponseUnwrapsResponseWriter(t *testing.T) {
 	rw := &statusWriter{code: http.StatusAccepted}
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	errBody := errors.New("response error")
 
-	status, response, err := getResponse(unwrapWriter{ResponseWriter: unwrapWriter{ResponseWriter: rw}}, req)
+	ctx := httpx.AcquireContext()
+	defer httpx.ReleaseContext(ctx)
+	ctx.ResponseCode = http.StatusPartialContent
+	ctx.ResponseBody = "small response"
+	ctx.Error = errBody
+	reqWithContext := req.WithContext(httpx.SetContext(req.Context(), ctx))
+
+	status, response, err := getResponse(rw, reqWithContext)
+	if status != http.StatusPartialContent || response != "small response" || err != errBody {
+		t.Fatalf("getResponse(context) = %d, %#v, %v; want %d, %q, %v",
+			status, response, err, http.StatusPartialContent, "small response", errBody)
+	}
+
+	ctx.BytesWritten = 2049
+	status, response, err = getResponse(rw, reqWithContext)
+	if status != http.StatusPartialContent || response != "[RESPONSE TOO LONG: 2049]" || err != errBody {
+		t.Fatalf("getResponse(long context) = %d, %#v, %v; want %d, %q, %v",
+			status, response, err, http.StatusPartialContent, "[RESPONSE TOO LONG: 2049]", errBody)
+	}
+
+	status, response, err = getResponse(unwrapWriter{ResponseWriter: unwrapWriter{ResponseWriter: rw}}, req)
 	if status != http.StatusAccepted || response != nil || err != nil {
 		t.Fatalf("getResponse() = %d, %#v, %v; want %d, nil, nil", status, response, err, http.StatusAccepted)
 	}

@@ -18,6 +18,7 @@ package logger
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -83,8 +84,11 @@ func (c Config) Middleware(priority int) httpx.Middleware {
 
 // NewDefaultConfig returns a new default Config.
 //
-//	GetRequestId: reads the request id from the X-Request-Id header.
-//	GetResponse: reads the response status, body, and error	from the httpx.Context or httpx.ResponseWriter.
+//   - GetRequestId: reads the request id from the X-Request-Id header.
+//   - GetResponse: reads the response status, body, and error from the
+//     httpx.Context or httpx.ResponseWriter. If httpx.Context.BytesWritten
+//     is greater than 2048, it logs a short replacement message instead of
+//     the response body.
 func NewDefaultConfig() Config {
 	return Config{
 		GetResponse:  getResponse,
@@ -98,6 +102,10 @@ func getRequestId(r *http.Request) string {
 
 func getResponse(w http.ResponseWriter, r *http.Request) (status int, response any, err error) {
 	if c := httpx.GetContext(r.Context()); c != nil {
+		if c.BytesWritten > 2048 {
+			response = fmt.Sprintf("[RESPONSE TOO LONG: %d]", c.BytesWritten)
+			return c.StatusCode(), response, c.Error
+		}
 		return c.StatusCode(), c.ResponseBody, c.Error
 	}
 
