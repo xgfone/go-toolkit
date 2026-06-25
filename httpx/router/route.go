@@ -176,6 +176,10 @@ func (r Route) Handler(handler http.Handler) Route {
 	}
 
 	if route.Path == "" {
+		route.Path = r.group
+	}
+
+	if route.Path == "" {
 		route.Path = "/"
 	}
 
