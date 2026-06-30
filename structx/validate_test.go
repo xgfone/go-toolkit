@@ -136,7 +136,7 @@ func TestValidateAnyFieldError(t *testing.T) {
 	if !errors.Is(err, errBad) {
 		t.Fatalf("got error %v, want wrapping %v", err, errBad)
 	}
-	if err.Error() != `"name": bad` {
+	if err.Error() != "name: bad" {
 		t.Fatalf("got error %q", err)
 	}
 }

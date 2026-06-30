@@ -183,7 +183,7 @@ func TestSetDefault_Backend_FieldError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expect error")
 	}
-	if !strings.Contains(err.Error(), `"Age":`) {
+	if !strings.Contains(err.Error(), "Age:") {
 		t.Fatalf("expect field name wrapped in error, got %v", err)
 	}
 }

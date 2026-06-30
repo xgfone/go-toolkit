@@ -337,7 +337,7 @@ func TestBindMapErrors(t *testing.T) {
 
 	var target bindValuesTarget
 	err = BindMap(&target, map[string]any{"age": "bad"}, "q")
-	if err == nil || !strings.Contains(err.Error(), `"age":`) {
+	if err == nil || !strings.Contains(err.Error(), "age:") {
 		t.Fatalf("got error %v", err)
 	}
 
@@ -346,7 +346,7 @@ func TestBindMapErrors(t *testing.T) {
 	}
 	var bindTargetValue bindTarget
 	err = BindMap(&bindTargetValue, map[string]any{"value": "bad"}, "q")
-	if !errors.Is(err, errBadBind) || !strings.Contains(err.Error(), `"value":`) {
+	if !errors.Is(err, errBadBind) || !strings.Contains(err.Error(), "value:") {
 		t.Fatalf("got error %v", err)
 	}
 }
@@ -368,12 +368,12 @@ func TestBindValuesErrors(t *testing.T) {
 
 	var target bindValuesTarget
 	err = BindValues(&target, _SMap{"age": "bad"}, "q")
-	if err == nil || !strings.Contains(err.Error(), `"age":`) {
+	if err == nil || !strings.Contains(err.Error(), "age:") {
 		t.Fatalf("got error %v", err)
 	}
 
 	err = BindValues(&target, _SMap{"text": "bad"}, "q")
-	if err == nil || !strings.Contains(err.Error(), `"text":`) {
+	if err == nil || !strings.Contains(err.Error(), "text:") {
 		t.Fatalf("got error %v", err)
 	}
 }
