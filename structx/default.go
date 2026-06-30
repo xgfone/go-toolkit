@@ -101,7 +101,7 @@ func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
 		}
 
 		if err = f.Data.SetField(f.Type, rvalue, f.Data.TagValue); err != nil {
-			return fmt.Errorf("%q: %w", f.Name, err)
+			return fmt.Errorf("%s: %w", f.Name, err)
 		}
 	}
 	return

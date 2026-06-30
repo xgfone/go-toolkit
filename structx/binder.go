@@ -98,7 +98,7 @@ func bindValues(rtype reflect.Type, root reflect.Value, src interface{ Get(strin
 		}
 
 		if err := f.Data.SetField(f.Type, f.GetField(root), s); err != nil {
-			return fmt.Errorf("%q: %w", f.Name, err)
+			return fmt.Errorf("%s: %w", f.Name, err)
 		}
 	}
 
@@ -169,7 +169,7 @@ func bindMap(rtype reflect.Type, root reflect.Value, src map[string]any, tag str
 		}
 
 		if err = f.Data.SetField(f.Type, f.GetField(root), value); err != nil {
-			return fmt.Errorf("%q: %w", f.Name, err)
+			return fmt.Errorf("%s: %w", f.Name, err)
 		}
 	}
 	return

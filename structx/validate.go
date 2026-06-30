@@ -86,7 +86,7 @@ func (v _FieldRuleValidateFunc) Validate(rtype reflect.Type, root reflect.Value)
 		}
 
 		if err := v(rvalue, f.Data.Rule); err != nil {
-			return fmt.Errorf("%q: %w", f.Data.Name, err)
+			return fmt.Errorf("%s: %w", f.Data.Name, err)
 		}
 	}
 	return nil
