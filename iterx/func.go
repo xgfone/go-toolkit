@@ -55,6 +55,17 @@ func Sum[V any, R Number](seq iter.Seq[V], f func(V) R) R {
 	return r
 }
 
+// Count returns the number of elements in the sequence that match the predicate.
+func Count[V any](seq iter.Seq[V], predicate func(V) bool) int {
+	var total int
+	for v := range seq {
+		if predicate(v) {
+			total++
+		}
+	}
+	return total
+}
+
 // Filter returns a new sequence that only contains the elements that match the predicate.
 func Filter[V any](seq iter.Seq[V], predicate func(V) bool) iter.Seq[V] {
 	return func(yield func(V) bool) {

@@ -107,6 +107,44 @@ func ExampleAny() {
 	// false
 }
 
+func ExampleCount() {
+	// Slice
+	{
+		ints := []int{1, 2, 3, 4, 5}
+		seq := slices.Values(ints)
+
+		c0 := Count(seq, func(v int) bool { return v > 0 })
+		c1 := Count(seq, func(v int) bool { return v > 2 })
+		c2 := Count(seq, func(v int) bool { return v > 5 })
+
+		fmt.Println(c0)
+		fmt.Println(c1)
+		fmt.Println(c2)
+	}
+
+	// Map
+	{
+		intm := map[int]int{1: 1, 2: 2, 3: 3}
+		seq := maps.Values(intm)
+
+		c0 := Count(seq, func(v int) bool { return v > 0 })
+		c1 := Count(seq, func(v int) bool { return v > 1 })
+		c2 := Count(seq, func(v int) bool { return v > 3 })
+
+		fmt.Println(c0)
+		fmt.Println(c1)
+		fmt.Println(c2)
+	}
+
+	// Output:
+	// 5
+	// 3
+	// 0
+	// 3
+	// 2
+	// 0
+}
+
 func ExampleSum() {
 	ints1 := []int{1, 2, 3, 4}
 	sum1 := Sum(slices.Values(ints1), func(v int) int { return v })
