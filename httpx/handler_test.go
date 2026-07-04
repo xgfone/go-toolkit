@@ -104,6 +104,88 @@ func TestContextHandler(t *testing.T) {
 
 }
 
+func TestContextHandlerAndOr(t *testing.T) {
+	t.Run("zero", func(t *testing.T) {
+		if h := ContextHandlerAnd(); h != nil {
+			t.Error("ContextHandlerAnd with no handlers should return nil")
+		}
+		if h := ContextHandlerOr(); h != nil {
+			t.Error("ContextHandlerOr with no handlers should return nil")
+		}
+	})
+
+	t.Run("one", func(t *testing.T) {
+		h := ContextHandler(func(c *Context) error { return nil })
+		if got := ContextHandlerAnd(h); got == nil || got(nil) != nil {
+			t.Error("ContextHandlerAnd with one handler should return and call it")
+		}
+		if got := ContextHandlerOr(h); got == nil || got(nil) != nil {
+			t.Error("ContextHandlerOr with one handler should return and call it")
+		}
+	})
+
+	t.Run("and", func(t *testing.T) {
+		errTarget := fmt.Errorf("stop")
+		var calls []int
+
+		// all succeed
+		h := ContextHandlerAnd(
+			func(c *Context) error { calls = append(calls, 1); return nil },
+			func(c *Context) error { calls = append(calls, 2); return nil },
+		)
+		if err := h(nil); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(calls) != 2 || calls[0] != 1 || calls[1] != 2 {
+			t.Errorf("expected calls [1 2], got %v", calls)
+		}
+
+		// short-circuit on first error
+		calls = nil
+		h = ContextHandlerAnd(
+			func(c *Context) error { calls = append(calls, 1); return nil },
+			func(c *Context) error { calls = append(calls, 2); return errTarget },
+			func(c *Context) error { calls = append(calls, 3); return nil },
+		)
+		if err := h(nil); err != errTarget {
+			t.Errorf("expected target error, got %v", err)
+		}
+		if len(calls) != 2 || calls[0] != 1 || calls[1] != 2 {
+			t.Errorf("expected calls [1 2], got %v", calls)
+		}
+	})
+
+	t.Run("or", func(t *testing.T) {
+		err1 := fmt.Errorf("err1")
+		var calls []int
+
+		// short-circuit on first success
+		h := ContextHandlerOr(
+			func(c *Context) error { calls = append(calls, 1); return nil },
+			func(c *Context) error { calls = append(calls, 2); return fmt.Errorf("unreachable") },
+		)
+		if err := h(nil); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+		if len(calls) != 1 || calls[0] != 1 {
+			t.Errorf("expected calls [1], got %v", calls)
+		}
+
+		// all fail
+		calls = nil
+		h = ContextHandlerOr(
+			func(c *Context) error { calls = append(calls, 1); return err1 },
+			func(c *Context) error { calls = append(calls, 2); return fmt.Errorf("err2") },
+		)
+		if err := h(nil); err == nil || err.Error() != "err2" {
+			t.Errorf("expected last error 'err2', got %v", err)
+		}
+		if len(calls) != 2 || calls[0] != 1 || calls[1] != 2 {
+			t.Errorf("expected calls [1 2], got %v", calls)
+		}
+	})
+}
+
 func TestContextHandler_HTTPHandler(t *testing.T) {
 	// Test case 1: No context in request
 	t.Run("NoContext", func(t *testing.T) {

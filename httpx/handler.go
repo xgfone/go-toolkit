@@ -17,6 +17,7 @@ package httpx
 import (
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/xgfone/go-toolkit/internal/render"
 )
@@ -83,4 +84,51 @@ func (h ContextHandler) HTTPHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		}
 	})
+}
+
+// ContextHandlerAnd combines multiple ContextHandlers with AND logic and
+// returns a ContextHandler that calls each handler in order.
+//
+// If any handler returns a non-nil error, the combined handler short-circuits
+// and returns that error immediately without calling the remaining handlers.
+// If all handlers return nil, the combined handler returns nil.
+//
+// If no handlers are provided, it returns nil.
+// If only one handler is provided, it returns that handler directly.
+func ContextHandlerAnd(handlers ...ContextHandler) ContextHandler {
+	return contextHandlers(true, handlers...)
+}
+
+// ContextHandlerOr combines multiple ContextHandlers with OR logic and
+// returns a ContextHandler that calls each handler in order.
+//
+// If any handler returns nil (success), the combined handler short-circuits
+// and returns nil immediately without calling the remaining handlers.
+// If all handlers return a non-nil error, the combined handler returns
+// the last error encountered.
+//
+// If no handlers are provided, it returns nil.
+// If only one handler is provided, it returns that handler directly.
+func ContextHandlerOr(handlers ...ContextHandler) ContextHandler {
+	return contextHandlers(false, handlers...)
+}
+
+func contextHandlers(fastfail bool, handlers ...ContextHandler) ContextHandler {
+	switch len(handlers) {
+	case 0:
+		return nil
+
+	case 1:
+		return handlers[0]
+	}
+
+	handlers = slices.Clone(handlers)
+	return func(c *Context) (err error) {
+		for i := range len(handlers) {
+			if err = handlers[i](c); fastfail == (err != nil) {
+				return
+			}
+		}
+		return
+	}
 }
