@@ -84,6 +84,51 @@ func TestSetVersion_Panics_AfterRun(t *testing.T) {
 	t.Error("expected panic")
 }
 
+func TestSetCommit(t *testing.T) {
+	app := New()
+	app.SetCommit("abc123")
+	if app.Commit() != "abc123" {
+		t.Errorf("expected 'abc123', got %q", app.Commit())
+	}
+}
+
+func TestSetCommit_Panics_AfterRun(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	_ = app.Run(ctx)
+
+	defer func() { _ = recover() }()
+	app.SetCommit("x")
+	t.Error("expected panic")
+}
+
+func TestSetBuiltTime(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	app := New()
+	app.SetBuiltTime(now)
+	if got := app.BuildTime(); !got.Equal(now) {
+		t.Errorf("expected %v, got %v", now, got)
+	}
+}
+
+func TestSetBuiltTime_Panics_AfterRun(t *testing.T) {
+	app := New()
+	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	app.SetSignals()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	_ = app.Run(ctx)
+
+	defer func() { _ = recover() }()
+	app.SetBuiltTime(time.Now())
+	t.Error("expected panic")
+}
+
 func TestSetShutdownTimeout_Panics_NonPositive(t *testing.T) {
 	defer func() { _ = recover() }()
 	New().SetShutdownTimeout(0)

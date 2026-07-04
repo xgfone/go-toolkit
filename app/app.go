@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/xgfone/go-toolkit/timex"
 )
 
 // DefaultApp is the package-level default App instance.
@@ -47,7 +49,9 @@ type App struct {
 	mu sync.Mutex
 
 	name    atomic.Value
+	commit  atomic.Value
 	version atomic.Value
+	builtat atomic.Int64
 
 	configLoader    Hook
 	shutdownTimeout time.Duration
@@ -108,9 +112,19 @@ func (a *App) Name() string {
 	return a.name.Load().(string)
 }
 
+// Commit returns app commit.
+func (a *App) Commit() string {
+	return a.commit.Load().(string)
+}
+
 // Version returns app version.
 func (a *App) Version() string {
 	return a.version.Load().(string)
+}
+
+// BuildTime returns the time when built the app.
+func (a *App) BuildTime() time.Time {
+	return timex.Unix(a.builtat.Load(), 0)
 }
 
 // SetName sets app name.
@@ -128,6 +142,17 @@ func (a *App) SetName(name string) {
 	a.name.Store(name)
 }
 
+// SetCommit sets the app commit.
+//
+// It must be called before Run.
+func (a *App) SetCommit(commit string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.mustBeNewLocked("SetCommit")
+	a.commit.Store(commit)
+}
+
 // SetVersion sets app version.
 //
 // It must be called before Run.
@@ -137,6 +162,17 @@ func (a *App) SetVersion(version string) {
 
 	a.mustBeNewLocked("SetVersion")
 	a.version.Store(version)
+}
+
+// SetBuiltTime sets the app build time.
+//
+// It must be called before Run.
+func (a *App) SetBuiltTime(builtat time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.mustBeNewLocked("SetBuiltTime")
+	a.builtat.Store(builtat.Unix())
 }
 
 // SetShutdownTimeout sets graceful shutdown timeout.
