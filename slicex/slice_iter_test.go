@@ -19,6 +19,27 @@ import (
 	"slices"
 )
 
+func ExampleCollect() {
+	seq := func(yield func(int) bool) {
+		for _, v := range []int{1, 2, 3} {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+
+	// Collect with a named slice type.
+	fmt.Println(Collect(3, seq))
+
+	// Collect an empty sequence.
+	empty := func(yield func(int) bool) {}
+	fmt.Println(Collect(0, empty))
+
+	// Output:
+	// [1 2 3]
+	// []
+}
+
 func ExampleValuesFunc() {
 	seq := ValuesFunc([]int{1, 2, 3}, func(i int) string {
 		return fmt.Sprintf("v%d", i)

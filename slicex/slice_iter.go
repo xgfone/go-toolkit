@@ -14,7 +14,10 @@
 
 package slicex
 
-import "iter"
+import (
+	"iter"
+	"slices"
+)
 
 // ValuesFunc returns an iterator that yields the slice elements in order.
 func ValuesFunc[Slice ~[]E, E, V any](s Slice, f func(E) V) iter.Seq[V] {
@@ -25,4 +28,14 @@ func ValuesFunc[Slice ~[]E, E, V any](s Slice, f func(E) V) iter.Seq[V] {
 			}
 		}
 	}
+}
+
+// Collect collects the elements from the iterator seq into a slice
+// with the given initial capacity and returns it.
+func Collect[E any](cap int, seq iter.Seq[E]) []E {
+	var s []E
+	if cap > 0 {
+		s = make([]E, 0, cap)
+	}
+	return slices.AppendSeq(s, seq)
 }
