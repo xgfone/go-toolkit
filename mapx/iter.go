@@ -14,7 +14,10 @@
 
 package mapx
 
-import "iter"
+import (
+	"iter"
+	"maps"
+)
 
 // All is the same as maps.All to return an iterator over key-value pairs from m,
 // but uses Pair[K, V] to return iter.Seq instead of iter.Seq2.
@@ -26,4 +29,12 @@ func All[M ~map[K]V, K comparable, V any](m M) iter.Seq[Pair[K, V]] {
 			}
 		}
 	}
+}
+
+// Collect collects key-value pairs from seq into a new map with the given
+// initial capacity and returns it.
+func Collect[K comparable, V any](cap int, seq iter.Seq2[K, V]) map[K]V {
+	m := make(map[K]V, cap)
+	maps.Insert(m, seq)
+	return m
 }

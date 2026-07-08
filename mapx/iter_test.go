@@ -19,6 +19,29 @@ import (
 	"slices"
 )
 
+func ExampleCollect() {
+	seq := func(yield func(int, string) bool) {
+		for _, v := range []int{1, 2, 3} {
+			if !yield(v, fmt.Sprintf("v%d", v)) {
+				return
+			}
+		}
+	}
+
+	m := Collect(3, seq)
+	fmt.Println(len(m))
+
+	for k := 1; k <= 3; k++ {
+		fmt.Printf("%d:%s\n", k, m[k])
+	}
+
+	// Output:
+	// 3
+	// 1:v1
+	// 2:v2
+	// 3:v3
+}
+
 func ExampleAll() {
 	intm := map[int]int{1: 1, 2: 2, 3: 3}
 	pairs := slices.Collect(All(intm))
