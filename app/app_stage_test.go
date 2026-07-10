@@ -29,9 +29,13 @@ func TestStageOn(t *testing.T) {
 	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	DefaultApp.SetSignals()
 
-	var called atomic.Bool
+	var called atomic.Int64
 	StageInit.On(func(ctx context.Context, app *App) error {
-		called.Store(true)
+		called.Add(1)
+		return nil
+	})
+	DefaultApp.OnCleanup(func(ctx context.Context, app *App) error {
+		called.Add(1)
 		return nil
 	})
 
@@ -40,8 +44,8 @@ func TestStageOn(t *testing.T) {
 	if err := DefaultApp.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if !called.Load() {
-		t.Error("Stage.On hook not called")
+	if num := called.Load(); num != 2 {
+		t.Error("Stage.On or OnCleanup hook not called")
 	}
 }
 

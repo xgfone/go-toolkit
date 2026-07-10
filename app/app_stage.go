@@ -60,6 +60,12 @@ func (s Stage) OnNamed(name string, hook Hook) {
 	DefaultApp.OnNamed(s, name, hook)
 }
 
+// OnCleanup registers a hook for StageCleanup,
+// which is a convenience wrapper around a.On(StageCleanup, hook).
+func (a *App) OnCleanup(hook Hook) {
+	a.On(StageCleanup, hook)
+}
+
 func (a *App) canRegisterHookLocked(stage Stage) bool {
 	if a.state == stateNew {
 		return true
