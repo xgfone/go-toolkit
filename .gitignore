@@ -36,7 +36,6 @@ test_*
 vendor/
 
 # VS Code
-.vscode/
 debug
 debug_test
 
@@ -50,4 +49,3 @@ debug_test
 
 # hidden files
 .*
-_*
