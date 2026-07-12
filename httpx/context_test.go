@@ -94,7 +94,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 
 	// Test inline disposition
 	ctx.SetContentDisposition("inline", "")
-	const expectedInline = "Content-Disposition: inline"
+	const expectedInline = "inline"
 	if disp := rec.Header().Get("Content-Disposition"); disp != expectedInline {
 		t.Errorf("expected '%s', got '%s'", expectedInline, disp)
 	}
@@ -103,7 +103,7 @@ func TestContext_SetContentDisposition(t *testing.T) {
 	rec = httptest.NewRecorder()
 	ctx.Reset(rec, req)
 	ctx.SetContentDisposition("attachment", "")
-	const expectedAttachment = "Content-Disposition: attachment"
+	const expectedAttachment = "attachment"
 	if disp := rec.Header().Get("Content-Disposition"); disp != expectedAttachment {
 		t.Errorf("expected '%s', got '%s'", expectedAttachment, disp)
 	}
