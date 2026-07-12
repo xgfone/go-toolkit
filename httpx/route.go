@@ -15,9 +15,9 @@
 package httpx
 
 import (
-	"bytes"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // Route is a http request route.
@@ -34,9 +34,9 @@ type Route struct {
 
 // Pattern returns the route pattern for Go 1.22+.
 func (r Route) Pattern() string {
-	buf := bytes.NewBuffer(nil)
+	var buf strings.Builder
 	buf.Grow(len(r.Host) + len(r.Path) + len(r.Method) + 1)
-	_, _ = r.WriteTo(buf)
+	_, _ = r.WriteTo(&buf)
 	return buf.String()
 }
 
