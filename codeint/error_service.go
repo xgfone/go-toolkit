@@ -31,7 +31,7 @@ var (
 	ErrPaid     = ErrConflict.WithCode(400011).WithMessage("has paid")
 	ErrNotPaid  = ErrConflict.WithCode(400012).WithMessage("has not paid")
 	ErrRefunded = ErrConflict.WithCode(400013).WithMessage("has refunded")
-	ErrReturned = ErrConflict.WithCode(400013).WithMessage("has returned")
+	ErrReturned = ErrConflict.WithCode(400014).WithMessage("has returned")
 
 	ErrUsedUp = ErrConflict.WithCode(400020).WithMessage("used up")
 
