@@ -159,7 +159,7 @@ func (c *Context) SetContentDisposition(dtype, filename string) {
 
 	var disposition string
 	if filename == "" {
-		disposition = "Content-Disposition: " + dtype
+		disposition = dtype
 	} else {
 		params := map[string]string{"filename": filename}
 		disposition = mime.FormatMediaType(dtype, params)
