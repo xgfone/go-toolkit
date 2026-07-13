@@ -99,14 +99,31 @@ func TestError(t *testing.T) {
 	if e := err.TryError(nil); e != nil {
 		t.Errorf("expect nil, but got an error: %s", e.Error())
 	}
-	if e := err.TryError(NewError(429)); e == nil {
+	if e := err.Wrap(nil); e != nil {
+		t.Errorf("expect nil, but got an error: %s", e.Error())
+	}
+	if e := err.Wrap(NewError(429)); e == nil {
 		t.Errorf("expect an error, but got nil")
 	} else if _e, ok := e.(Error); !ok {
 		t.Errorf("expect an Error, but got %T", e)
 	} else if _e.GetCode() != 429 {
 		t.Errorf("expect code %d, but got %d", 429, _e.GetCode())
 	}
-	if e := err.TryError(errors.New("error")); e == nil {
+	pointerErr := NewError(429)
+	if e := err.Wrap(&pointerErr); e == nil {
+		t.Errorf("expect an error, but got nil")
+	} else if _e, ok := e.(*Error); !ok {
+		t.Errorf("expect an *Error, but got %T", e)
+	} else if _e != &pointerErr {
+		t.Errorf("expect the original *Error, but got %p", _e)
+	} else if _e.GetCode() != 429 {
+		t.Errorf("expect code %d, but got %d", 429, _e.GetCode())
+	}
+	var nilPointerErr *Error
+	if e := err.Wrap(nilPointerErr); e != nil {
+		t.Errorf("expect nil, but got an error: %v", e)
+	}
+	if e := err.Wrap(errors.New("error")); e == nil {
 		t.Errorf("expect an error, but got nil")
 	} else if _e, ok := e.(Error); !ok {
 		t.Errorf("expect an Error, but got %T", e)
@@ -115,7 +132,7 @@ func TestError(t *testing.T) {
 	} else if s := _e.Error(); s != "error" {
 		t.Errorf("expect error '%s', but got '%s'", "error", s)
 	}
-	if e := err.TryError(_TestError{Code: 404}); e == nil {
+	if e := err.Wrap(_TestError{Code: 404}); e == nil {
 		t.Errorf("expect an error, but got nil")
 	} else if _e, ok := e.(Error); !ok {
 		t.Errorf("expect an Error, but got %T", e)

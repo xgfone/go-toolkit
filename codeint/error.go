@@ -177,21 +177,30 @@ func (e Error) WithMessagef(msg string, args ...any) Error {
 	return e.WithMessage(fmt.Sprintf(msg, args...))
 }
 
-// TryError is the alias of [Error.Wrap].
+// TryError calls [Error.Wrap].
 //
-// DEPRECATED. Please use [Error.Wrap] instead.
+// Deprecated: use [Error.Wrap] instead.
 func (e Error) TryError(err error) error {
 	return e.Wrap(err)
 }
 
-// Wrap tries to assert err to Error and return it.
-// If nil, return nil. Or, wrap it and return a new Error.
+// Wrap converts err into an error suitable for returning from a function.
+//
+// It returns nil if err is nil, preserves err if it is already an Error or
+// *Error, converts err if it implements interface{ ToError() error }, and
+// otherwise returns a copy of e wrapping err.
 func (e Error) Wrap(err error) error {
 	switch _err := err.(type) {
 	case nil:
 		return nil
 
 	case Error:
+		return err
+
+	case *Error:
+		if _err == nil {
+			return nil
+		}
 		return err
 
 	case interface{ ToError() error }:
