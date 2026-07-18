@@ -106,16 +106,16 @@ func TestSetCommit_Panics_AfterRun(t *testing.T) {
 	t.Error("expected panic")
 }
 
-func TestSetBuiltTime(t *testing.T) {
+func TestSetBuildTime(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	app := New()
-	app.SetBuiltTime(now)
+	app.SetBuildTime(now)
 	if got := app.BuildTime(); !got.Equal(now) {
 		t.Errorf("expected %v, got %v", now, got)
 	}
 }
 
-func TestSetBuiltTime_Panics_AfterRun(t *testing.T) {
+func TestSetBuildTime_Panics_AfterRun(t *testing.T) {
 	app := New()
 	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
 	app.SetSignals()
@@ -125,7 +125,7 @@ func TestSetBuiltTime_Panics_AfterRun(t *testing.T) {
 	_ = app.Run(ctx)
 
 	defer func() { _ = recover() }()
-	app.SetBuiltTime(time.Now())
+	app.SetBuildTime(time.Now())
 	t.Error("expected panic")
 }
 

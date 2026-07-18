@@ -164,14 +164,14 @@ func (a *App) SetVersion(version string) {
 	a.version.Store(version)
 }
 
-// SetBuiltTime sets the app build time.
+// SetBuildTime sets the app build time.
 //
 // It must be called before Run.
-func (a *App) SetBuiltTime(builtat time.Time) {
+func (a *App) SetBuildTime(builtat time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.mustBeNewLocked("SetBuiltTime")
+	a.mustBeNewLocked("SetBuildTime")
 	a.builtat.Store(builtat.Unix())
 }
 
