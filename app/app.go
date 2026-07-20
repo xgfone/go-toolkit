@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -34,6 +35,17 @@ import (
 
 // DefaultApp is the package-level default App instance.
 var DefaultApp = New()
+
+func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				DefaultApp.SetCommit(setting.Value[:7])
+				break
+			}
+		}
+	}
+}
 
 type state int
 
