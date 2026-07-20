@@ -30,6 +30,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -37,35 +38,60 @@ import (
 	"time"
 )
 
-var output = flag.String("output", "main_version.go", "The output file of version.")
-var pkgname = flag.String("package", "main", "The package name.")
+var (
+	output  = flag.String("output", "main_version.go", "The output file of version.")
+	pkgname = flag.String("package", "main", "The package name.")
+
+	// Overridable for testing.
+	osexit = os.Exit
+)
 
 func main() {
+	if err := run(*output, *pkgname); err != nil {
+		fmt.Println(err)
+		osexit(1)
+	}
+}
+
+func run(outfile, pkg string) error {
+	version, err := getVersion()
+	if err != nil {
+		return err
+	}
+
+	data, err := Generate(pkg, version, getBuildTime())
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(outfile, []byte(data), 0600)
+}
+
+func getBuildTime() int64 {
+	return time.Now().Unix()
+}
+
+func getVersion() (version string, err error) {
 	buf := bytes.NewBuffer(nil)
 	buf.Grow(8)
-
 	cmd := exec.Command("git", "describe", "--tags", "--match", "v*")
 	cmd.Stderr = io.Discard
 	cmd.Stdout = buf
+	err = cmd.Run()
+	version = strings.TrimSpace(buf.String())
+	return
+}
 
-	if err := cmd.Run(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+// Generate returns the generated Go source code content
+// with the given package name, version and build time.
+func Generate(pkgname, version string, buildat int64) (string, error) {
+	if !token.IsIdentifier(pkgname) {
+		return "", fmt.Errorf("package name %q is not an identifier", pkgname)
 	}
-
-	version := strings.TrimSpace(buf.String())
 	if strings.Contains(version, `"`) {
-		fmt.Println(`version contain '"'`)
-		os.Exit(1)
+		return "", fmt.Errorf(`version contains '"'`)
 	}
-
-	buildat := time.Now().Unix()
-	data := fmt.Sprintf(_VersionFileTmpl, *pkgname, version, buildat)
-
-	if err := os.WriteFile(*output, []byte(data), 0600); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	return fmt.Sprintf(_VersionFileTmpl, pkgname, version, buildat), nil
 }
 
 const _VersionFileTmpl = `package %s
