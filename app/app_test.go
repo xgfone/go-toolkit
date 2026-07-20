@@ -17,6 +17,7 @@ package app
 import (
 	"context"
 	"errors"
+	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -408,6 +409,39 @@ func TestStop_StopsRunningApp(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Run should stop after Stop")
 	}
+}
+
+func TestSetCommitFromBuildSettings(t *testing.T) {
+	t.Run("with_vcs_revision", func(t *testing.T) {
+		a := New()
+		a.SetCommit("")
+		setCommitFromBuildSettings(a, []debug.BuildSetting{
+			{Key: "vcs.revision", Value: "abc1234567890"},
+		})
+		if a.Commit() != "abc1234" {
+			t.Errorf("expected abc1234, got %q", a.Commit())
+		}
+	})
+
+	t.Run("without_vcs_revision", func(t *testing.T) {
+		a := New()
+		a.SetCommit("")
+		setCommitFromBuildSettings(a, []debug.BuildSetting{
+			{Key: "other.key", Value: "val"},
+		})
+		if a.Commit() != "" {
+			t.Errorf("expected empty, got %q", a.Commit())
+		}
+	})
+
+	t.Run("empty_settings", func(t *testing.T) {
+		a := New()
+		a.SetCommit("")
+		setCommitFromBuildSettings(a, nil)
+		if a.Commit() != "" {
+			t.Errorf("expected empty, got %q", a.Commit())
+		}
+	})
 }
 
 func TestStop_NoOpWhenNotRunningOrExited(t *testing.T) {

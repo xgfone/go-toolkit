@@ -38,11 +38,15 @@ var DefaultApp = New()
 
 func init() {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				DefaultApp.SetCommit(setting.Value[:7])
-				break
-			}
+		setCommitFromBuildSettings(DefaultApp, info.Settings)
+	}
+}
+
+func setCommitFromBuildSettings(a *App, settings []debug.BuildSetting) {
+	for _, setting := range settings {
+		if setting.Key == "vcs.revision" {
+			a.SetCommit(setting.Value[:7])
+			return
 		}
 	}
 }
