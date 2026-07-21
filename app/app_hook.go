@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+
+	"github.com/xgfone/go-toolkit/iox"
 )
 
 type namedHook struct {
@@ -29,6 +31,12 @@ type namedHook struct {
 
 // Hook is a function type that can be used as a hook for the App.
 type Hook func(ctx context.Context, app *App) error
+
+func CloserFuncHook(f iox.CloserFunc) Hook {
+	return func(context.Context, *App) error {
+		return f()
+	}
+}
 
 // On is short for App.OnNamed(stage, "", hook).
 //
@@ -72,13 +80,13 @@ func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 // Cleanup registers a simple function for StageCleanup,
 // which is a convenience wrapper around OnNamed(StageCleanup, ...).
 func (a *App) Cleanup(fn func() error) {
-	a.On(StageCleanup, func(context.Context, *App) error { return fn() })
+	a.On(StageCleanup, CloserFuncHook(fn))
 }
 
 // AtExit registers a simple function for StageExited,
 // which is a convenience wrapper around OnNamed(StageExited, ...).
 func (a *App) AtExit(fn func() error) {
-	a.On(StageExited, func(context.Context, *App) error { return fn() })
+	a.On(StageExited, CloserFuncHook(fn))
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
