@@ -290,6 +290,15 @@ func TestSetTextUnmarshalerValues(t *testing.T) {
 	if err := setExisting(&ptr, next); err != nil || ptr == nil || !ptr.Equal(next) {
 		t.Fatalf("*time from time: got (%v, %#v), want (%v, nil)", err, ptr, next)
 	}
+
+	// textBytes fallthrough: src is a non-string/non-[]byte type
+	var tm time.Time
+	if err := setExisting(&tm, []int{1}); err == nil {
+		t.Fatal("expected an error for time.Time from []int")
+	}
+	if !tm.Equal(time.Time{}) {
+		t.Fatalf("destination changed: got %v, want zero time", tm)
+	}
 }
 
 func TestSetAssignableFallback(t *testing.T) {
@@ -348,6 +357,13 @@ func TestSetSliceValues(t *testing.T) {
 				t.Fatalf("got (%v, %v), want preserved [9] and error", got, err)
 			}
 		}},
+		{"wrong source type", func(t *testing.T) {
+			got := []int{9}
+			err := setExisting(&got, "hello")
+			if err == nil || !reflect.DeepEqual(got, []int{9}) {
+				t.Fatalf("got (%v, %v), want preserved [9] and error", got, err)
+			}
+		}},
 	}
 
 	for _, tt := range tests {
@@ -399,6 +415,13 @@ func TestSetMapValues(t *testing.T) {
 			got := map[int]string{9: "keep"}
 			err := setExisting(&got, map[string]string{"1": "a", "01": "b"})
 			if err == nil || !reflect.DeepEqual(got, map[int]string{9: "keep"}) {
+				t.Fatalf("got (%v, %v), want preserved map and error", got, err)
+			}
+		}},
+		{"wrong source type", func(t *testing.T) {
+			got := map[string]int{"keep": 9}
+			err := setExisting(&got, "hello")
+			if err == nil || !reflect.DeepEqual(got, map[string]int{"keep": 9}) {
 				t.Fatalf("got (%v, %v), want preserved map and error", got, err)
 			}
 		}},
@@ -492,6 +515,30 @@ func TestSetScalarValueErrorsPreserveDestination(t *testing.T) {
 			assertEqual(t, v, unsupported(1))
 			return err
 		}},
+		{"boolValueReflect fallthrough", func() error {
+			v := true
+			err := setExisting(&v, namedBytes{1})
+			assertEqual(t, v, true)
+			return err
+		}},
+		{"intValueReflect fallthrough", func() error {
+			v := int64(7)
+			err := setExisting(&v, namedBytes{1})
+			assertEqual(t, v, int64(7))
+			return err
+		}},
+		{"uintValueReflect fallthrough", func() error {
+			v := uint64(7)
+			err := setExisting(&v, namedBytes{1})
+			assertEqual(t, v, uint64(7))
+			return err
+		}},
+		{"floatValueReflect fallthrough", func() error {
+			v := 7.5
+			err := setExisting(&v, namedBytes{1})
+			assertEqual(t, v, 7.5)
+			return err
+		}},
 	}
 
 	for _, tt := range tests {
@@ -554,6 +601,21 @@ func TestSetNilSource(t *testing.T) {
 			}
 			return err
 		}},
+		{"setPointer", func() error {
+			v := 7
+			p := &v
+			err := setExisting(&p, nil)
+			assertEqual(t, *p, 7)
+			return err
+		}},
+		{"setStruct", func() error {
+			ts := time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)
+			err := setExisting(&ts, nil)
+			if !ts.Equal(time.Date(2026, 5, 22, 1, 2, 3, 0, time.UTC)) {
+				t.Fatalf("destination changed: got %v", ts)
+			}
+			return err
+		}},
 	}
 
 	for _, tt := range tests {
@@ -611,6 +673,18 @@ func TestNumericBoundaries(t *testing.T) {
 		{"uint64 max float overflows", func() error {
 			var v uint64
 			return setExisting(&v, math.Ldexp(1, 64))
+		}},
+		{"int8 from uint overflow", func() error {
+			var v int8
+			return setExisting(&v, uint(200))
+		}},
+		{"int8 from float overflow", func() error {
+			var v int8
+			return setExisting(&v, float64(128))
+		}},
+		{"uint8 from float overflow", func() error {
+			var v uint8
+			return setExisting(&v, float64(256))
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

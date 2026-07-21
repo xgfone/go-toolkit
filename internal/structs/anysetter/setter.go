@@ -165,10 +165,6 @@ func compileMap(t reflect.Type) SetterFunc {
 }
 
 func textBytes(src any) ([]byte, bool) {
-	if src == nil {
-		return nil, false
-	}
-
 	switch v := src.(type) {
 	case string:
 		return unsafex.Bytes(v), true
