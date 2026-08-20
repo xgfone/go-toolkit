@@ -96,7 +96,7 @@ func BenchmarkImplements(b *testing.B) {
 	Implements(typ, target)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		Implements(typ, target)
 	}
 }
