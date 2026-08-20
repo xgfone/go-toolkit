@@ -40,3 +40,38 @@ func Implements(typ, target reflect.Type) bool {
 	actual, _ := typeImplements.LoadOrStore(key, ok)
 	return actual.(bool)
 }
+
+// As returns the first value in source's unwrap chain that can be asserted to Target.
+// The chain consists of source followed by the values obtained by repeatedly calling
+// Unwrap() Source. The method's return type must be exactly Source.
+//
+// If Source is a concrete type, only source itself is examined.
+// If no value matches, As returns the zero value of Target and false.
+func As[Target any, Source any](source Source) (Target, bool) {
+	sourceType := reflect.TypeFor[Source]()
+	if sourceType.Kind() != reflect.Interface {
+		target, ok := any(source).(Target)
+		return target, ok
+	}
+
+	var zero Target
+
+	targetType := reflect.TypeFor[Target]()
+	if targetType.Kind() != reflect.Interface && !targetType.Implements(sourceType) {
+		return zero, false
+	}
+
+	src := any(source)
+	for {
+		switch t := src.(type) {
+		case Target:
+			return t, true
+
+		case interface{ Unwrap() Source }:
+			src = t.Unwrap()
+
+		default:
+			return zero, false
+		}
+	}
+}

@@ -45,6 +45,18 @@ type TestType3 struct{}
 
 func (TestType3) AnotherMethod() {}
 
+type testBoth struct{}
+
+func (testBoth) Method()        {}
+func (testBoth) AnotherMethod() {}
+
+type testWrapper struct {
+	next TestInterface
+}
+
+func (testWrapper) Method()                 {}
+func (w testWrapper) Unwrap() TestInterface { return w.next }
+
 func TestImplements(t *testing.T) {
 	// Clear cache before benchmark
 	typeImplements = new(sync.Map)
@@ -88,6 +100,53 @@ func TestImplements(t *testing.T) {
 	}
 }
 
+func TestAs(t *testing.T) {
+	t.Run("concrete to concrete", func(t *testing.T) {
+		if _, ok := As[TestType](TestType{}); !ok {
+			t.Error("same concrete type did not match")
+		}
+		if _, ok := As[TestType2](TestType{}); ok {
+			t.Error("different concrete types matched")
+		}
+	})
+
+	t.Run("interface to interface", func(t *testing.T) {
+		var source TestInterface = testBoth{}
+		if _, ok := As[AnotherInterface](source); !ok {
+			t.Error("dynamic value implementing both interfaces did not match")
+		}
+
+		source = TestType{}
+		if _, ok := As[AnotherInterface](source); ok {
+			t.Error("dynamic value not implementing target interface matched")
+		}
+	})
+
+	t.Run("concrete to interface", func(t *testing.T) {
+		if _, ok := As[TestInterface](TestType{}); !ok {
+			t.Error("concrete type implementing target interface did not match")
+		}
+		if _, ok := As[AnotherInterface](TestType{}); ok {
+			t.Error("concrete type not implementing target interface matched")
+		}
+	})
+
+	t.Run("interface to concrete", func(t *testing.T) {
+		var source TestInterface = testWrapper{next: TestType{}}
+		if _, ok := As[TestType](source); !ok {
+			t.Error("wrapped concrete value did not match")
+		}
+		if _, ok := As[TestType3](source); ok {
+			t.Error("concrete type not implementing source interface matched")
+		}
+
+		source = testWrapper{}
+		if _, ok := As[TestType](source); ok {
+			t.Error("nil unwrap result matched")
+		}
+	})
+}
+
 func BenchmarkImplements(b *testing.B) {
 	typ := reflect.TypeFor[TestType]()
 	target := reflect.TypeFor[TestInterface]()
@@ -109,4 +168,28 @@ func ExampleImplements() {
 	fmt.Println(ok)
 	// Output:
 	// true
+}
+
+func ExampleAs() {
+	var ok bool
+
+	_, ok = As[TestType](TestType{})
+	fmt.Println("concrete to concrete:", ok)
+
+	var source TestInterface = testBoth{}
+	_, ok = As[AnotherInterface](source)
+	fmt.Println("interface to interface:", ok)
+
+	_, ok = As[TestInterface](TestType{})
+	fmt.Println("concrete to interface:", ok)
+
+	source = testWrapper{next: TestType{}}
+	_, ok = As[TestType](source)
+	fmt.Println("interface to concrete:", ok)
+
+	// Output:
+	// concrete to concrete: true
+	// interface to interface: true
+	// concrete to interface: true
+	// interface to concrete: true
 }
