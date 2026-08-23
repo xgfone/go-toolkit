@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -211,7 +212,7 @@ func TestContextHandler_HTTPHandler(t *testing.T) {
 	// Test case 2: ContextHandler returns error
 	t.Run("HandlerError", func(t *testing.T) {
 		const expectedErr = "test error"
-		handler := ContextHandler(func(c *Context) error { return fmt.Errorf(expectedErr) })
+		handler := ContextHandler(func(c *Context) error { return errors.New(expectedErr) })
 
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("next handler should not be called when ContextHandler returns error")
