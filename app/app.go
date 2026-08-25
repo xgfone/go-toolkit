@@ -105,6 +105,7 @@ func New() *App {
 	app.SetShutdownTimeout(30 * time.Second)
 	app.SetSignals(os.Interrupt, syscall.SIGTERM)
 	app.SetVersion("0.0.0")
+	app.SetCommit("")
 	return app
 }
 
