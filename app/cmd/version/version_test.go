@@ -92,7 +92,7 @@ func TestRun(t *testing.T) {
 		withChdir(t, dir)
 
 		out := filepath.Join(t.TempDir(), "gen.go")
-		if err := run(out, "main"); err != nil {
+		if err := run(out, "main", "v"); err != nil {
 			t.Fatal(err)
 		}
 		data, _ := os.ReadFile(out)
@@ -101,10 +101,46 @@ func TestRun(t *testing.T) {
 		}
 	})
 
+	for _, tag := range []string{"", "1.0.0"} {
+		name := "no_tag"
+		if tag != "" {
+			name = "no_v_tag"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			initGitRepo(t, dir, tag)
+			withChdir(t, dir)
+
+			out := filepath.Join(t.TempDir(), "gen.go")
+			if err := run(out, "main", "v"); err != nil {
+				t.Fatal(err)
+			}
+			data, _ := os.ReadFile(out)
+			if !strings.Contains(string(data), `AppVersion   = ""`) {
+				t.Error("output AppVersion is not empty")
+			}
+		})
+	}
+
+	t.Run("custom_tag_prefix", func(t *testing.T) {
+		dir := t.TempDir()
+		initGitRepo(t, dir, "release-1.0.0")
+		withChdir(t, dir)
+
+		out := filepath.Join(t.TempDir(), "gen.go")
+		if err := run(out, "main", "release-"); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(out)
+		if !strings.Contains(string(data), `AppVersion   = "release-1.0.0"`) {
+			t.Error("output missing custom-prefix AppVersion")
+		}
+	})
+
 	t.Run("git_error", func(t *testing.T) {
 		dir := t.TempDir() // no git repo
 		withChdir(t, dir)
-		if err := run(filepath.Join(dir, "out.go"), "main"); err == nil {
+		if err := run(filepath.Join(dir, "out.go"), "main", "v"); err == nil {
 			t.Error("expected error")
 		}
 	})
@@ -114,7 +150,7 @@ func TestRun(t *testing.T) {
 		initGitRepo(t, dir, "v1.0.0")
 		withChdir(t, dir)
 
-		err := run(filepath.Join(dir, "out.go"), "123bad")
+		err := run(filepath.Join(dir, "out.go"), "123bad", "v")
 		if err == nil || !strings.Contains(err.Error(), "not an identifier") {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -128,6 +164,7 @@ func TestMainFunc(t *testing.T) {
 		withChdir(t, dir)
 
 		*output = filepath.Join(dir, "gen.go")
+		*tagPrefix = "v"
 		main()
 
 		data, _ := os.ReadFile(*output)
@@ -146,6 +183,7 @@ func TestMainFunc(t *testing.T) {
 		defer func() { osexit = old }()
 
 		*output = filepath.Join(dir, "gen.go")
+		*tagPrefix = "v"
 		main()
 		if !exited {
 			t.Error("os.Exit was not called")
@@ -157,13 +195,16 @@ func TestMainFunc(t *testing.T) {
 
 func initGitRepo(t *testing.T, dir, tag string) {
 	t.Helper()
-	for _, args := range [][]string{
+	commands := [][]string{
 		{"init"},
 		{"config", "user.email", "test@test.com"},
 		{"config", "user.name", "test"},
 		{"commit", "--allow-empty", "-m", "init"},
-		{"tag", tag},
-	} {
+	}
+	if tag != "" {
+		commands = append(commands, []string{"tag", tag})
+	}
+	for _, args := range commands {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {

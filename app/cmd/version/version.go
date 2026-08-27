@@ -19,19 +19,19 @@
 //
 //	-output   The output Go source file name (default "main_version.go").
 //	-package  The package name of the output file (default "main").
+//	-tag-prefix  The version tag prefix (default "v").
 //
 // Example go:generate directives:
 //
 //	//go:generate go run github.com/xgfone/go-toolkit/app/cmd/version
 //	//go:generate go run github.com/xgfone/go-toolkit/app/cmd/version -output=version.go -package=version
+//	//go:generate go run github.com/xgfone/go-toolkit/app/cmd/version -tag-prefix=release-
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"go/token"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -39,22 +39,23 @@ import (
 )
 
 var (
-	output  = flag.String("output", "main_version.go", "The output file of version.")
-	pkgname = flag.String("package", "main", "The package name.")
+	output    = flag.String("output", "main_version.go", "The output file of version.")
+	pkgname   = flag.String("package", "main", "The package name.")
+	tagPrefix = flag.String("tag-prefix", "v", "The prefix of version tags.")
 
 	// Overridable for testing.
 	osexit = os.Exit
 )
 
 func main() {
-	if err := run(*output, *pkgname); err != nil {
+	if err := run(*output, *pkgname, *tagPrefix); err != nil {
 		fmt.Println(err)
 		osexit(1)
 	}
 }
 
-func run(outfile, pkg string) error {
-	version, err := getVersion()
+func run(outfile, pkg, prefix string) error {
+	version, err := getVersion(prefix)
 	if err != nil {
 		return err
 	}
@@ -71,15 +72,16 @@ func getBuildTime() int64 {
 	return time.Now().Unix()
 }
 
-func getVersion() (version string, err error) {
-	buf := bytes.NewBuffer(nil)
-	buf.Grow(8)
-	cmd := exec.Command("git", "describe", "--tags", "--match", "v*")
-	cmd.Stderr = io.Discard
-	cmd.Stdout = buf
-	err = cmd.Run()
-	version = strings.TrimSpace(buf.String())
-	return
+func getVersion(prefix string) (string, error) {
+	cmd := exec.Command(
+		"git", "for-each-ref",
+		"--count=1",
+		"--sort=-version:refname",
+		"--format=%(refname:short)",
+		"refs/tags/"+prefix+"*",
+	)
+	out, err := cmd.Output()
+	return strings.TrimSpace(string(out)), err
 }
 
 // Generate returns the generated Go source code content
