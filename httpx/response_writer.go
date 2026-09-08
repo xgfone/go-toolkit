@@ -60,7 +60,7 @@ func (w *_ContextResponseWriter) WriteString(s string) (int, error) {
 }
 
 func (w *_ContextResponseWriter) WriteHeader(code int) {
-	if code < 100 {
+	if code < 100 || code > 999 {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
