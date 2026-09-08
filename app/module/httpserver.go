@@ -16,11 +16,13 @@ package module
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xgfone/go-toolkit/app"
@@ -44,6 +46,19 @@ type HttpServer struct {
 	server  *http.Server
 	listen  net.Listener
 	wrapln  func(net.Listener) net.Listener
+}
+
+// onceCloseListener shares one close operation between Serve and Stop,
+// including when Stop runs before Serve has registered the listener.
+type onceCloseListener struct {
+	net.Listener
+	once sync.Once
+	err  error
+}
+
+func (l *onceCloseListener) Close() error {
+	l.once.Do(func() { l.err = l.Listener.Close() })
+	return l.err
 }
 
 // WrapListener registers wrap to replace the listener created by Init,
@@ -87,6 +102,7 @@ func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 		s.listen = s.wrapln(s.listen)
 	}
 
+	s.listen = &onceCloseListener{Listener: s.listen}
 	s.server = &http.Server{
 		Addr:    s.addr,
 		Handler: s.handler,
@@ -116,5 +132,14 @@ func (s *HttpServer) Stop(ctx context.Context, app *app.App) (err error) {
 	}
 
 	slog.Info("stop the http server", "modname", s.name, "addr", s.addr)
-	return s.server.Shutdown(ctx)
+	err = s.server.Shutdown(ctx)
+
+	// Shutdown only closes listeners already registered with Serve. Init may
+	// be rolled back before Serve starts, so also close our own listener.
+	closeErr := s.listen.Close()
+	if err == nil && closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		err = closeErr
+	}
+
+	return err
 }

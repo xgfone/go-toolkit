@@ -91,12 +91,12 @@ func TestHttpServerWrapListener(t *testing.T) {
 	if err := m.Init(context.Background(), nil); err != nil {
 		t.Fatalf("Init: unexpected error: %v", err)
 	}
-	defer m.listen.Close()
+	defer m.listen.Close() //nolint:errcheck
 
 	if captured == nil {
 		t.Fatal("WrapListener was not called")
 	}
-	if m.listen != wrapped {
+	if ln, ok := m.listen.(*onceCloseListener); !ok || ln.Listener != wrapped {
 		t.Fatal("Init did not use the wrapped listener")
 	}
 }
