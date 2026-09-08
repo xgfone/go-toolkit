@@ -188,7 +188,8 @@ func Generate(buf []byte, length int, g func([]byte, time.Time) []byte) []byte {
 func generateDateTimeMilliRand(buf []byte, length int) []byte {
 	return Generate(buf, length, func(b []byte, now time.Time) []byte {
 		b = now.AppendFormat(b, "20060102150405")
-		b = strconv.AppendInt(b, now.UnixMilli()%1000, 10)
+		millis := now.Nanosecond() / int(time.Millisecond)
+		b = append(b, byte('0'+millis/100), byte('0'+millis/10%10), byte('0'+millis%10))
 		return b
 	})
 }

@@ -15,7 +15,11 @@
 package stringx
 
 import (
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/xgfone/go-toolkit/timex"
 )
 
 func TestRegressionDoubleSign(t *testing.T) {
@@ -23,5 +27,20 @@ func TestRegressionDoubleSign(t *testing.T) {
 		if IsFloat(s) {
 			t.Errorf("IsFloat(%q) = true", s)
 		}
+	}
+}
+
+func TestRegressionMillisPadding(t *testing.T) {
+	timex.SetNowFunc(func() time.Time {
+		return time.Date(2026, 9, 6, 1, 2, 3, 5e6, time.UTC)
+	})
+
+	defer timex.SetNowFunc(func() time.Time {
+		return time.Now().In(timex.GetLocation())
+	})
+
+	s := NewBuilder(DateTimeMilliRandGenerator).Build(18)
+	if !strings.HasPrefix(s, "20260906010203005") {
+		t.Fatalf("5ms must be 005 in YYYYMMDDHHMMSSmmm1, got %q", s)
 	}
 }
