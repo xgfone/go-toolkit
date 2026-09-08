@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/xgfone/go-toolkit/internal/errors"
 	"github.com/xgfone/go-toolkit/jsonx"
 )
 
@@ -96,7 +97,7 @@ func (r Response) StatusCode() int {
 		return 200
 	}
 
-	if v, ok := r.Error.(interface{ StatusCode() int }); ok {
+	if v, ok := errors.AsType[errors.StatusCodeError](r.Error); ok {
 		return v.StatusCode()
 	}
 

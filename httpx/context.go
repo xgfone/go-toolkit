@@ -16,7 +16,6 @@ package httpx
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -24,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/xgfone/go-toolkit/codeint"
+	"github.com/xgfone/go-toolkit/internal/errors"
 	"github.com/xgfone/go-toolkit/mapx"
 	"github.com/xgfone/go-toolkit/result"
 )
@@ -238,26 +238,35 @@ func DefaultRespond(c *Context, response result.Response) {
 }
 
 func respondError(c *Context, response result.Response) {
-	statuscode := 500
-
-	switch e := response.Error.(type) {
-	case codeint.Error:
-		statuscode = e.StatusCode()
-
-	case *codeint.Error:
-		statuscode = e.StatusCode()
-
-	case interface{ StatusCode() int }:
-		statuscode = e.StatusCode()
-		response.Error = codeint.ErrInternalServerError.WithError(response.Error)
-
-	default:
-		response.Error = codeint.ErrInternalServerError.WithError(response.Error)
-	}
+	statuscode := response.StatusCode()
+	response.Error = responseError(response.Error)
 
 	if c.Request.Header.Get("X-Error-Status-Code") == "200" {
 		statuscode = 200
 	}
 
 	c.JSON(statuscode, response)
+}
+
+func responseError(err error) error {
+	switch err.(type) {
+	case codeint.Error, *codeint.Error:
+		return err
+	}
+
+	// A sensitive wrapper deliberately hides the underlying error's fields.
+	// Use its safe outer message even when its status comes from that error.
+	if _, ok := errors.AsType[errors.SensitiveError](err); !ok {
+		if status, ok := errors.AsType[errors.StatusCodeError](err); ok {
+			switch e := status.(type) {
+			case codeint.Error:
+				return e.WithError(err)
+
+			case *codeint.Error:
+				return e.WithError(err)
+			}
+		}
+	}
+
+	return codeint.ErrInternalServerError.WithError(err)
 }

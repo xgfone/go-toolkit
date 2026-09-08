@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package errors provides some compatible errors functions.
-package errors
+package result
 
-import "errors"
+import (
+	"fmt"
+	"testing"
 
-// Re-export.
-var Join = errors.Join
+	"github.com/xgfone/go-toolkit/codeint"
+)
 
-type StatusCodeError interface {
-	StatusCode() int
-	error
-}
-
-type SensitiveError interface {
-	SensitiveError() error
-	error
+func TestRegressionWrappedStatus(t *testing.T) {
+	got := Err(fmt.Errorf("lookup: %w", codeint.ErrNotFound)).StatusCode()
+	if got != 404 {
+		t.Fatalf("wrapped status changed to %d", got)
+	}
 }
