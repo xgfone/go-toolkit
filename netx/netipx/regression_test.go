@@ -16,6 +16,7 @@ package netipx
 
 import (
 	"net"
+	"net/netip"
 	"testing"
 )
 
@@ -31,5 +32,51 @@ func TestRegressionInvalidIP(t *testing.T) {
 	got, err := AddrFromNetAddr(&net.UDPAddr{IP: net.IP{1}})
 	if err == nil {
 		t.Fatalf("invalid IP returned success: %v", got)
+	}
+}
+
+func TestRegressionIPAddrIPv6(t *testing.T) {
+	got, err := AddrFromNetAddr(&net.IPAddr{IP: net.ParseIP("2001:db8::1")})
+	if err != nil || got.String() != "2001:db8::1" {
+		t.Fatalf("net.IPAddr corrupted by port splitting: %v %v", got, err)
+	}
+}
+
+func TestRegressionNetAddrIPRepresentation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ip   net.IP
+		zone string
+		want string
+	}{
+		{name: "parsed IPv4", ip: net.ParseIP("192.0.2.1"), want: "192.0.2.1"},
+		{name: "constructed IPv4", ip: net.IPv4(192, 0, 2, 1), want: "192.0.2.1"},
+		{name: "four-byte IPv4", ip: net.IP{192, 0, 2, 1}, want: "192.0.2.1"},
+		{name: "mapped IPv4", ip: net.ParseIP("::ffff:192.0.2.1"), want: "192.0.2.1"},
+		{name: "IPv6", ip: net.ParseIP("2001:db8::1"), want: "2001:db8::1"},
+		{name: "IPv6 zone", ip: net.ParseIP("fe80::1"), zone: "en0", want: "fe80::1%en0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := netip.MustParseAddr(tc.want)
+			got, err := AddrFromNetAddr(&net.IPAddr{IP: tc.ip, Zone: tc.zone})
+			if err != nil || got != want {
+				t.Errorf("IPAddr = %v, %v; want %v", got, err, want)
+			}
+
+			// TCPAddr and UDPAddr already preserved the input's byte representation.
+			if len(tc.ip) == net.IPv6len && want.Is4() {
+				want = netip.MustParseAddr("::ffff:" + tc.want)
+			}
+
+			for _, src := range []net.Addr{
+				&net.TCPAddr{IP: tc.ip, Zone: tc.zone, Port: 80},
+				&net.UDPAddr{IP: tc.ip, Zone: tc.zone, Port: 80},
+			} {
+				got, err := AddrFromNetAddr(src)
+				if err != nil || got != want {
+					t.Errorf("%T = %v, %v; want %v", src, got, err, want)
+				}
+			}
+		})
 	}
 }

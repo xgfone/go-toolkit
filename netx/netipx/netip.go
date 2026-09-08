@@ -41,12 +41,18 @@ func AddrFromNetAddr(netaddr net.Addr) (addr netip.Addr, err error) {
 
 	case *net.IPAddr:
 		if v != nil {
-			host, _ := netx.SplitHostPort(v.String())
-			return netip.ParseAddr(host)
+			// IPAddr.String historically represented mapped IPv4 as native IPv4.
+			addr, err = addrFromIP(v.IP, v.Zone)
+			return addr.Unmap(), err
 		}
 
 	default:
-		host, _ := netx.SplitHostPort(v.String())
+		host := v.String()
+		if addr, err = netip.ParseAddr(host); err == nil {
+			return
+		}
+
+		host, _ = netx.SplitHostPort(host)
 		return netip.ParseAddr(host)
 	}
 
