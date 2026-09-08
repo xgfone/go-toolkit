@@ -184,6 +184,15 @@ func TestRegressionWebSocketConnectionTokens(t *testing.T) {
 	}
 }
 
+func TestRegressionCharsetExtraParameter(t *testing.T) {
+	h := http.Header{}
+	h.Set("Content-Type", `text/plain; charset="utf-8"; format=flowed`)
+
+	if got := Charset(h); got != "utf-8" {
+		t.Fatalf("charset includes quotes and following parameter: %q", got)
+	}
+}
+
 func TestRegressionContentTypeCase(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", strings.NewReader(`{"Value":1}`))
 	r.Header.Set("Content-Type", "Application/JSON")

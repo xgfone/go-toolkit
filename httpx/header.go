@@ -165,20 +165,21 @@ func ContentType(header http.Header) string {
 //
 // Return "" if there is no charset.
 func Charset(header http.Header) string {
-	ct := header.Get(HeaderContentType)
-	for loop := len(ct) > 0; loop; {
-		index := strings.IndexByte(ct, ';')
-		if loop = index > -1; loop {
-			ct = ct[index+1:]
-		}
+	ct := strings.TrimSpace(header.Get(HeaderContentType))
 
-		if index = strings.IndexByte(ct, '='); index > -1 {
-			if strings.ToLower(strings.TrimSpace(ct[:index])) == "charset" {
-				return strings.TrimSpace(ct[index+1:])
-			}
-		}
+	// Preserve support for the legacy parameters-only inputs.
+	if strings.HasPrefix(ct, ";") {
+		ct = MIMEApplicationOctetStream + ct
+	} else if strings.HasPrefix(strings.ToLower(ct), "charset=") {
+		ct = MIMEApplicationOctetStream + ";" + ct
 	}
-	return ""
+
+	_, params, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return ""
+	}
+
+	return params["charset"]
 }
 
 // Accept returns the accepted Content-Type list from the request header
