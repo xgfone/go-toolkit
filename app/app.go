@@ -293,6 +293,9 @@ func (a *App) Run(ctx context.Context) (err error) {
 	}()
 
 	// 1. Config
+	if err = runCtx.Err(); err != nil {
+		return err
+	}
 	if err = loader(runCtx, a); err != nil {
 		return err
 	}
@@ -304,6 +307,9 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	// 3. Module Init
 	for _, m := range modules {
+		if err = runCtx.Err(); err != nil {
+			return err
+		}
 		if e := m.Init(runCtx, a); e != nil {
 			err = fmt.Errorf("app: init module %q: %w", m.Name(), e)
 			return err
@@ -319,6 +325,9 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	// 5. Module Start
 	for _, m := range initialized {
+		if err = runCtx.Err(); err != nil {
+			return err
+		}
 		if e := m.Start(runCtx, a); e != nil {
 			err = fmt.Errorf("app: start module %q: %w", m.Name(), e)
 			return err

@@ -90,6 +90,11 @@ func (a *App) AtExit(fn func() error) {
 }
 
 func (a *App) runHooks(ctx context.Context, stage Stage) error {
+	starting := stage == StageInit || stage == StageStart || stage == StageReady
+	if starting && ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	a.mu.Lock()
 	a.stage = stage
 	hooks := slices.Clone(a.hooks[stage])
@@ -105,6 +110,10 @@ func (a *App) runHooks(ctx context.Context, stage Stage) error {
 	}
 
 	for i, hook := range seq2 {
+		if starting && ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if err := hook.hook(ctx, a); err != nil {
 			wrapped := fmt.Errorf("app: hook %s: %w", hookLabel(stage, hook.name, i), err)
 
