@@ -106,7 +106,7 @@ func TestServeMuxRoutingSemantics(t *testing.T) {
 		{"GET", "/items/42", 200, "42", "", "", "GET /items/{id}"},
 		{"GET", "/items/a%2Fb", 200, "a/b", "", "", "GET /items/{id}"},
 		{"HEAD", "/items/42", 200, "", "", "", "GET /items/{id}"},
-		{"POST", "/items/42", 405, "", "", "GET, HEAD", ""},
+		{"POST", "/items/42", 418, `{"missing":true}`, "", "", ""},
 		{"GET", "/files?x=1", 0, "", "/files/?x=1", "", ""},
 		{"GET", "/items//42", 0, "", "/items/42", "", ""},
 		{"GET", "/known404", 404, "handler's own 404", "", "", ""},
@@ -147,13 +147,13 @@ func TestServeMuxRoutingSemantics(t *testing.T) {
 	}
 }
 
-func TestRegressionMethodNotAllowed(t *testing.T) {
+func TestUnmatchedMethodUsesNotFound(t *testing.T) {
 	r := New()
 	r.Path("/resource").Get(httpx.Handler200)
 
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest("POST", "/resource", nil))
-	if rec.Code != 405 || rec.Header().Get("Allow") == "" {
-		t.Fatalf("expected 405 with Allow, got %d with %v", rec.Code, rec.Header())
+	if rec.Code != 404 || rec.Header().Get("Allow") != "" {
+		t.Fatalf("expected fallback 404 without Allow, got %d with %v", rec.Code, rec.Header())
 	}
 }

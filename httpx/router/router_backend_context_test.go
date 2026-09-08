@@ -24,23 +24,6 @@ import (
 	"github.com/xgfone/go-toolkit/httpx/middleware"
 )
 
-func TestRoutingErrorWriterResponseController(t *testing.T) {
-	c := httpx.AcquireContext()
-	defer httpx.ReleaseContext(c)
-
-	rec := httptest.NewRecorder()
-	c.Reset(rec, httptest.NewRequest("GET", "/", nil))
-	w := &routingErrorWriter{ResponseWriter: c.ResponseWriter, header: rec.Header().Clone()}
-
-	// The controller must traverse both wrappers to reach the recorder's Flush.
-	if err := http.NewResponseController(w).Flush(); err != nil {
-		t.Fatal(err)
-	}
-	if !rec.Flushed {
-		t.Fatal("Flush did not reach the underlying writer")
-	}
-}
-
 func TestServeMuxBackendContext(t *testing.T) {
 	tests := []struct {
 		method, path string
@@ -50,7 +33,7 @@ func TestServeMuxBackendContext(t *testing.T) {
 		{"GET", "/matched", 200, "matched"},
 		{"GET", "/own404", 404, "handler's own 404"},
 		{"GET", "/missing", 418, "custom not found"},
-		{"POST", "/matched", 405, ""},
+		{"POST", "/matched", 418, "custom not found"},
 	}
 
 	for _, tt := range tests {

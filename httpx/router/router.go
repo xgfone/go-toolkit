@@ -60,6 +60,9 @@ func (r *Router) SetBackend(new func(routes []httpx.Route, notfound http.Handler
 // SetNotFound sets the not found handler.
 //
 // Default: use httpx.Handler404.
+//
+// The default backend uses a catch-all route, so unmatched methods also reach
+// this handler. An explicitly registered catch-all route takes precedence.
 func (r *Router) SetNotFound(notfound http.Handler) {
 	if notfound == nil {
 		panic("Router.SetNotFound: the NotFound handler must not be nil")

@@ -16,63 +16,36 @@ package router
 
 import (
 	"log/slog"
-	"maps"
 	"net/http"
+	"strings"
 
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
 func newServeMuxBackend(routes []httpx.Route, notfound http.Handler) http.Handler {
 	server := http.NewServeMux()
+	var hasCatchAll bool
 	for i := range routes {
-		registerRoute(server, &routes[i])
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handler, pattern := server.Handler(r)
-		if pattern != "" {
-			// ServeHTTP also populates Pattern and PathValue for matched routes.
-			server.ServeHTTP(w, r)
-			return
+		route := &routes[i]
+		registerRoute(server, route)
+		if route.Online && route.Host == "" && route.Method == "" {
+			hasCatchAll = hasCatchAll || isCatchAllPath(route.Path)
 		}
-
-		// An empty pattern can mean either 404 or 405. Only replace 404;
-		// a catch-all route would hide the mux's 405 and Allow header.
-		r.Pattern = ""
-		rw := &routingErrorWriter{ResponseWriter: w, header: w.Header().Clone()}
-		handler.ServeHTTP(rw, r)
-		if rw.status == http.StatusNotFound {
-			notfound.ServeHTTP(w, r)
-		}
-	})
-}
-
-// Only ServeMux-generated errors use this writer. Matched handlers receive
-// their original writer, including its optional interfaces.
-type routingErrorWriter struct {
-	http.ResponseWriter
-	header http.Header
-	status int
-}
-
-func (w *routingErrorWriter) Header() http.Header         { return w.header }
-func (w *routingErrorWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-
-func (w *routingErrorWriter) WriteHeader(code int) {
-	w.status = code
-	if code != http.StatusNotFound {
-		header := w.ResponseWriter.Header()
-		clear(header)
-		maps.Copy(header, w.header)
-		w.ResponseWriter.WriteHeader(code)
 	}
+
+	// Unmatched paths and methods both reach this fallback.
+	if !hasCatchAll {
+		server.Handle("/", notfound)
+	}
+
+	return server
 }
 
-func (w *routingErrorWriter) Write(data []byte) (int, error) {
-	if w.status == http.StatusNotFound {
-		return len(data), nil
-	}
-	return w.ResponseWriter.Write(data)
+// Only called for successfully registered paths: ServeMux has already
+// validated wildcard names, so no separate identifier parser is needed.
+func isCatchAllPath(path string) bool {
+	return path == "/" || (strings.HasPrefix(path, "/{") &&
+		strings.HasSuffix(path, "...}") && strings.Count(path, "/") == 1)
 }
 
 func registerRoute(server *http.ServeMux, route *httpx.Route) {

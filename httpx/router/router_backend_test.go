@@ -154,3 +154,137 @@ func TestNewServeMuxBackend_RegisterRoute(t *testing.T) {
 		t.Errorf("expect log message to contain '%s', but got '%s'", expected, s)
 	}
 }
+
+func TestServeMuxFallbackScope(t *testing.T) {
+	type request struct {
+		method, url string
+		status      int
+	}
+	for _, tc := range []struct {
+		name     string
+		route    httpx.Route
+		requests []request
+	}{
+		{
+			name:  "unrestricted root",
+			route: httpx.Route{Path: "/"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"POST", "/missing", 200},
+			},
+		},
+		{
+			name:  "root restricted by method",
+			route: httpx.Route{Method: "GET", Path: "/"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"HEAD", "/missing", 200},
+				{"POST", "/", 418},
+			},
+		},
+		{
+			name:  "root restricted by host",
+			route: httpx.Route{Host: "a.example", Path: "/"},
+			requests: []request{
+				{"GET", "http://a.example/", 200},
+				{"GET", "http://b.example/", 418},
+			},
+		},
+		{
+			name:  "unrestricted wildcard",
+			route: httpx.Route{Path: "/{rest...}"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"POST", "/a/b", 200},
+			},
+		},
+		{
+			name:  "wildcard name accepted by ServeMux",
+			route: httpx.Route{Path: "/{for...}"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"GET", "/a/b", 200},
+			},
+		},
+		{
+			name:  "wildcard restricted by method",
+			route: httpx.Route{Method: "GET", Path: "/{rest...}"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"POST", "/a/b", 418},
+			},
+		},
+		{
+			name:  "wildcard restricted by host",
+			route: httpx.Route{Host: "a.example", Path: "/{rest...}"},
+			requests: []request{
+				{"GET", "http://a.example/", 200},
+				{"GET", "http://b.example/a/b", 418},
+			},
+		},
+		{
+			name:  "exact root",
+			route: httpx.Route{Path: "/{$}"},
+			requests: []request{
+				{"GET", "/", 200},
+				{"GET", "/missing", 418},
+			},
+		},
+		{
+			name:  "single parameter",
+			route: httpx.Route{Path: "/{id}"},
+			requests: []request{
+				{"GET", "/", 418},
+				{"GET", "/42", 200},
+				{"GET", "/a/b", 418},
+			},
+		},
+		{
+			name:  "nested wildcard",
+			route: httpx.Route{Path: "/{id}/{rest...}"},
+			requests: []request{
+				{"GET", "/", 418},
+				{"GET", "/a/b", 200},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var writer http.ResponseWriter
+			respond := func(status int) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if w != writer {
+						t.Fatal("handler received a wrapped writer")
+					}
+					w.WriteHeader(status)
+				}
+			}
+
+			tc.route.Handler = respond(200)
+			routes := []httpx.Route{tc.route}
+			handler := newServeMuxBackend(routes, respond(418))
+			if !routes[0].Online {
+				t.Fatal("valid route was not registered")
+			}
+
+			for _, req := range tc.requests {
+				rec := httptest.NewRecorder()
+				writer = rec
+				handler.ServeHTTP(rec, httptest.NewRequest(req.method, req.url, nil))
+				if rec.Code != req.status {
+					t.Errorf("%s %s = %d, want %d", req.method, req.url, rec.Code, req.status)
+				}
+			}
+		})
+	}
+}
+
+func TestFailedCatchAllKeepsFallback(t *testing.T) {
+	// A stale Online flag and a failed registration must not suppress NotFound.
+	routes := []httpx.Route{{Path: "/", Online: true}}
+	handler := newServeMuxBackend(routes, httpx.Handler403)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if routes[0].Online || rec.Code != http.StatusForbidden {
+		t.Fatalf("failed registration lost fallback: online=%v status=%d", routes[0].Online, rec.Code)
+	}
+}
