@@ -183,3 +183,13 @@ func TestRegressionWebSocketConnectionTokens(t *testing.T) {
 		t.Fatal("valid Upgrade token in Connection list is missed")
 	}
 }
+
+func TestRegressionContentTypeCase(t *testing.T) {
+	r := httptest.NewRequest("POST", "/", strings.NewReader(`{"Value":1}`))
+	r.Header.Set("Content-Type", "Application/JSON")
+
+	var dst struct{ Value int }
+	if err := BindBody(r, &dst); err != nil {
+		t.Fatalf("valid case-insensitive media type rejected: %v", err)
+	}
+}

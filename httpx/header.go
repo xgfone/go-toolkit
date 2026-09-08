@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"mime"
 	"net/http"
 	"slices"
 	"strconv"
@@ -155,12 +156,9 @@ func headerContainsToken(header http.Header, name, token string) bool {
 }
 
 // ContentType returns the MIME media type portion of the header "Content-Type".
-func ContentType(header http.Header) (mime string) {
-	mime = header.Get(HeaderContentType)
-	if index := strings.IndexByte(mime, ';'); index > -1 {
-		mime = strings.TrimSpace(mime[:index])
-	}
-	return
+func ContentType(header http.Header) string {
+	mediaType, _, _ := mime.ParseMediaType(header.Get(HeaderContentType))
+	return mediaType
 }
 
 // Charset returns the charset of the request content.
