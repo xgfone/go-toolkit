@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -27,6 +28,32 @@ func newTestRunApp() *App {
 	a.SetSignals()
 	a.SetConfigLoader(func(context.Context, *App) error { return nil })
 	return a
+}
+
+func TestBackgroundFailureCancelsStartup(t *testing.T) {
+	a := newTestRunApp()
+	failure := errors.New("worker failed during startup")
+
+	a.On(StageStart, func(ctx context.Context, a *App) error {
+		a.GoNamed("worker", func(context.Context) error { return failure })
+		<-ctx.Done()
+		return ctx.Err()
+	})
+
+	a.On(StageReady, func(context.Context, *App) error {
+		t.Error("Ready must not run after startup fails")
+		return nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := a.Run(ctx); !errors.Is(err, failure) {
+		t.Fatalf("Run must preserve the worker failure, got %v", err)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("startup stopped only because the parent timed out")
+	}
 }
 
 func TestStopSkipsRemainingStartupHooks(t *testing.T) {
@@ -125,5 +152,34 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 				t.Fatalf("lifecycle = %v, want %v", events, tc.want)
 			}
 		})
+	}
+}
+
+func TestBackgroundFailureAtReadyPreservesError(t *testing.T) {
+	failure := errors.New("worker failed at readiness")
+	// Both cancellation and the task error are ready when Run begins waiting.
+	// Exercise the select repeatedly: either choice must preserve the failure.
+	for i := range 32 {
+		a := newTestRunApp()
+
+		cleaned := false
+		a.Cleanup(func() error { cleaned = true; return nil })
+
+		a.On(StageReady, func(ctx context.Context, a *App) error {
+			a.GoNamed("ready-worker", func(context.Context) error { return failure })
+			<-ctx.Done()
+			return nil
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := a.Run(ctx)
+		cancel()
+
+		if !errors.Is(err, failure) || !strings.Contains(err.Error(), "ready-worker") {
+			t.Fatalf("iteration %d: Run lost the named worker failure: %v", i, err)
+		}
+		if !cleaned {
+			t.Fatalf("iteration %d: cleanup did not run", i)
+		}
 	}
 }

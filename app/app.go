@@ -236,6 +236,7 @@ func (a *App) Run(ctx context.Context) (err error) {
 	defer cancelRun()
 
 	modules, loader, signals := a.startRun(runCtx, cancelRun)
+	errCh := a.errCh
 
 	if len(signals) > 0 {
 		signalCtx, stopSignal := signal.NotifyContext(runCtx, signals...)
@@ -288,6 +289,14 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	defer func() {
 		if err != nil {
+			// A background failure may have canceled a startup hook. Preserve
+			// that failure rather than returning only context.Canceled.
+			select {
+			case backgroundErr := <-errCh:
+				err = errors.Join(err, backgroundErr)
+
+			default:
+			}
 			err = errors.Join(err, doShutdown())
 		}
 	}()
@@ -342,9 +351,15 @@ func (a *App) Run(ctx context.Context) (err error) {
 	// 7. Running
 	select {
 	case <-runCtx.Done():
-		// Normal shutdown path.
+		// A task publishes its error before canceling runCtx. Both cases can
+		// be ready, so also inspect the error channel on the cancellation path.
+		select {
+		case e := <-errCh:
+			err = errors.Join(err, e)
+		default:
+		}
 
-	case e := <-a.errCh:
+	case e := <-errCh:
 		err = errors.Join(err, e)
 	}
 

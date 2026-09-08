@@ -56,6 +56,7 @@ func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
 
 	runCtx := a.runCtx
 	errCh := a.errCh
+	cancelRun := a.cancelRun
 
 	// Add must be protected by the same state lock.
 	// This avoids racing with shutdown waiting on the WaitGroup.
@@ -79,6 +80,7 @@ func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
 			case errCh <- wrapped:
 			default:
 			}
+			cancelRun()
 		}
 	}()
 }
