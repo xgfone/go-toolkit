@@ -48,6 +48,7 @@ var (
 )
 
 func main() {
+	flag.Parse()
 	if err := run(*output, *pkgname, *tagPrefix); err != nil {
 		fmt.Println(err)
 		osexit(1)

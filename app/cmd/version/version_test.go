@@ -219,5 +219,43 @@ func withChdir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(old) })
+	t.Cleanup(func() { _ = os.Chdir(old) })
+}
+
+func TestCommandLineFlags(t *testing.T) {
+	// Calling main from a test would inherit testing's already-parsed flags.
+	// Execute the actual command to exercise flag parsing as users invoke it.
+	binary := filepath.Join(t.TempDir(), "version.exe")
+	output, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput()
+	if err != nil {
+		t.Fatalf("build version command: %v\n%s", err, output)
+	}
+
+	dir := t.TempDir()
+	initGitRepo(t, dir, "v1.0.0")
+	cmd := exec.Command("git", "tag", "release-2.0.0")
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("create release tag: %v\n%s", err, output)
+	}
+
+	cmd = exec.Command(binary, "-output=chosen.go", "-package=version", "-tag-prefix=release-")
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("run version command: %v\n%s", err, output)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "chosen.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []string{"package version", `AppVersion   = "release-2.0.0"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("generated source does not contain %q: %s", want, data)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main_version.go")); !os.IsNotExist(err) {
+		t.Fatalf("default output must not be written when -output is set: %v", err)
+	}
 }
