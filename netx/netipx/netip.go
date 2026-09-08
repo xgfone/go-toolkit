@@ -58,5 +58,5 @@ func addrFromIP(ip net.IP, zone string) (netip.Addr, error) {
 	if !ok {
 		return netip.Addr{}, fmt.Errorf("invalid IP address %q", ip)
 	}
-	return addr, nil
+	return addr.WithZone(zone), nil
 }

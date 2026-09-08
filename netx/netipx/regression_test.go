@@ -19,6 +19,14 @@ import (
 	"testing"
 )
 
+func TestRegressionIPv6Zone(t *testing.T) {
+	src := &net.TCPAddr{IP: net.ParseIP("fe80::1"), Zone: "en0", Port: 80}
+	got, err := AddrFromNetAddr(src)
+	if err != nil || got.Zone() != src.Zone {
+		t.Fatalf("zone lost: addr=%s zone=%q err=%v", got, got.Zone(), err)
+	}
+}
+
 func TestRegressionInvalidIP(t *testing.T) {
 	got, err := AddrFromNetAddr(&net.UDPAddr{IP: net.IP{1}})
 	if err == nil {
