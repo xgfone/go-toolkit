@@ -39,17 +39,18 @@ func newServeMuxBackend(routes []httpx.Route, notfound http.Handler) http.Handle
 }
 
 func registerRoute(server *http.ServeMux, route *httpx.Route) {
-	var failed bool
+	// The caller may supply an already-online route. A failed registration
+	// must clear that stale state; recovery does not resume after Handle.
+	route.Online = false
 	pattern := route.Pattern()
-	defer recoverRoutePanic(pattern, &failed)
+	defer recoverRoutePanic(pattern)
 	server.Handle(pattern, route.Handler)
-	route.Online = !failed
+	route.Online = true
 }
 
-func recoverRoutePanic(pattern string, failed *bool) {
+func recoverRoutePanic(pattern string) {
 	if r := recover(); r != nil {
 		slog.Error("fail to register the http route", "pattern", pattern, "err", r)
-		*failed = true
 	}
 }
 
