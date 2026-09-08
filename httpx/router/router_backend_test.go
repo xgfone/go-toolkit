@@ -78,7 +78,7 @@ func TestNewServeMuxBackend_WildcardRoutes(t *testing.T) {
 			Path: "/{rest...}",
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("catch-all route"))
+				_, _ = w.Write([]byte("catch-all route"))
 			}),
 		},
 	}
@@ -104,7 +104,7 @@ func TestNewServeMuxBackend_WildcardRoutes(t *testing.T) {
 			Path: "/api/{id}",
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("parameter route"))
+				_, _ = w.Write([]byte("parameter route"))
 			}),
 		},
 	}
