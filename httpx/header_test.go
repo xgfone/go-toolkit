@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 )
 
@@ -113,6 +114,47 @@ func TestAccept(t *testing.T) {
 				t.Errorf("%d: expect '%s', got '%s'", i, expects[i], accepts[i])
 			}
 		}
+	}
+}
+
+func TestAcceptEscapedParameters(t *testing.T) {
+	for _, tc := range []struct {
+		name, value string
+		want        []string
+	}{
+		{
+			name:  "escaped quote before comma",
+			value: `text/plain; note="a\",b";q=0.5, application/json;q=0.9`,
+			want:  []string{"application/json", "text/plain"},
+		},
+		{
+			name:  "escaped backslash before closing quote",
+			value: `text/plain; note="a\\", application/json`,
+			want:  []string{"text/plain", "application/json"},
+		},
+		{
+			name:  "escaped comma",
+			value: `text/plain; note="a\,b", application/json`,
+			want:  []string{"text/plain", "application/json"},
+		},
+		{
+			name:  "backslash outside quotes does not escape separator",
+			value: `text/plain; note=bad\, application/json`,
+			want:  []string{"application/json"},
+		},
+		{
+			name:  "incomplete escape",
+			value: `application/json, text/plain; note="a\`,
+			want:  []string{"application/json"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			header := make(http.Header)
+			header.Set(HeaderAccept, tc.value)
+			if got := Accept(header); !slices.Equal(got, tc.want) {
+				t.Fatalf("Accept = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

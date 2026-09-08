@@ -192,17 +192,17 @@ func Charset(header http.Header) string {
 //  2. If the value is "<MIME_type>/*", it will be amended as "<MIME_type>/".
 //     So it can be used to match the prefix.
 func Accept(header http.Header) []string {
-	return accept(header.Get(HeaderAccept))
+	return accept(strings.Join(header.Values(HeaderAccept), ","))
 }
 
 // AcceptEncoding is the same as Accept, but using the "Accept-Encoding" header.
 func AcceptEncoding(header http.Header) []string {
-	return accept(header.Get(HeaderAcceptEncoding))
+	return accept(strings.Join(header.Values(HeaderAcceptEncoding), ","))
 }
 
 // AcceptLanguage is the same as Accept, but using the "Accept-Language" header.
 func AcceptLanguage(header http.Header) []string {
-	return accept(header.Get(HeaderAcceptLanguage))
+	return accept(strings.Join(header.Values(HeaderAcceptLanguage), ","))
 }
 
 func accept(accept string) []string {
@@ -215,25 +215,28 @@ func accept(accept string) []string {
 		q  float64
 	}
 
-	ss := strings.Split(accept, ",")
+	ss := splitHeaderList(accept)
 	accepts := make([]acceptT, 0, len(ss))
 	for _, s := range ss {
 		q := 1.0
 		if k := strings.IndexByte(s, ';'); k > -1 {
-			qs := s[k+1:]
+			parameters := strings.TrimSpace(s[k+1:])
 			s = s[:k]
 
-			if j := strings.IndexByte(qs, '='); j > -1 {
-				if qs = qs[j+1:]; qs == "" {
-					continue
-				}
-				if v, _ := strconv.ParseFloat(qs, 32); v > 1.0 || v <= 0.0 {
-					continue
-				} else {
-					q = v
-				}
-			} else {
+			if parameters == "" {
 				continue
+			}
+
+			_, params, err := mime.ParseMediaType("value;" + parameters)
+			if err != nil {
+				continue
+			}
+
+			if weight, ok := params["q"]; ok {
+				q, err = strconv.ParseFloat(weight, 64)
+				if err != nil || !(q > 0 && q <= 1) {
+					continue
+				}
 			}
 		}
 		s = strings.TrimSpace(s)
@@ -263,6 +266,30 @@ func accept(accept string) []string {
 		results[i] = accepts[i].ct
 	}
 	return results
+}
+
+// splitHeaderList leaves commas inside quoted parameter values intact.
+func splitHeaderList(value string) []string {
+	var parts []string
+	start, quoted := 0, false
+	for i, _len := 0, len(value); i < _len; i++ {
+		switch value[i] {
+		case '\\':
+			if quoted {
+				i++
+			}
+
+		case '"':
+			quoted = !quoted
+
+		case ',':
+			if !quoted {
+				parts = append(parts, value[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return append(parts, value[start:])
 }
 
 // SetContentType sets the "Content-Type" header.

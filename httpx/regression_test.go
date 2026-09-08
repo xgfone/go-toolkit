@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,7 +61,6 @@ func TestRegressionInformationalResponse(t *testing.T) {
 type regressionRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f regressionRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
 func TestRegressionRequestBodyLifetime(t *testing.T) {
 	old := GetClient()
 	defer SetClient(old)
@@ -160,6 +160,27 @@ func TestWrappedSensitiveResponse(t *testing.T) {
 	}
 }
 
+func TestAcceptQuotedParametersAndMultipleLines(t *testing.T) {
+	h := http.Header{}
+	h.Add("Accept", `text/html;note="one,two;three";q=0.9,application/json;q=0.8`)
+	h.Add("Accept", `text/plain;q=1, image/png;q=NaN, image/jpeg;q=0, image/webp;q=1.1`)
+	want := []string{"text/plain", "text/html", "application/json"}
+
+	if got := Accept(h); !slices.Equal(got, want) {
+		t.Fatalf("Accept = %v, want %v", got, want)
+	}
+
+	h.Set("Connection", "keep-alive")
+	h.Add("Connection", " Upgrade ")
+	h.Set("Upgrade", "WebSocket")
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header = h
+
+	if !IsWebSocket(r) {
+		t.Fatal("Upgrade token on the second header line was not recognized")
+	}
+}
+
 func TestRegressionWrappedErrorStatus(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
@@ -190,6 +211,16 @@ func TestRegressionCharsetExtraParameter(t *testing.T) {
 
 	if got := Charset(h); got != "utf-8" {
 		t.Fatalf("charset includes quotes and following parameter: %q", got)
+	}
+}
+
+func TestRegressionAcceptMediaParameter(t *testing.T) {
+	h := http.Header{}
+	h.Set("Accept", "text/html;level=1;q=0.9, application/json;q=0.5")
+
+	got := Accept(h)
+	if len(got) != 2 || got[0] != "text/html" {
+		t.Fatalf("valid media parameters discarded the preferred type: %v", got)
 	}
 }
 
