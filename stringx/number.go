@@ -72,7 +72,7 @@ func IsFloat(s string) bool {
 		s = s[1:]
 	}
 
-	if s == "." {
+	if s == "" || s == "." || s[0] == '+' || s[0] == '-' {
 		return false
 	}
 
