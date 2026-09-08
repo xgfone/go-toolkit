@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,13 @@ func IsZero(value any) bool {
 	case []byte:
 		return v == nil
 	case interface{ IsZero() bool }:
+		switch rvalue := reflect.ValueOf(value); rvalue.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
+			reflect.Pointer, reflect.Slice:
+			if rvalue.IsNil() {
+				return true
+			}
+		}
 		return v.IsZero()
 	default:
 		rvalue := reflect.ValueOf(value)
