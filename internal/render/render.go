@@ -18,12 +18,10 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-
-	"github.com/xgfone/go-toolkit/unsafex"
 )
 
 func write(w http.ResponseWriter, b *bytes.Buffer) (err error) {
-	n, err := w.Write(unsafex.Bytes(b.String()))
+	n, err := w.Write(b.Bytes())
 	if err == nil && n != b.Len() {
 		err = io.ErrShortWrite
 	}
