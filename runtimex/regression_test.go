@@ -31,3 +31,10 @@ func TestRegressionNilZeroer(t *testing.T) {
 		t.Error("typed nil must be zero")
 	}
 }
+
+func TestRegressionFinalStackFrame(t *testing.T) {
+	frames := Stacks(0)
+	if len(frames) == 0 || frames[len(frames)-1].Func != "goexit" {
+		t.Fatalf("runtime.goexit omitted from final stack frame: %+v", frames)
+	}
+}
