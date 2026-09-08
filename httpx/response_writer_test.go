@@ -153,7 +153,7 @@ func TestContextResponseWriter(t *testing.T) {
 			ctx := &Context{}
 			rw := newResponseWriter(ctx, rec)
 
-			rw.Write([]byte("test"))
+			_, _ = rw.Write([]byte("test"))
 			if code := rw.StatusCode(); code != 200 {
 				t.Errorf("status code should be 200 after Write, got %d", code)
 			}

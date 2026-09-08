@@ -30,6 +30,33 @@ import (
 	"github.com/xgfone/go-toolkit/result"
 )
 
+func TestRegressionInformationalResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := AcquireContext()
+		defer ReleaseContext(c)
+
+		c.Reset(w, r)
+		c.WriteHeader(103)
+		if c.StatusCode() != 0 {
+			t.Errorf("informational response committed final status %d", c.StatusCode())
+		}
+
+		c.WriteHeader(201)
+		_, _ = c.ResponseWriter.Write([]byte("created"))
+	}))
+
+	defer server.Close()
+	r, err := server.Client().Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer r.Body.Close() //nolint:errcheck
+	if r.StatusCode != 201 {
+		t.Fatalf("103 followed by 201 became %d", r.StatusCode)
+	}
+}
+
 type regressionRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f regressionRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

@@ -24,9 +24,10 @@ import (
 type ResponseWriter interface {
 	http.ResponseWriter
 
-	// StatusCode returns the written status code.
+	// StatusCode returns the final response status code.
 	//
-	// Return 0 if the response header has not been written yet.
+	// Return 0 before a final response or 101 has been written.
+	// Other informational (1xx) responses do not commit the final status.
 	StatusCode() int
 }
 
@@ -64,10 +65,15 @@ func (w *_ContextResponseWriter) WriteHeader(code int) {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
-	if w.ResponseCode == 0 {
-		w.ResponseCode = code
-		w.w.WriteHeader(code)
+	if w.ResponseCode != 0 {
+		return
 	}
+
+	if code >= 200 || code == http.StatusSwitchingProtocols {
+		w.ResponseCode = code
+	}
+
+	w.w.WriteHeader(code)
 }
 
 func (w *_ContextResponseWriter) StatusCode() int {
