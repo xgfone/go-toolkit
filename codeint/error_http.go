@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2025~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,11 +40,14 @@ var (
 
 // StatusCode returns the http status code.
 //
-// If Status is not equal to 0, return it.
+// If Status is in [100, 599], return it. An invalid nonzero Status uses 500.
 // Or, return Code if it is in [100, 599].
 // Or, return 500.
 func (e Error) StatusCode() int {
 	if e.Status != 0 {
+		if e.Status < 100 || e.Status >= 600 {
+			return 500
+		}
 		return e.Status
 	}
 	if 100 <= e.Code && e.Code < 600 {

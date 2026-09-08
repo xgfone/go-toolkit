@@ -16,6 +16,7 @@ package codeint
 
 import (
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -50,5 +51,33 @@ func TestErrorServeHTTP(t *testing.T) {
 	const body = `{"Code":400,"Message":"Bad Request"}`
 	if s := strings.TrimSpace(rec.Body.String()); s != body {
 		t.Errorf("expect response body '%s', but got '%s'", body, s)
+	}
+}
+
+func TestErrorStatusCodeBoundaries(t *testing.T) {
+	for _, tc := range []struct{ status, want int }{
+		{-1, 500},
+		{99, 500},
+		{100, 100},
+		{599, 599},
+		{600, 500},
+		{1000, 500},
+		{0, 404}, // Only an unspecified status falls back to the business code.
+	} {
+		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
+			// Status is public; callers can bypass the normalization in WithStatus.
+			err := Error{Code: 404, Status: tc.status}
+			if got := err.StatusCode(); got != tc.want {
+				t.Fatalf("StatusCode = %d, want %d", got, tc.want)
+			}
+
+			if tc.want == 500 {
+				rec := httptest.NewRecorder()
+				err.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+				if rec.Code != 500 {
+					t.Errorf("ServeHTTP status = %d, want 500", rec.Code)
+				}
+			}
+		})
 	}
 }

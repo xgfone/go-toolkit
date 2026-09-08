@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2025~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,8 +122,10 @@ func (e Error) WithCode(code int) Error {
 }
 
 // WithStatus returns a new Error with the status.
+//
+// Zero clears the explicit status; other values outside [100, 599] use 500.
 func (e Error) WithStatus(status int) Error {
-	if status < 600 {
+	if status == 0 || (100 <= status && status < 600) {
 		e.Status = status
 	} else {
 		e.Status = 500
