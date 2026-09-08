@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,7 +23,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/xgfone/go-toolkit/internal/pools"
 	"github.com/xgfone/go-toolkit/jsonx"
 	"github.com/xgfone/go-toolkit/unsafex"
 )
@@ -125,14 +125,15 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 		_req, err = http.NewRequestWithContext(ctx, method, url, r)
 
 	default:
-		pool, buf := pools.GetBuffer(1024)
-		defer pools.PutBuffer(pool, buf)
-
-		if err = jsonx.MarshalWriter(buf, r); err != nil {
+		var buf bytes.Buffer
+		buf.Grow(1024)
+		if err = jsonx.MarshalWriter(&buf, r); err != nil {
 			return fmt.Errorf("fail to encode request body: %w", err)
 		}
 
-		_req, err = http.NewRequestWithContext(ctx, method, url, buf)
+		// Transport may close Body asynchronously after Do returns. The request
+		// and its GetBody replays must own their bytes for their entire lifetime.
+		_req, err = http.NewRequestWithContext(ctx, method, url, &buf)
 	}
 	if err != nil {
 		return
@@ -161,7 +162,7 @@ func DoRequest(ctx context.Context, req *http.Request, respbody any) (err error)
 	if err != nil {
 		return err
 	}
-	defer rsp.Body.Close()
+	defer rsp.Body.Close() //nolint:errcheck
 
 	if f, ok := respbody.(func(*http.Response) error); ok {
 		return f(rsp)

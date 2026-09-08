@@ -15,9 +15,12 @@
 package httpx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -26,6 +29,69 @@ import (
 	"github.com/xgfone/go-toolkit/errorx"
 	"github.com/xgfone/go-toolkit/result"
 )
+
+type regressionRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f regressionRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestRegressionRequestBodyLifetime(t *testing.T) {
+	old := GetClient()
+	defer SetClient(old)
+
+	release := make(chan struct{})
+	read := make(chan string, 1)
+	SetClient(&http.Client{Transport: regressionRoundTripper(func(r *http.Request) (*http.Response, error) {
+		go func() {
+			<-release
+
+			b, err := io.ReadAll(r.Body)
+			_ = r.Body.Close()
+
+			if err != nil {
+				t.Error(err)
+			}
+
+			read <- string(b)
+		}()
+		return nil, fmt.Errorf("early transport error")
+	})})
+
+	_ = Post(context.Background(), "http://audit.invalid", nil, map[string]string{"key": "value"})
+	close(release)
+	if got := <-read; !strings.Contains(got, `"key":"value"`) {
+		t.Fatalf("request body reset before asynchronous Body.Close: %q", got)
+	}
+}
+
+func TestRequestBodyReplayAfterReturn(t *testing.T) {
+	old := GetClient()
+	defer SetClient(old)
+
+	var request *http.Request
+	SetClient(&http.Client{Transport: regressionRoundTripper(func(r *http.Request) (*http.Response, error) {
+		request = r
+		_ = r.Body.Close()
+		return nil, errors.New("transport failed")
+	})})
+
+	_ = Post(context.Background(), "http://example.invalid", nil, map[string]int{"value": 42})
+	if request.GetBody == nil {
+		t.Fatal("encoded request must support body replay")
+	}
+
+	for range 2 {
+		body, err := request.GetBody()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		data, err := io.ReadAll(body)
+		_ = body.Close()
+		if err != nil || string(data) != "{\"value\":42}\n" {
+			t.Fatalf("unexpected replay: %q, %v", data, err)
+		}
+	}
+}
 
 func TestWrappedCodeintResponse(t *testing.T) {
 	base := codeint.ErrNotFound.WithCode(400004).WithData("public data")
