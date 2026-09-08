@@ -237,8 +237,12 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	modules, loader, signals := a.startRun(runCtx, cancelRun)
 
-	signalCtx, stopSignal := signal.NotifyContext(runCtx, signals...)
-	defer stopSignal()
+	signalCtx := runCtx
+	if len(signals) > 0 {
+		var stopSignal context.CancelFunc
+		signalCtx, stopSignal = signal.NotifyContext(runCtx, signals...)
+		defer stopSignal()
+	}
 
 	initialized := make([]Module, 0, len(modules))
 	shutdownDone := false
