@@ -62,3 +62,22 @@ func TestFromNetAddr(t *testing.T) {
 		t.Errorf("expect a panic, but got nil")
 	}
 }
+
+func TestAddrFromNilNetAddr(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		addr net.Addr
+	}{
+		{name: "nil interface"},
+		{name: "nil TCPAddr", addr: (*net.TCPAddr)(nil)},
+		{name: "nil UDPAddr", addr: (*net.UDPAddr)(nil)},
+		{name: "nil IPAddr", addr: (*net.IPAddr)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := AddrFromNetAddr(tc.addr)
+			if err == nil || got.IsValid() {
+				t.Fatalf("AddrFromNetAddr = %v, %v; want invalid address and error", got, err)
+			}
+		})
+	}
+}

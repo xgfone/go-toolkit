@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package netipx
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -25,16 +26,37 @@ import (
 // AddrFromNetAddr converts a net.Addr to netip.Addr.
 func AddrFromNetAddr(netaddr net.Addr) (addr netip.Addr, err error) {
 	switch v := netaddr.(type) {
+	case nil:
+		return addr, fmt.Errorf("nil net.Addr")
+
 	case *net.TCPAddr:
-		addr, _ = netip.AddrFromSlice(v.IP)
+		if v != nil {
+			return addrFromIP(v.IP, v.Zone)
+		}
 
 	case *net.UDPAddr:
-		addr, _ = netip.AddrFromSlice(v.IP)
+		if v != nil {
+			return addrFromIP(v.IP, v.Zone)
+		}
+
+	case *net.IPAddr:
+		if v != nil {
+			host, _ := netx.SplitHostPort(v.String())
+			return netip.ParseAddr(host)
+		}
 
 	default:
 		host, _ := netx.SplitHostPort(v.String())
-		addr, err = netip.ParseAddr(host)
+		return netip.ParseAddr(host)
 	}
 
-	return
+	return addr, fmt.Errorf("nil %T", netaddr)
+}
+
+func addrFromIP(ip net.IP, zone string) (netip.Addr, error) {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return netip.Addr{}, fmt.Errorf("invalid IP address %q", ip)
+	}
+	return addr, nil
 }
