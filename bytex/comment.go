@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 package bytex
 
 import "bytes"
-
-var doublequote = []byte{'"'}
 
 // Pre-define some comment characters.
 var (
@@ -46,20 +44,32 @@ func RemoveLineComments(data, comments []byte) []byte {
 		}
 
 		// Line Suffix Comment
-		if index := bytes.Index(orig, comments); index == -1 {
+		if index := lineCommentIndex(orig, comments); index == -1 {
 			result = append(result, orig...)
-		} else if bytes.IndexByte(orig[index:], '"') == -1 {
-			result = append(result, bytes.TrimRight(orig[:index], " \t")...)
 		} else {
-			if bytes.Count(orig[:index], doublequote)%2 == 0 {
-				/* The case: ... "...." ... // the trailling comment containing ". */
-				result = append(result, bytes.TrimRight(orig[:index], " \t")...)
-			} else {
-				/* "//" is contained in a string. */
-				result = append(result, orig...)
-			}
+			result = append(result, bytes.TrimRight(orig[:index], " \t")...)
 		}
 		result = append(result, '\n')
 	}
 	return result
+}
+
+func lineCommentIndex(line, comments []byte) int {
+	quoted := false
+	for i := 0; i < len(line); i++ {
+		if quoted {
+			switch line[i] {
+			case '\\':
+				i++ // Skip the escaped byte, including an escaped quote.
+
+			case '"':
+				quoted = false
+			}
+		} else if bytes.HasPrefix(line[i:], comments) {
+			return i
+		} else if line[i] == '"' {
+			quoted = true
+		}
+	}
+	return -1
 }
