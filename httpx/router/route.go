@@ -48,10 +48,10 @@ func (r *Router) Register(route httpx.Route) {
 
 // Routes returns all registered routes.
 //
-// Note: The returned routes should not be modified.
+// The returned slice is a snapshot; later registration does not update it.
 func (r *Router) Routes() []httpx.Route {
 	r.rmutex.RLock()
-	routes := r.routes
+	routes := slices.Clone(r.routes)
 	r.rmutex.RUnlock()
 	return routes
 }
