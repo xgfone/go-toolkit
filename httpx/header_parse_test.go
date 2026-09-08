@@ -144,3 +144,21 @@ func TestAcceptParameterFallback(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitHeaderListEarlyStop(t *testing.T) {
+	const value = `text/plain;note="one,two",application/json,image/png,text/html`
+	want := []string{`text/plain;note="one,two"`, "application/json"}
+	for _, limit := range []int{1, 2} {
+		var got []string
+		for part := range splitHeaderList(value) {
+			got = append(got, part)
+			if len(got) == limit {
+				break
+			}
+		}
+
+		if !slices.Equal(got, want[:limit]) {
+			t.Errorf("stop after %d entries: got %v, want %v", limit, got, want[:limit])
+		}
+	}
+}
