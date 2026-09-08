@@ -175,7 +175,7 @@ func TestRouteHandler(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	route.Handler.ServeHTTP(rec, req)
+	route.ServeHTTP(rec, req)
 
 	if !called {
 		t.Error("handler not called")
