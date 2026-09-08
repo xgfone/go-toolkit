@@ -126,7 +126,6 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 
 	default:
 		var buf bytes.Buffer
-		buf.Grow(1024)
 		if err = jsonx.MarshalWriter(&buf, r); err != nil {
 			return fmt.Errorf("fail to encode request body: %w", err)
 		}
