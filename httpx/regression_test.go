@@ -173,3 +173,13 @@ func TestRegressionWrappedErrorStatus(t *testing.T) {
 		t.Fatalf("wrapped ErrNotFound returned %d with %s", rec.Code, rec.Body)
 	}
 }
+
+func TestRegressionWebSocketConnectionTokens(t *testing.T) {
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("Connection", "keep-alive, Upgrade")
+	r.Header.Set("Upgrade", "websocket")
+
+	if !IsWebSocket(r) {
+		t.Fatal("valid Upgrade token in Connection list is missed")
+	}
+}

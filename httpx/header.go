@@ -1,4 +1,4 @@
-// Copyright 2024~2025 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,8 +139,19 @@ const (
 // IsWebSocket reports whether the request is websocket.
 func IsWebSocket(req *http.Request) bool {
 	return req.Method == http.MethodGet &&
-		strings.ToLower(req.Header.Get(HeaderConnection)) == "upgrade" &&
-		strings.ToLower(req.Header.Get(HeaderUpgrade)) == "websocket"
+		headerContainsToken(req.Header, HeaderConnection, "upgrade") &&
+		headerContainsToken(req.Header, HeaderUpgrade, "websocket")
+}
+
+func headerContainsToken(header http.Header, name, token string) bool {
+	for _, value := range header.Values(name) {
+		for part := range strings.SplitSeq(value, ",") {
+			if strings.EqualFold(strings.TrimSpace(part), token) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ContentType returns the MIME media type portion of the header "Content-Type".
