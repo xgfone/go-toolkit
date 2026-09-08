@@ -237,11 +237,14 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	modules, loader, signals := a.startRun(runCtx, cancelRun)
 
-	signalCtx := runCtx
 	if len(signals) > 0 {
-		var stopSignal context.CancelFunc
-		signalCtx, stopSignal = signal.NotifyContext(runCtx, signals...)
+		signalCtx, stopSignal := signal.NotifyContext(runCtx, signals...)
 		defer stopSignal()
+
+		// Cancel the context used by startup hooks and modules as soon as a
+		// signal arrives, even if startup is still waiting on a dependency.
+		stopCancel := context.AfterFunc(signalCtx, cancelRun)
+		defer stopCancel()
 	}
 
 	initialized := make([]Module, 0, len(modules))
@@ -329,7 +332,7 @@ func (a *App) Run(ctx context.Context) (err error) {
 
 	// 7. Running
 	select {
-	case <-signalCtx.Done():
+	case <-runCtx.Done():
 		// Normal shutdown path.
 
 	case e := <-a.errCh:

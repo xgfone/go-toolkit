@@ -50,3 +50,32 @@ func TestRegressionNoSignals(t *testing.T) {
 		<-done
 	}
 }
+
+func TestRegressionSignalCancelsStartup(t *testing.T) {
+	a := newTestRunApp()
+	a.SetSignals(syscall.SIGUSR1)
+
+	started := make(chan struct{})
+	a.On(StageInit, func(ctx context.Context, _ *App) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- a.Run(context.Background()) }()
+	<-started
+
+	defer a.Stop()
+	if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		a.Stop()
+		<-done
+		t.Fatal("SIGUSR1 does not cancel the startup hook context")
+	}
+}
