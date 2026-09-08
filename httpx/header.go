@@ -157,7 +157,12 @@ func headerContainsToken(header http.Header, name, token string) bool {
 
 // ContentType returns the MIME media type portion of the header "Content-Type".
 func ContentType(header http.Header) string {
-	mediaType, _, _ := mime.ParseMediaType(header.Get(HeaderContentType))
+	value := header.Get(HeaderContentType)
+	if mediaType, _, _, ok := parseSimpleMediaType(value); ok {
+		return strings.ToLower(mediaType)
+	}
+
+	mediaType, _, _ := mime.ParseMediaType(value)
 	return mediaType
 }
 
@@ -174,12 +179,65 @@ func Charset(header http.Header) string {
 		ct = MIMEApplicationOctetStream + ";" + ct
 	}
 
+	if _, key, value, ok := parseSimpleMediaType(ct); ok {
+		if strings.EqualFold(key, "charset") {
+			return value
+		}
+		return ""
+	}
+
 	_, params, err := mime.ParseMediaType(ct)
 	if err != nil {
 		return ""
 	}
 
 	return params["charset"]
+}
+
+// Common media types have no parameters or one unquoted parameter. Leave
+// quoting, duplicate parameters and RFC 2231 continuations to mime.ParseMediaType.
+func parseSimpleMediaType(value string) (mediaType, key, parameter string, ok bool) {
+	base, parameters, hasParameters := strings.Cut(value, ";")
+	mediaType = strings.TrimSpace(base)
+	major, minor, hasSubtype := strings.Cut(mediaType, "/")
+
+	if !isMIMEToken(major) || (hasSubtype && !isMIMEToken(minor)) {
+		return "", "", "", false
+	}
+
+	if !hasParameters {
+		return mediaType, "", "", true
+	}
+
+	key, parameter, ok = parseSimpleMediaParameter(parameters)
+	return
+}
+
+func parseSimpleMediaParameter(parameter string) (key, value string, ok bool) {
+	key, value, ok = strings.Cut(parameter, "=")
+	key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+	ok = ok && isMIMEToken(key) && !strings.Contains(key, "*") && isMIMEToken(value)
+	return
+}
+
+func isMIMEToken(value string) bool {
+	if value == "" {
+		return false
+	}
+
+	for i := range len(value) {
+		c := value[i]
+		if c <= ' ' || c >= 127 {
+			return false
+		}
+
+		switch c {
+		case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=':
+			return false
+		}
+	}
+
+	return true
 }
 
 // Accept returns the accepted Content-Type list from the request header
