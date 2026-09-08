@@ -16,10 +16,14 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/xgfone/go-toolkit/app"
 )
 
 type wrappedListener struct{ net.Listener }
@@ -41,28 +45,7 @@ func TestNewHttpServer(t *testing.T) {
 // lifecycle on a random port.
 func TestHttpServerLifecycle(t *testing.T) {
 	m := NewHttpServer("lifecycle", getAddrFunc(":0"), http.NotFoundHandler())
-	ctx := context.Background()
-
-	if err := m.Init(ctx, nil); err != nil {
-		t.Fatalf("Init: unexpected error: %v", err)
-	}
-	if !m.IsValid() {
-		t.Fatal("server should be valid after Init")
-	}
-
-	// Start is blocking; run it in a goroutine.
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- m.Start(ctx, nil)
-	}()
-
-	if err := m.Stop(ctx, nil); err != nil {
-		t.Errorf("Stop: unexpected error: %v", err)
-	}
-
-	if err := <-errCh; err != nil {
-		t.Errorf("Start returned error: %v", err)
-	}
+	testHttpServerLifecycle(t, m)
 }
 
 // TestHttpServerInitFail verifies that Init fails when the port is already in use.
@@ -132,27 +115,70 @@ func TestHttpServerInvalidAddr(t *testing.T) {
 	}
 }
 
+func TestHttpServerStartRequiresApp(t *testing.T) {
+	m := NewHttpServer("nil-app", getAddrFunc("127.0.0.1:0"), http.NotFoundHandler())
+	if err := m.Init(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if err := m.Stop(context.Background(), nil); err != nil {
+			t.Errorf("Stop after rejected Start: %v", err)
+		}
+	})
+
+	if err := m.Start(context.Background(), nil); err == nil {
+		t.Fatal("Start without an App must fail")
+	}
+}
+
 // TestHttpServerURLScheme verifies that Init correctly parses a "tcp://..." URL
 // and extracts the network and address from it.
 func TestHttpServerURLScheme(t *testing.T) {
 	m := NewHttpServer("scheme", getAddrFunc("tcp://:0"), http.NotFoundHandler())
-	ctx := context.Background()
+	testHttpServerLifecycle(t, m)
+}
 
-	if err := m.Init(ctx, nil); err != nil {
-		t.Fatalf("Init with tcp:// scheme: unexpected error: %v", err)
+func testHttpServerLifecycle(t *testing.T, m *HttpServer) {
+	t.Helper()
+
+	a := app.New()
+	a.SetSignals()
+	a.SetConfigLoader(func(context.Context, *app.App) error { return nil })
+	a.Use(m)
+
+	ready := false
+	a.On(app.StageReady, func(ctx context.Context, a *app.App) error {
+		ready = true
+		if !m.IsValid() {
+			t.Error("server should be valid after Init")
+		}
+
+		addr := m.listen.Addr().(*net.TCPAddr)
+		url := "http://" + net.JoinHostPort("127.0.0.1", fmt.Sprint(addr.Port))
+		client := &http.Client{Timeout: time.Second}
+		resp, err := client.Get(url)
+		if err != nil {
+			return err
+		}
+
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("unexpected HTTP response: %d", resp.StatusCode)
+		}
+
+		a.Stop()
+		return nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := a.Run(ctx); err != nil {
+		t.Fatalf("HTTP lifecycle failed: %v", err)
 	}
 
-	// Run a full lifecycle to confirm the server works with URL-scheme addresses.
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- m.Start(ctx, nil)
-	}()
-
-	if err := m.Stop(ctx, nil); err != nil {
-		t.Errorf("Stop: unexpected error: %v", err)
-	}
-
-	if err := <-errCh; err != nil {
-		t.Errorf("Start returned error: %v", err)
+	if !ready {
+		t.Fatal("HTTP server never became ready")
 	}
 }

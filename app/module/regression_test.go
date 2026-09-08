@@ -16,6 +16,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
@@ -42,5 +43,26 @@ func TestRegressionStopBeforeStartClosesListener(t *testing.T) {
 	if err == nil {
 		_ = c.Close()
 		t.Fatal("Stop after Init left the listener open")
+	}
+}
+
+func TestRegressionServeErrorStopsApp(t *testing.T) {
+	s := NewHttpServer("http", func() string { return "127.0.0.1:0" }, http.NotFoundHandler())
+	s.WrapListener(func(l net.Listener) net.Listener { _ = l.Close(); return l })
+
+	a := app.New()
+	a.SetSignals()
+	a.SetConfigLoader(func(context.Context, *app.App) error { return nil })
+	a.Use(s)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := a.Run(ctx); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Run must preserve the listener failure, got %v", err)
+	}
+
+	if ctx.Err() != nil {
+		t.Fatal("Serve failure stopped the app only after the parent timed out")
 	}
 }

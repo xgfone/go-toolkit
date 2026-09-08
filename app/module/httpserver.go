@@ -116,13 +116,24 @@ func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 	return
 }
 
-func (s *HttpServer) Start(context.Context, *app.App) (err error) {
+// Start runs Serve as an application-managed background task.
+// An enabled server requires a running App.
+func (s *HttpServer) Start(_ context.Context, a *app.App) (err error) {
 	if !s.IsValid() {
 		return
 	}
+	if a == nil {
+		return errors.New("http server: Start requires a running app")
+	}
 
 	slog.Info("start the http server", "modname", s.name, "addr", s.addr)
-	go s.server.Serve(s.listen)
+	a.GoNamed(s.name, func(context.Context) error {
+		err := s.server.Serve(s.listen)
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	})
 	return
 }
 
