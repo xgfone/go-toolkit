@@ -15,6 +15,7 @@
 package httpx
 
 import (
+	"iter"
 	"mime"
 	"net/http"
 	"slices"
@@ -273,9 +274,9 @@ func accept(accept string) []string {
 		q  float64
 	}
 
-	ss := splitHeaderList(accept)
-	accepts := make([]acceptT, 0, len(ss))
-	for _, s := range ss {
+	var buffer [8]acceptT
+	accepts := buffer[:0]
+	for s := range splitHeaderList(accept) {
 		q := 1.0
 		if k := strings.IndexByte(s, ';'); k > -1 {
 			parameters := strings.TrimSpace(s[k+1:])
@@ -285,12 +286,18 @@ func accept(accept string) []string {
 				continue
 			}
 
-			_, params, err := mime.ParseMediaType("value;" + parameters)
-			if err != nil {
-				continue
+			key, weight, simple := parseSimpleMediaParameter(parameters)
+			hasWeight := strings.EqualFold(key, "q")
+			if !simple {
+				_, params, err := mime.ParseMediaType("value;" + parameters)
+				if err != nil {
+					continue
+				}
+				weight, hasWeight = params["q"]
 			}
 
-			if weight, ok := params["q"]; ok {
+			if hasWeight {
+				var err error
 				q, err = strconv.ParseFloat(weight, 64)
 				if err != nil || !(q > 0 && q <= 1) {
 					continue
@@ -327,27 +334,30 @@ func accept(accept string) []string {
 }
 
 // splitHeaderList leaves commas inside quoted parameter values intact.
-func splitHeaderList(value string) []string {
-	var parts []string
-	start, quoted := 0, false
-	for i, _len := 0, len(value); i < _len; i++ {
-		switch value[i] {
-		case '\\':
-			if quoted {
-				i++
-			}
+func splitHeaderList(value string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		start, quoted := 0, false
+		for i, _len := 0, len(value); i < _len; i++ {
+			switch value[i] {
+			case '\\':
+				if quoted {
+					i++
+				}
 
-		case '"':
-			quoted = !quoted
+			case '"':
+				quoted = !quoted
 
-		case ',':
-			if !quoted {
-				parts = append(parts, value[start:i])
-				start = i + 1
+			case ',':
+				if !quoted {
+					if !yield(value[start:i]) {
+						return
+					}
+					start = i + 1
+				}
 			}
 		}
+		yield(value[start:])
 	}
-	return append(parts, value[start:])
 }
 
 // SetContentType sets the "Content-Type" header.

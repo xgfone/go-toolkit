@@ -15,8 +15,10 @@
 package httpx
 
 import (
+	"fmt"
 	"mime"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -90,4 +92,55 @@ func FuzzSimpleMediaParameter(f *testing.F) {
 				parameter, key, value, params, err)
 		}
 	})
+}
+
+func TestAcceptManyValues(t *testing.T) {
+	var inputs, want []string
+	for i := range 32 {
+		value := fmt.Sprintf("application/type%d", i)
+		inputs = append(inputs, value+";q=0.5")
+		want = append(want, value)
+	}
+
+	inputs = append(inputs, "text/plain;q=1")
+	want = append([]string{"text/plain"}, want...)
+	for _, name := range []string{HeaderAccept, HeaderAcceptEncoding, HeaderAcceptLanguage} {
+		header := http.Header{name: {
+			strings.Join(inputs[:16], ","),
+			strings.Join(inputs[16:], ","),
+		}}
+
+		var got []string
+		switch name {
+		case HeaderAccept:
+			got = Accept(header)
+
+		case HeaderAcceptEncoding:
+			got = AcceptEncoding(header)
+
+		case HeaderAcceptLanguage:
+			got = AcceptLanguage(header)
+		}
+
+		if !slices.Equal(got, want) {
+			t.Fatalf("%s = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestAcceptParameterFallback(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  []string
+	}{
+		{`text/plain;q="0.9",application/json;q=0.8`, []string{"text/plain", "application/json"}},
+		{"text/plain;q*=UTF-8''0.9,application/json;q=0.8", []string{"text/plain", "application/json"}},
+		{"text/plain;q=0.9;q=0.8,application/json", []string{"application/json"}},
+		{"text/plain;q=0.8;Q=0.8,application/json;q=0.9", []string{"application/json", "text/plain"}},
+		{"text/plain;level=1,application/json;q=0.9", []string{"text/plain", "application/json"}},
+	} {
+		if got := Accept(http.Header{HeaderAccept: {tc.value}}); !slices.Equal(got, tc.want) {
+			t.Fatalf("Accept(%q) = %v, want %v", tc.value, got, tc.want)
+		}
+	}
 }
