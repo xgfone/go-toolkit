@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/xgfone/go-toolkit/reflectx"
-	"github.com/xgfone/go-toolkit/unsafex"
 )
 
 var binderType = reflect.TypeFor[_Binder]()
@@ -167,7 +166,7 @@ func compileMap(t reflect.Type) SetterFunc {
 func textBytes(src any) ([]byte, bool) {
 	switch v := src.(type) {
 	case string:
-		return unsafex.Bytes(v), true
+		return []byte(v), true
 
 	case []byte:
 		return v, true
@@ -175,7 +174,7 @@ func textBytes(src any) ([]byte, bool) {
 
 	switch v := reflect.ValueOf(src); v.Kind() {
 	case reflect.String:
-		return unsafex.Bytes(v.String()), true
+		return []byte(v.String()), true
 
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.Uint8 {

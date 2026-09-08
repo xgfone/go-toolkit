@@ -22,13 +22,13 @@ import (
 	"strconv"
 
 	"github.com/xgfone/go-toolkit/reflectx"
-	"github.com/xgfone/go-toolkit/unsafex"
 )
 
 var textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 
 func unmarshalText(v reflect.Value, s string) error {
-	return v.Interface().(encoding.TextUnmarshaler).UnmarshalText(unsafex.Bytes(s))
+	// UnmarshalText implementations may modify their input.
+	return v.Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(s))
 }
 
 type SetterFunc func(t reflect.Type, dst reflect.Value, src string) error
