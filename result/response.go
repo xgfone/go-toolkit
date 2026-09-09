@@ -91,13 +91,14 @@ func (r Response) Respond(responder any) {
 	Respond(responder, r)
 }
 
-// StatusCode inspects and returns the status code by the error.
+// StatusCode returns the status code from the outermost error without unwrapping it.
+// It returns 200 if Error is nil, or 500 if Error does not provide a status code.
 func (r Response) StatusCode() int {
 	if r.Error == nil {
 		return 200
 	}
 
-	if v, ok := errors.AsType[errors.StatusCodeError](r.Error); ok {
+	if v, ok := r.Error.(errors.StatusCodeError); ok {
 		return v.StatusCode()
 	}
 

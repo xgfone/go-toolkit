@@ -238,35 +238,16 @@ func DefaultRespond(c *Context, response result.Response) {
 }
 
 func respondError(c *Context, response result.Response) {
-	statuscode := response.StatusCode()
-	response.Error = responseError(response.Error)
+	statuscode := 200
+	if c.Request.Header.Get("X-Error-Status-Code") != "200" {
+		statuscode = response.StatusCode()
+	}
 
-	if c.Request.Header.Get("X-Error-Status-Code") == "200" {
-		statuscode = 200
+	switch response.Error.(type) {
+	case codeint.Error, *codeint.Error:
+	default:
+		response.Error = codeint.ErrInternalServerError.WithError(response.Error)
 	}
 
 	c.JSON(statuscode, response)
-}
-
-func responseError(err error) error {
-	switch err.(type) {
-	case codeint.Error, *codeint.Error:
-		return err
-	}
-
-	// A sensitive wrapper deliberately hides the underlying error's fields.
-	// Use its safe outer message even when its status comes from that error.
-	if _, ok := errors.AsType[errors.SensitiveError](err); !ok {
-		if status, ok := errors.AsType[errors.StatusCodeError](err); ok {
-			switch e := status.(type) {
-			case codeint.Error:
-				return e.WithError(err)
-
-			case *codeint.Error:
-				return e.WithError(err)
-			}
-		}
-	}
-
-	return codeint.ErrInternalServerError.WithError(err)
 }
