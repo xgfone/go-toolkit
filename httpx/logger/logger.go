@@ -174,7 +174,7 @@ func (l *logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	if !(enableLevel(ctx, l.level) && (l.enabled == nil || l.enabled(r))) {
+	if !enableLevel(ctx, l.level) || (l.enabled != nil && !l.enabled(r)) {
 		l.next.ServeHTTP(w, r)
 		return
 	}
