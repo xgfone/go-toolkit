@@ -24,10 +24,23 @@ import (
 )
 
 type contextBindTarget struct {
-	Value string `json:"value" query:"value" header:"X-Value"`
+	Value string `json:"value" query:"value" header:"X-Value" path:"value"`
 }
 
 func TestContextBind(t *testing.T) {
+	t.Run("path", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.SetPathValue("value", "path")
+
+		var dst contextBindTarget
+		if err := (&Context{Request: req}).BindPath(&dst); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dst.Value != "path" {
+			t.Fatalf("got value %q", dst.Value)
+		}
+	})
+
 	t.Run("body", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"value":"body"}`))
 		req.Header.Set(HeaderContentType, MIMEApplicationJSON)

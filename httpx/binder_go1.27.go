@@ -39,3 +39,11 @@ func (c *Context) BindQuery[T any](dst *T) error {
 func (c *Context) BindHeader[T any](dst *T) error {
 	return BindHeader(c.Request, dst)
 }
+
+// BindPath binds c.Request's path wildcard values into dst using the "path"
+// struct tag, then sets defaults and validates dst.
+//
+// It is a convenience wrapper for BindPath(c.Request, dst).
+func (c *Context) BindPath[T any](dst *T) error {
+	return BindPath(c.Request, dst)
+}

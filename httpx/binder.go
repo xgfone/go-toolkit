@@ -30,6 +30,7 @@ const (
 	bindTagForm   = "form"
 	bindTagHeader = "header"
 	bindTagQuery  = "query"
+	bindTagPath   = "path"
 )
 
 var errNilRequest = errors.New("httpx: request is nil")
@@ -121,6 +122,34 @@ func bindQueryRequest(r *http.Request, dst any) error {
 	}
 
 	return defaultAndValidate(dst)
+}
+
+// BindPath binds the request's path wildcard values into dst using the "path"
+// struct tag, then sets defaults and validates dst.
+//
+// Values come from r.PathValue, as populated by http.ServeMux or r.SetPathValue.
+// Missing and empty values are ignored, as in BindQuery. Use validation to
+// require a value. Query parameters and the request body are not read.
+func BindPath[T any](r *http.Request, dst *T) error {
+	return bindPathRequest(r, dst)
+}
+
+func bindPathRequest(r *http.Request, dst any) error {
+	if r == nil {
+		return errNilRequest
+	}
+
+	if err := structx.BindValuesAny(dst, pathValues{r}, bindTagPath); err != nil {
+		return err
+	}
+
+	return defaultAndValidate(dst)
+}
+
+type pathValues struct{ request *http.Request }
+
+func (p pathValues) Get(name string) string {
+	return p.request.PathValue(name)
 }
 
 func bindForm(dst any, form url.Values) error {
