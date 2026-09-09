@@ -1,4 +1,4 @@
-// Copyright 2023~2025 xgfone
+// Copyright 2023~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,6 +90,18 @@ func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[
 	return maps
 }
 
+// GroupBy groups the elements of s by key, preserving their order within each
+// group. It calls key once for each element and does not modify s.
+// The elements are shallow copies. Empty or nil input returns a non-nil empty map.
+func GroupBy[S ~[]E, K comparable, E any](s S, key func(E) K) map[K][]E {
+	groups := make(map[K][]E)
+	for _, value := range s {
+		k := key(value)
+		groups[k] = append(groups[k], value)
+	}
+	return groups
+}
+
 // Merge concatenates multiple slices into a single slice.
 //
 // If no slices are provided, it returns nil.
@@ -174,4 +186,44 @@ func ContainsAllFunc[S1 ~[]E1, S2 ~[]E2, E1, E2 any](superset S1, subset S2, equ
 		}
 	}
 	return true
+}
+
+// HasDuplicates reports whether s contains equal elements, including
+// non-adjacent ones. It does not modify s. Empty or nil input returns false.
+// Elements are compared using ==, so floating-point NaNs are never duplicates.
+func HasDuplicates[S ~[]E, E comparable](s S) bool {
+	if len(s) < 2 {
+		return false
+	}
+
+	seen := make(map[E]struct{}, len(s))
+	for _, value := range s {
+		if _, ok := seen[value]; ok {
+			return true
+		}
+		seen[value] = struct{}{}
+	}
+	return false
+}
+
+// Unique returns a shallow copy of s with duplicate elements removed,
+// preserving the order of their first occurrence. It does not modify s or
+// share its backing array, and it preserves the nilness of s.
+// Elements are compared using ==, so floating-point NaNs are all retained.
+//
+// Unlike slices.Compact, Unique also removes non-adjacent duplicates.
+func Unique[S ~[]E, E comparable](s S) S {
+	if s == nil {
+		return nil
+	}
+
+	values := make(S, 0, len(s))
+	seen := make(map[E]struct{}, len(s))
+	for _, value := range s {
+		if _, ok := seen[value]; !ok {
+			seen[value] = struct{}{}
+			values = append(values, value)
+		}
+	}
+	return values
 }
