@@ -4,7 +4,7 @@ on: push
 
 env:
   DEBUG: true
-  LATEST_GO: "1.26"
+  LATEST_GO: "1.27"
   GOTOOLCHAIN: local
 
 jobs:
@@ -21,6 +21,7 @@ jobs:
           - "1.24"
           - "1.25"
           - "1.26"
+          - "1.27"
 
     steps:
       - uses: actions/checkout@v7
