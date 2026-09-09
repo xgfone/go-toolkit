@@ -40,7 +40,7 @@ func BenchmarkParseHit(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = parser.Parse(typ, "q")
 	}
 }
@@ -50,7 +50,7 @@ func BenchmarkRawParse(b *testing.B) {
 	parser := NewParser(NewSetterFieldCompiler(CompileStringSetter, ""), isStringOpaqueField)
 
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = parser._Parse(typ, "q")
 	}
 }
@@ -69,7 +69,7 @@ func BenchmarkGetValueNested(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if got := field.GetValue(values); got != "value" {
 			b.Fatalf("got %v", got)
 		}

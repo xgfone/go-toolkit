@@ -84,7 +84,7 @@ func BenchmarkBindValuesFlat(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*target = benchValuesFlat{}
 		if err := BindValues(target, source, "q"); err != nil {
 			b.Fatal(err)
@@ -105,7 +105,7 @@ func BenchmarkBindMapFlat(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*target = benchMapFlat{}
 		if err := BindMap(target, source, "json"); err != nil {
 			b.Fatal(err)
@@ -132,7 +132,7 @@ func BenchmarkBindMapNestedPointersAndBinders(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*target = benchMapNested{}
 		if err := BindMap(target, source, "json"); err != nil {
 			b.Fatal(err)
@@ -152,7 +152,7 @@ func BenchmarkBindValuesPointersAndText(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*target = benchValuesPointers{}
 		if err := BindValues(target, source, "q"); err != nil {
 			b.Fatal(err)

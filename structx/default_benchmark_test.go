@@ -61,7 +61,7 @@ func BenchmarkSetDefaultSimple(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*v = benchDefaultSimple{}
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
@@ -75,7 +75,7 @@ func BenchmarkSetDefaultAllFields(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*v = benchDefaultAllFields{}
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
@@ -89,7 +89,7 @@ func BenchmarkSetDefaultPartialFields(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*v = benchDefaultPartial{}
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
@@ -103,7 +103,7 @@ func BenchmarkSetDefaultNested(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*v = benchDefaultNested{}
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
@@ -119,7 +119,7 @@ func BenchmarkSetDefaultAlreadySet(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
 		}
@@ -131,7 +131,7 @@ func BenchmarkSetDefaultNilPointer(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = SetDefault(v) // returns error, no panic
 	}
 }
@@ -141,7 +141,7 @@ func BenchmarkSetDefaultNonStruct(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = SetDefault(&v) // returns error, no panic
 	}
 }
@@ -156,7 +156,7 @@ func BenchmarkSetDefaultNoDefaults(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		*v = noDefault{}
 		if err := SetDefault(v); err != nil {
 			b.Fatal(err)
