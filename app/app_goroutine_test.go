@@ -97,6 +97,45 @@ func TestGo_Error_TriggersShutdown(t *testing.T) {
 	}
 }
 
+func TestGo_Error_FullErrorChannel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := &App{
+		state:     stateRunning,
+		runCtx:    ctx,
+		cancelRun: cancel,
+		errCh:     make(chan error, 1),
+	}
+	queuedErr := errors.New("queued failure")
+	app.errCh <- queuedErr
+
+	// Keep the channel full until the task exits so the send must select default.
+	app.GoNamed("worker", func(context.Context) error {
+		return errors.New("task failure")
+	})
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+
+	if err := app.waitBackground(waitCtx); err != nil {
+		t.Fatalf("background task blocked on a full error channel: %v", err)
+	}
+	if !errors.Is(ctx.Err(), context.Canceled) {
+		t.Fatalf("background task must cancel the run context, got %v", ctx.Err())
+	}
+
+	select {
+	case err := <-app.errCh:
+		if err != queuedErr {
+			t.Fatalf("queued error = %v, want %v", err, queuedErr)
+		}
+
+	default:
+		t.Fatal("background task removed the queued error")
+	}
+}
+
 func TestGo_Convenience(t *testing.T) {
 	orig := DefaultApp
 	defer func() { DefaultApp = orig }()
