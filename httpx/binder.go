@@ -44,7 +44,7 @@ func BindBody[T any](r *http.Request, dst *T) error {
 	return bindBodyRequest(r, dst)
 }
 
-func bindBodyRequest(r *http.Request, dst any) error {
+func bindBodyRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -94,7 +94,7 @@ func BindHeader[T any](r *http.Request, dst *T) error {
 	return bindHeaderRequest(r, dst)
 }
 
-func bindHeaderRequest(r *http.Request, dst any) error {
+func bindHeaderRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -112,7 +112,7 @@ func BindQuery[T any](r *http.Request, dst *T) error {
 	return bindQueryRequest(r, dst)
 }
 
-func bindQueryRequest(r *http.Request, dst any) error {
+func bindQueryRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -134,12 +134,12 @@ func BindPath[T any](r *http.Request, dst *T) error {
 	return bindPathRequest(r, dst)
 }
 
-func bindPathRequest(r *http.Request, dst any) error {
+func bindPathRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
 
-	if err := structx.BindValuesAny(dst, pathValues{r}, bindTagPath); err != nil {
+	if err := structx.BindValues(dst, pathValues{r}, bindTagPath); err != nil {
 		return err
 	}
 
@@ -152,20 +152,20 @@ func (p pathValues) Get(name string) string {
 	return p.request.PathValue(name)
 }
 
-func bindForm(dst any, form url.Values) error {
-	return structx.BindValuesAny(dst, form, bindTagForm)
+func bindForm[T any](dst *T, form url.Values) error {
+	return structx.BindValues(dst, form, bindTagForm)
 }
 
-func bindHeader(dst any, header http.Header) error {
-	return structx.BindValuesAny(dst, header, bindTagHeader)
+func bindHeader[T any](dst *T, header http.Header) error {
+	return structx.BindValues(dst, header, bindTagHeader)
 }
 
-func bindQuery(dst any, query url.Values) error {
-	return structx.BindValuesAny(dst, query, bindTagQuery)
+func bindQuery[T any](dst *T, query url.Values) error {
+	return structx.BindValues(dst, query, bindTagQuery)
 }
 
-func defaultAndValidate(dst any) error {
-	if err := structx.SetDefaultAny(dst); err != nil {
+func defaultAndValidate[T any](dst *T) error {
+	if err := structx.SetDefault(dst); err != nil {
 		return err
 	}
 	return validation.Validate(dst)
