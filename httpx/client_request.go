@@ -78,7 +78,7 @@ func (e _ClientError) Error() string {
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
 //   - func(*http.Response) error: custom response handler function
-//   - any other type: response body is automatically decoded as JSON into the variable
+//   - non-nil pointer: response body is automatically decoded as JSON into the destination
 func Get(ctx context.Context, url string, respbody any) (err error) {
 	return Request(ctx, http.MethodGet, url, respbody, nil)
 }
@@ -89,7 +89,7 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
 //   - func(*http.Response) error: custom response handler function
-//   - any other type: response body is automatically decoded as JSON into the variable
+//   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
@@ -107,7 +107,7 @@ func Post(ctx context.Context, url string, respbody any, reqbody any) (err error
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
 //   - func(*http.Response) error: custom response handler function
-//   - any other type: response body is automatically decoded as JSON into the variable
+//   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
@@ -150,7 +150,7 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
 //   - func(*http.Response) error: custom response handler function
-//   - any other type: response body is automatically decoded as JSON into the variable
+//   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // It will log the request and response details at the debug level if the debug log is enabled.
 //
@@ -189,7 +189,7 @@ func DoRequest(ctx context.Context, req *http.Request, respbody any) (err error)
 	}
 
 	if respbody != nil && len(data) > 0 {
-		if err = jsonx.UnmarshalBytes(data, &respbody); err != nil {
+		if err = jsonx.UnmarshalBytes(data, respbody); err != nil {
 			err = fmt.Errorf("fail to decode the response body: %w", err)
 			return newClientError(req, rsp).WithBody(data).WithError(err)
 		}
