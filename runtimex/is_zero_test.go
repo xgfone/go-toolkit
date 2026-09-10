@@ -1,4 +1,4 @@
-// Copyright 2024 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,3 +75,35 @@ func testbool(t *testing.T, kind string, value, expect bool) {
 type _iszero bool
 
 func (v _iszero) IsZero() bool { return !bool(v) }
+
+func TestEqualZero(t *testing.T) {
+	testbool(t, "zero int", EqualZero(0), true)
+	testbool(t, "nonzero int", EqualZero(1), false)
+	testbool(t, "empty string", EqualZero(""), true)
+	testbool(t, "nonempty string", EqualZero("x"), false)
+	testbool(t, "zero array", EqualZero([2]int{}), true)
+	testbool(t, "nonzero array", EqualZero([2]int{0, 1}), false)
+	testbool(t, "zero struct", EqualZero(struct{ N int }{}), true)
+	testbool(t, "nonzero struct", EqualZero(struct{ N int }{N: 1}), false)
+
+	var ptr *int
+	testbool(t, "nil pointer", EqualZero(ptr), true)
+	testbool(t, "pointer to zero", EqualZero(new(int)), false)
+
+	var value any
+	testbool(t, "nil interface", EqualZero(value), true)
+	testbool(t, "interface containing zero", EqualZero[any](0), false)
+	testbool(t, "interface containing typed nil", EqualZero[any](ptr), false)
+	testbool(t, "interface containing slice", EqualZero[any]([]int{}), false)
+	testbool(t, "struct containing interface", EqualZero(struct{ V any }{V: []int{}}), false)
+}
+
+type equalZeroOverride int
+
+func (v equalZeroOverride) IsZero() bool { return v == 1 }
+
+func TestEqualZeroIgnoresIsZeroMethod(t *testing.T) {
+	testbool(t, "underlying zero", EqualZero(equalZeroOverride(0)), true)
+	testbool(t, "custom zero", EqualZero(equalZeroOverride(1)), false)
+	testbool(t, "IsZero custom zero", IsZero(equalZeroOverride(1)), true)
+}
