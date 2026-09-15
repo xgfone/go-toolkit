@@ -184,8 +184,8 @@ func TestSetSignals_Empty(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	origApp := DefaultApp
-	defer func() { DefaultApp = origApp }()
+	origApp := defaultApp
+	defer func() { defaultApp = origApp }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -258,11 +258,11 @@ func TestShutdownBackgroundTaskTimeout(t *testing.T) {
 }
 
 func TestName_Version_Convenience(t *testing.T) {
-	orig := DefaultApp
-	defer func() { DefaultApp = orig }()
-	DefaultApp = New()
-	DefaultApp.SetName("testname")
-	DefaultApp.SetVersion("testver")
+	orig := defaultApp
+	defer func() { defaultApp = orig }()
+	defaultApp = New()
+	defaultApp.SetName("testname")
+	defaultApp.SetVersion("testver")
 
 	if Name() != "testname" {
 		t.Errorf("expected 'testname', got %q", Name())

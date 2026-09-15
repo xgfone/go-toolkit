@@ -36,7 +36,7 @@ type Module interface {
 //
 // It must be called before Run.
 func Use(mods ...Module) {
-	DefaultApp.Use(mods...)
+	defaultApp.Use(mods...)
 }
 
 // Use registers lifecycle modules.

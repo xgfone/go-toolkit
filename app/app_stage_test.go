@@ -22,26 +22,26 @@ import (
 )
 
 func TestStageOn(t *testing.T) {
-	origApp := DefaultApp
-	defer func() { DefaultApp = origApp }()
+	origApp := defaultApp
+	defer func() { defaultApp = origApp }()
 
-	DefaultApp = New()
-	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	DefaultApp.SetSignals()
+	defaultApp = New()
+	defaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	defaultApp.SetSignals()
 
 	var called atomic.Int64
 	StageInit.On(func(ctx context.Context, app *App) error {
 		called.Add(1)
 		return nil
 	})
-	DefaultApp.OnCleanup(func(ctx context.Context, app *App) error {
+	defaultApp.OnCleanup(func(ctx context.Context, app *App) error {
 		called.Add(1)
 		return nil
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := DefaultApp.Run(ctx); err != nil {
+	if err := defaultApp.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if num := called.Load(); num != 2 {
@@ -50,12 +50,12 @@ func TestStageOn(t *testing.T) {
 }
 
 func TestStageOnNamed(t *testing.T) {
-	origApp := DefaultApp
-	defer func() { DefaultApp = origApp }()
+	origApp := defaultApp
+	defer func() { defaultApp = origApp }()
 
-	DefaultApp = New()
-	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	DefaultApp.SetSignals()
+	defaultApp = New()
+	defaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	defaultApp.SetSignals()
 
 	var called atomic.Bool
 	StageInit.OnNamed("test-hook", func(ctx context.Context, app *App) error {
@@ -65,7 +65,7 @@ func TestStageOnNamed(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := DefaultApp.Run(ctx); err != nil {
+	if err := defaultApp.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !called.Load() {

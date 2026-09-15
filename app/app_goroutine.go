@@ -19,14 +19,14 @@ import (
 	"fmt"
 )
 
-// Go is a convenience function that calls DefaultApp.Go.
+// Go is a convenience function that calls Default().Go.
 func Go(fn func(ctx context.Context) error) {
 	GoNamed("", fn)
 }
 
-// GoNamed is a convenience function that calls DefaultApp.GoNamed.
+// GoNamed is a convenience function that calls Default().GoNamed.
 func GoNamed(name string, fn func(ctx context.Context) error) {
-	DefaultApp.GoNamed(name, fn)
+	defaultApp.GoNamed(name, fn)
 }
 
 // Go is short for App.GoNamed("", fn).

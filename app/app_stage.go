@@ -50,14 +50,14 @@ const (
 	StageExited Stage = "exited"
 )
 
-// On registers a hook function into DefaultApp to be executed at the given stage.
+// On registers a hook function into the default app to be executed at the given stage.
 func (s Stage) On(hook Hook) {
-	DefaultApp.On(s, hook)
+	defaultApp.On(s, hook)
 }
 
-// OnNamed registers a named hook function into DefaultApp to be executed at the given stage.
+// OnNamed registers a named hook function into the default app to be executed at the given stage.
 func (s Stage) OnNamed(name string, hook Hook) {
-	DefaultApp.OnNamed(s, name, hook)
+	defaultApp.OnNamed(s, name, hook)
 }
 
 // OnCleanup registers a hook for StageCleanup,

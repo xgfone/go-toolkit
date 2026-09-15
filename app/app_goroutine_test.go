@@ -137,14 +137,14 @@ func TestGo_Error_FullErrorChannel(t *testing.T) {
 }
 
 func TestGo_Convenience(t *testing.T) {
-	orig := DefaultApp
-	defer func() { DefaultApp = orig }()
-	DefaultApp = New()
-	DefaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	DefaultApp.SetSignals()
+	orig := defaultApp
+	defer func() { defaultApp = orig }()
+	defaultApp = New()
+	defaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
+	defaultApp.SetSignals()
 
 	var called atomic.Bool
-	DefaultApp.On(StageStart, func(ctx context.Context, app *App) error {
+	defaultApp.On(StageStart, func(ctx context.Context, app *App) error {
 		Go(func(ctx context.Context) error {
 			<-ctx.Done()
 			called.Store(true)
@@ -155,7 +155,7 @@ func TestGo_Convenience(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	if err := DefaultApp.Run(ctx); err != nil {
+	if err := defaultApp.Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if !called.Load() {

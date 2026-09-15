@@ -33,12 +33,16 @@ import (
 	"github.com/xgfone/go-toolkit/timex"
 )
 
-// DefaultApp is the package-level default App instance.
-var DefaultApp = New()
+var defaultApp = New()
+
+// Default returns the package-level default App instance.
+func Default() *App {
+	return defaultApp
+}
 
 func init() {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		setCommitFromBuildSettings(DefaultApp, info.Settings)
+		setCommitFromBuildSettings(defaultApp, info.Settings)
 	}
 }
 
@@ -111,17 +115,17 @@ func New() *App {
 
 // Run starts the default app, see App.Run.
 func Run(ctx context.Context) error {
-	return DefaultApp.Run(ctx)
+	return defaultApp.Run(ctx)
 }
 
 // Name is a convenience function that returns the default app name.
 func Name() string {
-	return DefaultApp.Name()
+	return defaultApp.Name()
 }
 
 // Version is a convenience function that returns the default app version.
 func Version() string {
-	return DefaultApp.Version()
+	return defaultApp.Version()
 }
 
 // Name returns app name.

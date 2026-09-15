@@ -111,7 +111,7 @@ const (
 )
 
 func init() {
-	app.DefaultApp.SetBuildTime(time.Unix(AppBuildTime, 0).Local())
-	app.DefaultApp.SetVersion(AppVersion)
+	app.Default().SetBuildTime(time.Unix(AppBuildTime, 0).Local())
+	app.Default().SetVersion(AppVersion)
 }
 `
