@@ -31,8 +31,8 @@ type timeoutError interface {
 
 // IsTimeout reports whether the error is timeout.
 func IsTimeout(err error) bool {
-	var timeoutErr timeoutError
-	return errors.As(err, &timeoutErr) && timeoutErr.Timeout()
+	e, ok := errors.AsType[timeoutError](err)
+	return ok && e.Timeout()
 }
 
 // IsLocalIP reports whether ip is configured on a local network interface.
