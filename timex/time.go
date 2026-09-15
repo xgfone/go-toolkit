@@ -22,23 +22,7 @@ const (
 	Week = Day * 7
 )
 
-// Some variables.
-var (
-	// Default: time.RFC3339Nano
-	//
-	// Deprecated: use GetFormat and SetFormat instead.
-	Format = time.RFC3339Nano
-
-	// Defaults: []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
-	//
-	// Deprecated: use GetFormats and SetFormats instead.
-	Formats = []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
-
-	// Default: time.UTC
-	//
-	// Deprecated: use GetLocation and SetLocation instead.
-	Location = time.UTC
-)
+var location = time.UTC
 
 // SetLocation resets the time location.
 //
@@ -47,49 +31,21 @@ func SetLocation(loc *time.Location) {
 	if loc == nil {
 		panic("timex.SetLocation: location is nil")
 	}
-	Location = loc
+	location = loc
 }
 
 // GetLocation returns the current time location.
 //
 // Default: time.UTC
 func GetLocation() *time.Location {
-	return Location
-}
-
-// SetFormats sets the time formats.
-//
-// Default: []string{time.RFC3339Nano, "2006-01-02 15:04:05", "2006-01-02"}
-func SetFormats(formats []string) {
-	if len(formats) == 0 {
-		panic("timex.SetFormats: formats is empty")
-	}
-	Formats = formats
-}
-
-// GetFormats returns the time formats.
-func GetFormats() []string {
-	return Formats
-}
-
-// SetFormat sets the time format.
-func SetFormat(format string) {
-	if format == "" {
-		panic("timex.SetFormat: format is empty")
-	}
-	Format = format
-}
-
-// GetFormat returns the time format.
-func GetFormat() string {
-	return Format
+	return location
 }
 
 var _now func() time.Time
 
 // SetNowFunc sets the now function.
 //
-// Default: time.Now().In(Location)
+// Default: time.Now().In(GetLocation())
 func SetNowFunc(now func() time.Time) {
 	if now == nil {
 		panic("timex.SetNowFunc: now function is nil")
@@ -103,11 +59,11 @@ func Now() time.Time {
 }
 
 func init()             { SetNowFunc(nowloc) }
-func nowloc() time.Time { return time.Now().In(Location) }
+func nowloc() time.Time { return time.Now().In(GetLocation()) }
 
-// Unix is the same as time.Unix, but set the location with Location.
+// Unix is the same as time.Unix, but set the location with GetLocation().
 func Unix(sec, nsec int64) time.Time {
-	return time.Unix(sec, nsec).In(Location)
+	return time.Unix(sec, nsec).In(location)
 }
 
 // Today returns the today local time at 00:00:00.
