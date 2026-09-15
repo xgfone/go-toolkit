@@ -179,13 +179,6 @@ func (e Error) WithMessagef(msg string, args ...any) Error {
 	return e.WithMessage(fmt.Sprintf(msg, args...))
 }
 
-// TryError calls [Error.Wrap].
-//
-// Deprecated: use [Error.Wrap] instead.
-func (e Error) TryError(err error) error {
-	return e.Wrap(err)
-}
-
 // Wrap converts err into an error suitable for returning from a function.
 //
 // It returns nil if err is nil, preserves err if it is already an Error or

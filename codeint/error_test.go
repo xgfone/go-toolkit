@@ -96,7 +96,7 @@ func TestError(t *testing.T) {
 		t.Errorf("expect inner error is nil, but got '%s'", e.Err)
 	}
 
-	if e := err.TryError(nil); e != nil {
+	if e := err.Wrap(nil); e != nil {
 		t.Errorf("expect nil, but got an error: %s", e.Error())
 	}
 	if e := err.Wrap(nil); e != nil {
