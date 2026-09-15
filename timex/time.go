@@ -34,10 +34,10 @@ func SetLocation(loc *time.Location) {
 	location = loc
 }
 
-// GetLocation returns the current time location.
+// Location returns the current time location.
 //
 // Default: time.UTC
-func GetLocation() *time.Location {
+func Location() *time.Location {
 	return location
 }
 
@@ -45,7 +45,7 @@ var _now func() time.Time
 
 // SetNowFunc sets the now function.
 //
-// Default: time.Now().In(GetLocation())
+// Default: time.Now().In(Location())
 func SetNowFunc(now func() time.Time) {
 	if now == nil {
 		panic("timex.SetNowFunc: now function is nil")
@@ -59,9 +59,9 @@ func Now() time.Time {
 }
 
 func init()             { SetNowFunc(nowloc) }
-func nowloc() time.Time { return time.Now().In(GetLocation()) }
+func nowloc() time.Time { return time.Now().In(Location()) }
 
-// Unix is the same as time.Unix, but set the location with GetLocation().
+// Unix is the same as time.Unix, but set the location with Location().
 func Unix(sec, nsec int64) time.Time {
 	return time.Unix(sec, nsec).In(location)
 }

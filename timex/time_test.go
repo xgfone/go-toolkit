@@ -21,13 +21,13 @@ import (
 
 func TestSetLocation(t *testing.T) {
 	// Test normal case
-	original := GetLocation()
+	original := Location()
 	defer SetLocation(original)
 
 	newLoc := time.FixedZone("TestZone", 3600*8) // UTC+8
 	SetLocation(newLoc)
-	if GetLocation() != newLoc {
-		t.Errorf("expected location %v, got %v", newLoc, GetLocation())
+	if Location() != newLoc {
+		t.Errorf("expected location %v, got %v", newLoc, Location())
 	}
 
 	// Test panic with nil location
@@ -39,20 +39,20 @@ func TestSetLocation(t *testing.T) {
 	SetLocation(nil)
 }
 
-func TestGetLocation(t *testing.T) {
-	original := GetLocation()
+func TestLocation(t *testing.T) {
+	original := Location()
 	defer SetLocation(original)
 
 	// Default should be UTC
-	if GetLocation() != time.UTC {
-		t.Errorf("expected default location UTC, got %v", GetLocation())
+	if Location() != time.UTC {
+		t.Errorf("expected default location UTC, got %v", Location())
 	}
 
 	// Change location and verify
 	newLoc := time.Local
 	SetLocation(newLoc)
-	if GetLocation() != newLoc {
-		t.Errorf("expected location %v, got %v", newLoc, GetLocation())
+	if Location() != newLoc {
+		t.Errorf("expected location %v, got %v", newLoc, Location())
 	}
 }
 
@@ -86,7 +86,7 @@ func TestSetNowFunc(t *testing.T) {
 
 func TestNow(t *testing.T) {
 	// Save original location and now function
-	originalLoc := GetLocation()
+	originalLoc := Location()
 	originalNow := _now
 	defer func() {
 		SetLocation(originalLoc)
@@ -119,7 +119,7 @@ func TestNow(t *testing.T) {
 
 func TestToToday(t *testing.T) {
 	// Save original location
-	originalLoc := GetLocation()
+	originalLoc := Location()
 	defer SetLocation(originalLoc)
 
 	SetLocation(time.UTC)
@@ -141,7 +141,7 @@ func TestToToday(t *testing.T) {
 
 func TestToday(t *testing.T) {
 	// Save original location and now function
-	originalLoc := GetLocation()
+	originalLoc := Location()
 	originalNow := _now
 	defer func() {
 		SetLocation(originalLoc)
@@ -168,7 +168,7 @@ func TestToday(t *testing.T) {
 
 func TestUnix(t *testing.T) {
 	// Save original location
-	originalLoc := GetLocation()
+	originalLoc := Location()
 	defer SetLocation(originalLoc)
 
 	SetLocation(time.UTC)
@@ -182,8 +182,8 @@ func TestUnix(t *testing.T) {
 	// Test with different location
 	SetLocation(time.FixedZone("TestZone", 3600*8)) // UTC+8
 	gottime2 := Unix(1735689600, 0)
-	if gottime2.Location() != GetLocation() {
-		t.Errorf("expected location %v, got %v", GetLocation(), gottime2.Location())
+	if gottime2.Location() != Location() {
+		t.Errorf("expected location %v, got %v", Location(), gottime2.Location())
 	}
 }
 

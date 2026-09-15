@@ -36,7 +36,7 @@ func TestRegressionMillisPadding(t *testing.T) {
 	})
 
 	defer timex.SetNowFunc(func() time.Time {
-		return time.Now().In(timex.GetLocation())
+		return time.Now().In(timex.Location())
 	})
 
 	s := NewBuilder(DateTimeMilliRandGenerator).Build(18)
