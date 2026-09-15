@@ -50,7 +50,7 @@ func SetDefaultAny(structptr any) (err error) {
 		return errDefaultNilPointer
 	}
 
-	return _setdefault(rtype, root.Elem())
+	return setDefault(rtype, root.Elem())
 }
 
 // SetDefault sets the default values of the struct fields tagged with "default".
@@ -82,12 +82,8 @@ func SetDefault[Struct any](structptr *Struct) (err error) {
 	}
 
 	root := reflect.ValueOf(structptr).Elem()
-	return _setdefault(rtype, root)
+	return setDefault(rtype, root)
 }
-
-// _setdefault is the backend function implementing the SetDefault functionality,
-// designed for convenient replacement during testing.
-var _setdefault = setDefault
 
 func setDefault(rtype reflect.Type, root reflect.Value) (err error) {
 	for _, f := range defaultParser.Parse(rtype, "").Fields {
