@@ -35,16 +35,16 @@ func IsTimeout(err error) bool {
 	return errors.As(err, &timeoutErr) && timeoutErr.Timeout()
 }
 
-// IPIsOn reports whether the ip is configured on a certain network interface.
+// IsLocalIP reports whether ip is configured on a local network interface.
 //
 // If ip is empty, return (false, nil).
-func IPIsOn(ip string) (on bool, err error) {
-	return ipIsOn(ip, net.InterfaceAddrs)
+func IsLocalIP(ip string) (on bool, err error) {
+	return isLocalIP(ip, net.InterfaceAddrs)
 }
 
-// ipIsOn is the internal implementation of IPIsOn that accepts a function
+// isLocalIP is the internal implementation of IsLocalIP that accepts a function
 // to get interface addresses, making it testable.
-func ipIsOn(ip string, getAddrs func() ([]net.Addr, error)) (on bool, err error) {
+func isLocalIP(ip string, getAddrs func() ([]net.Addr, error)) (on bool, err error) {
 	if ip == "" {
 		return
 	}

@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-func TestIPIsOn(t *testing.T) {
+func TestIsLocalIP(t *testing.T) {
 	tests := []struct {
 		name    string
 		ip      string
@@ -59,32 +59,32 @@ func TestIPIsOn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOn, err := IPIsOn(tt.ip)
+			gotOn, err := IsLocalIP(tt.ip)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("IPIsOn(%q) error = %v, wantErr %v", tt.ip, err, tt.wantErr)
+				t.Errorf("IsLocalIP(%q) error = %v, wantErr %v", tt.ip, err, tt.wantErr)
 				return
 			}
 
 			if !tt.wantErr && gotOn != tt.wantOn {
-				t.Errorf("IPIsOn(%q) = %v, want %v", tt.ip, gotOn, tt.wantOn)
+				t.Errorf("IsLocalIP(%q) = %v, want %v", tt.ip, gotOn, tt.wantOn)
 			}
 		})
 	}
 
 	// Test IP address with port (should fail to parse)
-	if _, err := IPIsOn("127.0.0.1:8080"); err == nil {
-		t.Error("IPIsOn('127.0.0.1:8080') should fail, but got nil error")
+	if _, err := IsLocalIP("127.0.0.1:8080"); err == nil {
+		t.Error("IsLocalIP('127.0.0.1:8080') should fail, but got nil error")
 	}
 
 	// Test CIDR notation (should fail to parse)
-	if _, err := IPIsOn("192.168.1.1/24"); err == nil {
-		t.Error("IPIsOn('192.168.1.1/24') should fail, but got nil error")
+	if _, err := IsLocalIP("192.168.1.1/24"); err == nil {
+		t.Error("IsLocalIP('192.168.1.1/24') should fail, but got nil error")
 	}
 
 	// Test IPv6 CIDR notation (should fail to parse)
-	if _, err := IPIsOn("2001:db8::/32"); err == nil {
-		t.Error("IPIsOn('2001:db8::/32') should fail, but got nil error")
+	if _, err := IsLocalIP("2001:db8::/32"); err == nil {
+		t.Error("IsLocalIP('2001:db8::/32') should fail, but got nil error")
 	}
 }
 
@@ -95,12 +95,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return nil, errors.New("mock interface error")
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err == nil {
-			t.Error("ipIsOn should return error when getAddrs fails")
+			t.Error("isLocalIP should return error when getAddrs fails")
 		}
 		if on {
-			t.Error("ipIsOn should return false when getAddrs fails")
+			t.Error("isLocalIP should return false when getAddrs fails")
 		}
 	})
 
@@ -111,12 +111,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return []net.Addr{mockAddr}, nil
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err != nil {
-			t.Errorf("ipIsOn returned unexpected error: %v", err)
+			t.Errorf("isLocalIP returned unexpected error: %v", err)
 		}
 		if !on {
-			t.Error("ipIsOn should return true for matching IP without slash")
+			t.Error("isLocalIP should return true for matching IP without slash")
 		}
 	})
 
@@ -127,12 +127,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return []net.Addr{mockAddr}, nil
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err != nil {
-			t.Errorf("ipIsOn returned unexpected error: %v", err)
+			t.Errorf("isLocalIP returned unexpected error: %v", err)
 		}
 		if on {
-			t.Error("ipIsOn should return false for address starting with slash")
+			t.Error("isLocalIP should return false for address starting with slash")
 		}
 	})
 
@@ -142,12 +142,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return []net.Addr{}, nil
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err != nil {
-			t.Errorf("ipIsOn returned unexpected error: %v", err)
+			t.Errorf("isLocalIP returned unexpected error: %v", err)
 		}
 		if on {
-			t.Error("ipIsOn should return false for empty address list")
+			t.Error("isLocalIP should return false for empty address list")
 		}
 	})
 
@@ -160,12 +160,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return []net.Addr{mockAddr1, mockAddr2, mockAddr3}, nil
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err != nil {
-			t.Errorf("ipIsOn returned unexpected error: %v", err)
+			t.Errorf("isLocalIP returned unexpected error: %v", err)
 		}
 		if !on {
-			t.Error("ipIsOn should return true when IP is in address list")
+			t.Error("isLocalIP should return true when IP is in address list")
 		}
 	})
 
@@ -177,12 +177,12 @@ func TestIpIsOnInternal(t *testing.T) {
 			return []net.Addr{mockAddr1, mockAddr2}, nil
 		}
 
-		on, err := ipIsOn("127.0.0.1", mockGetAddrs)
+		on, err := isLocalIP("127.0.0.1", mockGetAddrs)
 		if err != nil {
-			t.Errorf("ipIsOn returned unexpected error: %v", err)
+			t.Errorf("isLocalIP returned unexpected error: %v", err)
 		}
 		if on {
-			t.Error("ipIsOn should return false when IP is not in address list")
+			t.Error("isLocalIP should return false when IP is not in address list")
 		}
 	})
 }
