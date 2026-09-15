@@ -261,8 +261,12 @@ func TestName_Version_Convenience(t *testing.T) {
 	orig := defaultApp
 	defer func() { defaultApp = orig }()
 	defaultApp = New()
-	defaultApp.SetName("testname")
-	defaultApp.SetVersion("testver")
+	app := Default()
+	if app == nil || app != defaultApp || app != Default() {
+		t.Fatal("Default must return the same non-nil default app")
+	}
+	app.SetName("testname")
+	app.SetVersion("testver")
 
 	if Name() != "testname" {
 		t.Errorf("expected 'testname', got %q", Name())

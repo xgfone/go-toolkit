@@ -22,6 +22,13 @@ import (
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
+func TestDefault(t *testing.T) {
+	router := Default()
+	if router == nil || router != defaultRouter || router != Default() {
+		t.Fatal("Default must return the same non-nil default router")
+	}
+}
+
 func TestRouter_SetBackend(t *testing.T) {
 	router := New()
 
