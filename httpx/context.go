@@ -16,6 +16,7 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -23,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/xgfone/go-toolkit/codeint"
-	"github.com/xgfone/go-toolkit/internal/errors"
 	"github.com/xgfone/go-toolkit/mapx"
 	"github.com/xgfone/go-toolkit/result"
 )

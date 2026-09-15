@@ -18,6 +18,7 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/xgfone/go-toolkit/errorx"
 	"github.com/xgfone/go-toolkit/httpx"
-	"github.com/xgfone/go-toolkit/internal/errors"
 )
 
 // Config configures a request logger middleware.
@@ -241,7 +241,10 @@ func getSensitiveErrorMessage(err error) (msg string, ok bool) {
 		return "<nil>", true
 	}
 
-	if se, ok := errors.AsType[errors.SensitiveError](err); ok {
+	if se, ok := errors.AsType[interface {
+		error
+		SensitiveError() error
+	}](err); ok {
 		if e := se.SensitiveError(); e != nil {
 			return e.Error(), true
 		}

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.27
-
 package httpx
 
 // BindBody binds c.Request's body into dst according to the request

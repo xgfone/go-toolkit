@@ -10,18 +10,10 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: Go ${{ matrix.go }}
+    name: Go tests
 
     permissions:
       contents: read
-
-    strategy:
-      matrix:
-        go:
-          - "1.24"
-          - "1.25"
-          - "1.26"
-          - "1.27"
 
     steps:
       - uses: actions/checkout@v7
@@ -29,7 +21,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go }}
+          go-version: ${{ env.LATEST_GO }}
 
       - name: Run Tests
         run: bash .github/scripts/go-test.sh
