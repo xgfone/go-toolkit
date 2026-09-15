@@ -72,7 +72,8 @@ func BindBody[T any](r *http.Request, dst *T) error {
 			return err
 		}
 		if r.MultipartForm != nil {
-			if err := structx.BindValues(dst, url.Values(r.MultipartForm.Value), bindTagForm); err != nil {
+			err := structx.BindValues(dst, url.Values(r.MultipartForm.Value), bindTagForm)
+			if err != nil {
 				return err
 			}
 		}

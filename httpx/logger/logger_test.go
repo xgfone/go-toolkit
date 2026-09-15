@@ -37,16 +37,17 @@ func TestLoggerLogsRequest(t *testing.T) {
 	config.PreHandle = func(http.ResponseWriter, *http.Request) { preHandlerCalled = true }
 	config.PostHandle = func(w http.ResponseWriter, r *http.Request) { postHandlerCalled = true }
 
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/items?q=1", nil)
+	req.Header.Set("X-Request-Id", "rid-1")
+
 	raw := errors.New("secret")
-	handler := middleware.Context(config.Middleware(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mdHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := httpx.GetContext(r.Context())
 		c.ResponseBody = "response-body"
 		c.AppendError(errorx.Sensitive(raw, "safe"))
 		w.WriteHeader(http.StatusCreated)
-	})))
-
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/items?q=1", nil)
-	req.Header.Set("X-Request-Id", "rid-1")
+	})
+	handler := middleware.Context(config.Middleware(10).HTTPHandler(mdHandler))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	if !preHandlerCalled {
@@ -140,9 +141,10 @@ func TestGetResponseUnwrapsResponseWriter(t *testing.T) {
 			status, response, err, http.StatusPartialContent, "[BODY TOO LONG: 2049]", errBody)
 	}
 
-	status, response, err = getResponse(unwrapWriter{ResponseWriter: unwrapWriter{ResponseWriter: rw}}, req)
+	status, response, err = getResponse(unwrapWriter{unwrapWriter{ResponseWriter: rw}}, req)
 	if status != http.StatusAccepted || response != nil || err != nil {
-		t.Fatalf("getResponse() = %d, %#v, %v; want %d, nil, nil", status, response, err, http.StatusAccepted)
+		t.Fatalf("getResponse() = %d, %#v, %v; want %d, nil, nil",
+			status, response, err, http.StatusAccepted)
 	}
 
 	status, _, _ = getResponse(&cycleWriter{}, req)
@@ -164,23 +166,27 @@ func TestGetResponseUnwrapsResponseWriter(t *testing.T) {
 func TestGetSensitiveErrorMessage(t *testing.T) {
 	msg, ok := getSensitiveErrorMessage(errorx.Sensitive(errors.New("secret"), "safe"))
 	if !ok || msg != "secret" {
-		t.Fatalf("getSensitiveErrorMessage(errorx.Sensitive(...)) = %q, %v; want %q, true", msg, ok, "secret")
+		t.Fatalf("getSensitiveErrorMessage(errorx.Sensitive(...)) = %q, %v; want %q, true",
+			msg, ok, "secret")
 	}
 
 	var nilSensitive *errorx.SensitiveError
 	msg, ok = getSensitiveErrorMessage(nilSensitive)
 	if !ok || msg != "<nil>" {
-		t.Fatalf("getSensitiveErrorMessage((*errorx.SensitiveError)(nil)) = %q, %v; want %q, true", msg, ok, "<nil>")
+		t.Fatalf("getSensitiveErrorMessage((*errorx.SensitiveError)(nil)) = %q, %v; want %q, true",
+			msg, ok, "<nil>")
 	}
 
 	msg, ok = getSensitiveErrorMessage(customSensitiveError{raw: errors.New("custom-secret")})
 	if !ok || msg != "custom-secret" {
-		t.Fatalf("getSensitiveErrorMessage(customSensitiveError) = %q, %v; want %q, true", msg, ok, "custom-secret")
+		t.Fatalf("getSensitiveErrorMessage(customSensitiveError) = %q, %v; want %q, true",
+			msg, ok, "custom-secret")
 	}
 
 	msg, ok = getSensitiveErrorMessage(customSensitiveError{})
 	if !ok || msg != "<nil>" {
-		t.Fatalf("getSensitiveErrorMessage(customSensitiveError{}) = %q, %v; want %q, true", msg, ok, "<nil>")
+		t.Fatalf("getSensitiveErrorMessage(customSensitiveError{}) = %q, %v; want %q, true",
+			msg, ok, "<nil>")
 	}
 
 	msg, ok = getSensitiveErrorMessage(errors.New("plain"))

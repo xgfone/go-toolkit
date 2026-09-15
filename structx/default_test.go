@@ -25,6 +25,7 @@ func TestSetDefault_InvalidPointer(t *testing.T) {
 	if err := SetDefault(v); !errors.Is(err, errDefaultNilPointer) {
 		t.Fatalf("expected nil pointer error, got %v", err)
 	}
+
 	n := 1
 	if err := SetDefault(&n); !errors.Is(err, errDefaultNotStruct) {
 		t.Fatalf("expected non-struct error, got %v", err)
@@ -118,7 +119,6 @@ func TestSetDefault_FieldError(t *testing.T) {
 			if !strings.Contains(err.Error(), "Age:") {
 				t.Fatalf("expect field name wrapped in error, got %v", err)
 			}
-
 		})
 	}
 }

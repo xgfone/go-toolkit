@@ -241,10 +241,7 @@ func getSensitiveErrorMessage(err error) (msg string, ok bool) {
 		return "<nil>", true
 	}
 
-	if se, ok := errors.AsType[interface {
-		error
-		SensitiveError() error
-	}](err); ok {
+	if se, ok := errors.AsType[_SensitiveError](err); ok {
 		if e := se.SensitiveError(); e != nil {
 			return e.Error(), true
 		}
@@ -254,11 +251,16 @@ func getSensitiveErrorMessage(err error) (msg string, ok bool) {
 	return "", false
 }
 
+type _SensitiveError interface {
+	SensitiveError() error
+	error
+}
+
 /// ----------------------------------------------------------------------- ///
 
 type attrswrapper struct{ Attrs []slog.Attr }
 
-func (w *attrswrapper) Reset()                { ; clear(w.Attrs); w.Attrs = w.Attrs[:0] }
+func (w *attrswrapper) Reset()                { clear(w.Attrs); w.Attrs = w.Attrs[:0] }
 func (w *attrswrapper) Append(a ...slog.Attr) { w.Attrs = append(w.Attrs, a...) }
 
 var attrspool = &sync.Pool{New: func() any {
