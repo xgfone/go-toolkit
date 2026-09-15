@@ -21,8 +21,12 @@ import (
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
-// DefaultRouter is the global default router.
-var DefaultRouter = New()
+var defaultRouter = New()
+
+// Default returns the global default router.
+func Default() *Router {
+	return defaultRouter
+}
 
 // Router is an HTTP server router.
 type Router struct {
