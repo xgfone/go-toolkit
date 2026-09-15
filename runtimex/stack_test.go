@@ -20,10 +20,10 @@ import (
 	"testing"
 )
 
-func ExampleTrimPkgFile() {
-	srcfile := TrimPkgFile("/path/to/src/github.com/xgfone/go-toolkit/srcfile.go")
-	modfile := TrimPkgFile("/path/to/pkg/mod/github.com/xgfone/go-toolkit/modfile.go")
-	origfile := TrimPkgFile("/path/to/github.com/xgfone/go-toolkit/modfile.go")
+func ExampleTrimSourcePath() {
+	srcfile := TrimSourcePath("/path/to/src/github.com/xgfone/go-toolkit/srcfile.go")
+	modfile := TrimSourcePath("/path/to/pkg/mod/github.com/xgfone/go-toolkit/modfile.go")
+	origfile := TrimSourcePath("/path/to/github.com/xgfone/go-toolkit/modfile.go")
 
 	fmt.Println(srcfile)
 	fmt.Println(modfile)

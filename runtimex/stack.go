@@ -22,8 +22,10 @@ import (
 
 var trimPrefixes = []string{"/pkg/mod/", "/src/"}
 
-// TrimPkgFile trims the package path prefix of the file.
-func TrimPkgFile(file string) string {
+// TrimSourcePath removes the first matching "/pkg/mod/" marker and everything
+// before it from file, falling back to "/src/" if no module marker is found.
+// If neither marker is found, it returns file unchanged.
+func TrimSourcePath(file string) string {
 	for _, mark := range trimPrefixes {
 		if index := strings.Index(file, mark); index > -1 {
 			file = file[index+len(mark):]
@@ -66,7 +68,7 @@ func Caller(skip int) Frame {
 		frame, _ := runtime.CallersFrames(pcs).Next()
 		if frame.PC != 0 {
 			return Frame{
-				File: TrimPkgFile(frame.File),
+				File: TrimSourcePath(frame.File),
 				Func: extractfuncname(frame.Function),
 				Line: frame.Line,
 			}
@@ -88,7 +90,7 @@ func Stacks(skip int) []Frame {
 	for {
 		frame, more := frames.Next()
 		stacks = append(stacks, Frame{
-			File: TrimPkgFile(frame.File),
+			File: TrimSourcePath(frame.File),
 			Func: extractfuncname(frame.Function),
 			Line: frame.Line,
 		})
