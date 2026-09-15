@@ -14,7 +14,10 @@
 
 package random
 
-import "unsafe"
+import (
+	"sync/atomic"
+	"unsafe"
+)
 
 // Pre-define some charsets to generate the random string.
 const (
@@ -32,8 +35,26 @@ const (
 	AlphaNumCharset      = NumCharset + AlphaCharset
 )
 
-// DefaultCharset is the default charset.
-var DefaultCharset = AlphaNumLowerCharset
+var defaultCharset atomic.Value
+
+func init() {
+	defaultCharset.Store(AlphaNumLowerCharset)
+}
+
+// DefaultCharset returns the default charset, initially AlphaNumLowerCharset.
+// It is safe to call concurrently with SetDefaultCharset.
+func DefaultCharset() string {
+	return defaultCharset.Load().(string)
+}
+
+// SetDefaultCharset sets the default charset used by callers of DefaultCharset.
+// It panics if charset is empty and is safe to call concurrently.
+func SetDefaultCharset(charset string) {
+	if charset == "" {
+		panic("random.SetDefaultCharset: charset must not be empty")
+	}
+	defaultCharset.Store(charset)
+}
 
 // String generates a random string with the length from the given charsets.
 func String(n int, charset string) string {
