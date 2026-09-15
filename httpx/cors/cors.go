@@ -109,12 +109,7 @@ func NewDefaultConfig() Config {
 	}
 }
 
-// CORS is the alias for Middleware.
-func (c Config) CORS(priority int) httpx.Middleware {
-	return c.Middleware(priority)
-}
-
-// CORS returns a CORS middleware with the given priority.
+// Middleware returns a CORS middleware with the given priority.
 //
 // The returned middleware will write the CORS Vary fields before passing actual
 // requests to the next handler. Therefore, the downstream handlers should use

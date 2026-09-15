@@ -27,7 +27,7 @@ func TestCORSActualRequest(t *testing.T) {
 		AllowOrigins:     []string{"https://example.com"},
 		AllowCredentials: true,
 		ExposeHeaders:    []string{"X-Request-Id"},
-	}.CORS(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
@@ -55,7 +55,7 @@ func TestCORSActualRequest(t *testing.T) {
 
 func TestCORSNonPreflightOptionsRequest(t *testing.T) {
 	called := false
-	handler := Config{AllowOrigins: []string{"https://example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://example.com"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -82,7 +82,7 @@ func TestCORSPreflightRequest(t *testing.T) {
 	config := NewDefaultConfig()
 	config.AllowOrigins = []string{"https://example.com"}
 	config.MaxAge = &maxAge
-	handler := config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := config.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 	}))
 
@@ -116,7 +116,7 @@ func TestCORSPreflightRequest(t *testing.T) {
 }
 
 func TestCORSDefaultConfigPreflight(t *testing.T) {
-	handler := NewDefaultConfig().CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := NewDefaultConfig().Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
 	}))
 
@@ -182,7 +182,7 @@ func TestCORSPreflightForbidden(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := tt.config.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Fatal("next handler was called")
 			}))
 
@@ -268,7 +268,7 @@ func TestCORSPreflightAllowHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := tt.config.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Fatal("next handler was called")
 			}))
 
@@ -297,7 +297,7 @@ func TestCORSCredentialedWildcardPreflightReflectsRequest(t *testing.T) {
 		AllowCredentials: true,
 		AllowMethods:     []string{"*"},
 		AllowHeaders:     []string{"*"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
 	}))
 
@@ -324,7 +324,7 @@ func TestCORSCredentialedWildcardPreflightReflectsRequest(t *testing.T) {
 
 func TestCORSActualRequestWithoutOrigin(t *testing.T) {
 	called := false
-	handler := Config{AllowOrigins: []string{"https://example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://example.com"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -348,7 +348,7 @@ func TestCORSActualRequestWithoutOrigin(t *testing.T) {
 }
 
 func TestCORSNullOrigin(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"null"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"null"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -367,7 +367,7 @@ func TestCORSExposeWildcardWithCredentials(t *testing.T) {
 		AllowOrigins:     []string{"*"},
 		AllowCredentials: true,
 		ExposeHeaders:    []string{"*", "X-Request-Id"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -385,7 +385,7 @@ func TestCORSExposeWildcardWithCredentials(t *testing.T) {
 }
 
 func TestCORSDisallowedOriginPassesThroughWithVary(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://allowed.example", "https://other.example"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://allowed.example", "https://other.example"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -403,7 +403,7 @@ func TestCORSDisallowedOriginPassesThroughWithVary(t *testing.T) {
 }
 
 func TestCORSZeroValueDisablesCORSHeaders(t *testing.T) {
-	handler := Config{}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -421,7 +421,7 @@ func TestCORSZeroValueDisablesCORSHeaders(t *testing.T) {
 }
 
 func TestCORSWildcardStaticOrigin(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"*"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"*"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -456,7 +456,7 @@ func TestCORSWildcardStaticOriginWithExposeHeaders(t *testing.T) {
 	handler := Config{
 		AllowOrigins:  []string{"*"},
 		ExposeHeaders: []string{"X-Request-Id"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -474,7 +474,7 @@ func TestCORSWildcardStaticOriginWithExposeHeaders(t *testing.T) {
 }
 
 func TestCORSStaticOriginRequiresMatchingRequestOrigin(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://allowed.example"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://allowed.example"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -492,7 +492,7 @@ func TestCORSStaticOriginRequiresMatchingRequestOrigin(t *testing.T) {
 }
 
 func TestCORSMultipleExactOrigins(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://one.example", "https://two.example"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://one.example", "https://two.example"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -535,7 +535,7 @@ func TestCORSVaryOriginMergesExistingHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(tt.next))
+			handler := tt.config.Middleware(0).HTTPHandler(http.HandlerFunc(tt.next))
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Origin", "https://example.com")
@@ -587,7 +587,7 @@ func TestCORSSubdomainPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := Config{AllowOrigins: []string{tt.allowOrigin}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := Config{AllowOrigins: []string{tt.allowOrigin}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -632,7 +632,7 @@ func TestCORSNormalizesOrigin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := Config{AllowOrigins: []string{tt.config}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := Config{AllowOrigins: []string{tt.config}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -654,7 +654,7 @@ func TestCORSConfigTrimsEmptyValues(t *testing.T) {
 		AllowMethods:  []string{"", http.MethodPut, " "},
 		AllowHeaders:  []string{"", "X-Token", " "},
 		ExposeHeaders: []string{"", "X-Request-Id", " "},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -698,7 +698,7 @@ func TestCORSNormalizeHost(t *testing.T) {
 	handler := Config{
 		AllowOrigins:  []string{"https://例子.测试"},
 		NormalizeHost: normalizeHost,
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -747,7 +747,7 @@ func TestCORSRequestOriginIsNotNormalized(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := tt.config.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := tt.config.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
@@ -764,7 +764,7 @@ func TestCORSRequestOriginIsNotNormalized(t *testing.T) {
 }
 
 func TestCORSSubdomainPatternRejectsOverlongHost(t *testing.T) {
-	handler := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Config{AllowOrigins: []string{"https://*.example.com"}}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -782,7 +782,7 @@ func TestCORSInvalidOriginIsNotReflected(t *testing.T) {
 	handler := Config{
 		AllowOrigins:     []string{"*"},
 		AllowCredentials: true,
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -805,7 +805,7 @@ func TestCORSReflectsOnlyValidPreflightHeaders(t *testing.T) {
 		AllowCredentials: true,
 		AllowMethods:     []string{http.MethodPut},
 		AllowHeaders:     []string{"*"},
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
 	}))
 
@@ -830,7 +830,7 @@ func TestCORSMaxAgeZero(t *testing.T) {
 		AllowOrigins: []string{"https://example.com"},
 		AllowMethods: []string{http.MethodPut},
 		MaxAge:       &maxAge,
-	}.CORS(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	}.Middleware(0).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("next handler was called")
 	}))
 
@@ -871,7 +871,7 @@ func TestCORSInvalidConfigPanics(t *testing.T) {
 					t.Fatalf("Config.CORS did not panic for %+v", config)
 				}
 			}()
-			_ = config.CORS(0)
+			_ = config.Middleware(0)
 		}()
 	}
 }
@@ -887,11 +887,11 @@ func TestCORSInvalidSubdomainPatternPanicsWithConfigError(t *testing.T) {
 		}
 	}()
 
-	_ = Config{AllowOrigins: []string{"https://*.example.com/path"}}.CORS(0)
+	_ = Config{AllowOrigins: []string{"https://*.example.com/path"}}.Middleware(0)
 }
 
 func TestCORSPriority(t *testing.T) {
-	c := Config{}.CORS(123).(*cors)
+	c := Config{}.Middleware(123).(*cors)
 	if got := c.Priority(); got != 123 {
 		t.Fatalf("unexpected priority: got %d, want %d", got, 123)
 	}
@@ -899,13 +899,13 @@ func TestCORSPriority(t *testing.T) {
 
 func TestCORSHTTPHandlerNilPanics(t *testing.T) {
 	assertPanics(t, func() {
-		_ = Config{}.CORS(0).HTTPHandler(nil)
+		_ = Config{}.Middleware(0).HTTPHandler(nil)
 	})
 }
 
 func TestCORSServeHTTPWithoutNext(t *testing.T) {
 	rec := httptest.NewRecorder()
-	Config{}.CORS(0).(*cors).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	Config{}.Middleware(0).(*cors).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: got %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -916,7 +916,7 @@ func TestCORSServeHTTPWithoutNext(t *testing.T) {
 }
 
 func TestCORSOriginHelperEdgeCases(t *testing.T) {
-	c := Config{AllowOrigins: []string{"https://*.example.com"}}.CORS(0).(*cors)
+	c := Config{AllowOrigins: []string{"https://*.example.com"}}.Middleware(0).(*cors)
 	if origin, ok := parseRequestOrigin("not an origin"); ok || c.matchSubdomainOrigin(origin) {
 		t.Fatal("invalid origin parsed or matched subdomain pattern")
 	}

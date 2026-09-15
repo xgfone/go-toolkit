@@ -223,7 +223,7 @@ func BenchmarkCORSServeHTTP(b *testing.B) {
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			handler := bm.config.CORS(0).HTTPHandler(next)
+			handler := bm.config.Middleware(0).HTTPHandler(next)
 			w := newBenchmarkCORSResponseWriter()
 
 			b.ReportAllocs()
