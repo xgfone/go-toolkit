@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-func TestMarshal(t *testing.T) {
+func TestMarshalBytesNoHTMLEscape(t *testing.T) {
 	func() {
 		defer func() {
 			if r := recover(); r == nil {
@@ -30,7 +30,7 @@ func TestMarshal(t *testing.T) {
 		SetMarshalWriterFunc(nil)
 	}()
 
-	data, err := Marshal("http://localhost/path?a=b&c=d")
+	data, err := MarshalBytes("http://localhost/path?a=b&c=d")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestMarshal(t *testing.T) {
 	}
 }
 
-func TestUnmarshal(t *testing.T) {
+func TestUnmarshalBytesURL(t *testing.T) {
 	func() {
 		defer func() {
 			if r := recover(); r == nil {
@@ -53,7 +53,7 @@ func TestUnmarshal(t *testing.T) {
 	}()
 
 	var url string
-	err := Unmarshal([]byte(`"http://localhost/path?a=b&c=d"`), &url)
+	err := UnmarshalBytes([]byte(`"http://localhost/path?a=b&c=d"`), &url)
 	if err != nil {
 		t.Fatal(err)
 	}

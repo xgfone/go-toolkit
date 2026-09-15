@@ -57,16 +57,6 @@ func SetUnmarshalReaderFunc(f func(out any, in io.Reader) error) {
 	unmarshaler = f
 }
 
-// Marshal is short for MarshalBytes.
-func Marshal(in any) ([]byte, error) {
-	return MarshalBytes(in)
-}
-
-// Unmarshal is short for UnmarshalBytes.
-func Unmarshal(in []byte, out any) error {
-	return UnmarshalBytes(in, out)
-}
-
 // UnmarshalBytes is similar to UnmarshalReader, but unmarshals a value directly
 // from a []byte instead of reading from an io.Reader.
 func UnmarshalBytes(in []byte, out any) error {
