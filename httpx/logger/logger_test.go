@@ -38,7 +38,7 @@ func TestLoggerLogsRequest(t *testing.T) {
 	config.PostHandle = func(w http.ResponseWriter, r *http.Request) { postHandlerCalled = true }
 
 	raw := errors.New("secret")
-	handler := middleware.Context(config.Logger(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := middleware.Context(config.Middleware(10).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := httpx.GetContext(r.Context())
 		c.ResponseBody = "response-body"
 		c.AppendError(errorx.Sensitive(raw, "safe"))
@@ -84,7 +84,7 @@ func TestLoggerSkipsWhenDisabled(t *testing.T) {
 	nextCalled := false
 	handler := Config{
 		Enabled: func(*http.Request) bool { return false },
-	}.Logger(3).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	}.Middleware(3).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		nextCalled = true
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -100,7 +100,7 @@ func TestLoggerSkipsWhenDisabled(t *testing.T) {
 }
 
 func TestLoggerEdgeCases(t *testing.T) {
-	logger := Config{}.Logger(3).(*logger)
+	logger := Config{}.Middleware(3).(*logger)
 	if got := logger.Priority(); got != 3 {
 		t.Fatalf("Priority() = %d, want 3", got)
 	}
