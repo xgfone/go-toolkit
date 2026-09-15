@@ -17,6 +17,8 @@ package httpx
 import (
 	"net/http"
 	"slices"
+
+	"github.com/xgfone/go-toolkit/internal/priority"
 )
 
 var (
@@ -52,7 +54,7 @@ func (ms Middlewares) HTTPHandler(next http.Handler) http.Handler {
 // Otherwise, use 1 instead.
 func (ms Middlewares) Sort() {
 	slices.SortStableFunc(ms, func(a, b Middleware) int {
-		return getPriority(b) - getPriority(a) // From bigger to smaller
+		return priority.Get(b) - priority.Get(a) // From bigger to smaller
 	})
 }
 
@@ -73,15 +75,4 @@ type _PriorityMiddleware struct {
 
 func (m _PriorityMiddleware) Priority() int {
 	return m.priority
-}
-
-func getPriority(m Middleware) int {
-	if p, ok := m.(_Priority); ok {
-		return p.Priority()
-	}
-	return 1
-}
-
-type _Priority interface {
-	Priority() int
 }

@@ -41,10 +41,6 @@ var errNilRequest = errors.New("httpx: request is nil")
 // For JSON and XML bodies, BindBody uses the standard struct tags "json" and
 // "xml". For form and multipart form bodies, it uses the "form" struct tag.
 func BindBody[T any](r *http.Request, dst *T) error {
-	return bindBodyRequest(r, dst)
-}
-
-func bindBodyRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -67,7 +63,7 @@ func bindBodyRequest[T any](r *http.Request, dst *T) error {
 		if err := r.ParseForm(); err != nil {
 			return err
 		}
-		if err := bindForm(dst, r.PostForm); err != nil {
+		if err := structx.BindValues(dst, r.PostForm, bindTagForm); err != nil {
 			return err
 		}
 
@@ -76,7 +72,7 @@ func bindBodyRequest[T any](r *http.Request, dst *T) error {
 			return err
 		}
 		if r.MultipartForm != nil {
-			if err := bindForm(dst, r.MultipartForm.Value); err != nil {
+			if err := structx.BindValues(dst, url.Values(r.MultipartForm.Value), bindTagForm); err != nil {
 				return err
 			}
 		}
@@ -91,15 +87,11 @@ func bindBodyRequest[T any](r *http.Request, dst *T) error {
 // BindHeader binds the request headers into dst using the "header" struct tag,
 // then sets defaults and validates dst.
 func BindHeader[T any](r *http.Request, dst *T) error {
-	return bindHeaderRequest(r, dst)
-}
-
-func bindHeaderRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
 
-	if err := bindHeader(dst, r.Header); err != nil {
+	if err := structx.BindValues(dst, r.Header, bindTagHeader); err != nil {
 		return err
 	}
 
@@ -109,15 +101,11 @@ func bindHeaderRequest[T any](r *http.Request, dst *T) error {
 // BindQuery binds the request query parameters into dst using the "query"
 // struct tag, then sets defaults and validates dst.
 func BindQuery[T any](r *http.Request, dst *T) error {
-	return bindQueryRequest(r, dst)
-}
-
-func bindQueryRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
 
-	if err := bindQuery(dst, r.URL.Query()); err != nil {
+	if err := structx.BindValues(dst, r.URL.Query(), bindTagQuery); err != nil {
 		return err
 	}
 
@@ -131,10 +119,6 @@ func bindQueryRequest[T any](r *http.Request, dst *T) error {
 // Missing and empty values are ignored, as in BindQuery. Use validation to
 // require a value. Query parameters and the request body are not read.
 func BindPath[T any](r *http.Request, dst *T) error {
-	return bindPathRequest(r, dst)
-}
-
-func bindPathRequest[T any](r *http.Request, dst *T) error {
 	if r == nil {
 		return errNilRequest
 	}
@@ -150,18 +134,6 @@ type pathValues struct{ request *http.Request }
 
 func (p pathValues) Get(name string) string {
 	return p.request.PathValue(name)
-}
-
-func bindForm[T any](dst *T, form url.Values) error {
-	return structx.BindValues(dst, form, bindTagForm)
-}
-
-func bindHeader[T any](dst *T, header http.Header) error {
-	return structx.BindValues(dst, header, bindTagHeader)
-}
-
-func bindQuery[T any](dst *T, query url.Values) error {
-	return structx.BindValues(dst, query, bindTagQuery)
 }
 
 func defaultAndValidate[T any](dst *T) error {
