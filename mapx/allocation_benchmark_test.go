@@ -12,17 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mapx
+package mapx_test
 
-// SMap is a map with string key and generic value.
-type SMap[T any] map[string]T
+import (
+	"maps"
+	"slices"
+	"testing"
+)
 
-// Get returns the value of the given key, but ZERO if the key does not exist.
-func (m SMap[T]) Get(key string) T {
-	return m[key]
-}
+var collectedKeys []int
 
-// IsZero reports whether the map is ZERO.
-func (m SMap[T]) IsZero() bool {
-	return len(m) == 0
+func BenchmarkKeys(b *testing.B) {
+	input := make(map[int]int, 1024)
+	for i := range 1024 {
+		input[i] = i
+	}
+
+	b.Run("StandardCollect", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			collectedKeys = slices.Collect(maps.Keys(input))
+		}
+	})
+
+	b.Run("StandardPreallocated", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			collectedKeys = slices.AppendSeq(make([]int, 0, len(input)), maps.Keys(input))
+		}
+	})
 }

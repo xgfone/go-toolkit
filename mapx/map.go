@@ -1,4 +1,4 @@
-// Copyright 2024~2025 xgfone
+// Copyright 2024~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,49 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package mapx provides some extra map functions.
+// Package mapx provides map operations with capacity-aware allocation.
+// To converts entries into a new map preallocated to the size of the input.
 package mapx
 
-// Pair represents a key-value pair of map.
-type Pair[K comparable, V any] struct {
-	Key   K
-	Value V
-}
-
-// Empty returns itself if vs is not nil, otherwise returns an empty map.
-//
-// DEPRECATED. DO NOT USE IT.
-func Empty[M ~map[K]V, K comparable, V any](m M) M {
-	if m == nil {
-		return M{}
-	}
-	return m
-}
-
-// Convert converts the map from map[K1]V1 to map[K2]V2.
-//
-// DEPRECATED. Please use To instead.
-func Convert[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
-	return To(maps, convert)
-}
-
-// Filter filters the elements of the map m and converts them.
-func Filter[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](m M, filter func(K1, V1) (K2, V2, bool)) map[K2]V2 {
-	if m == nil {
-		return nil
-	}
-
-	newmap := make(map[K2]V2, len(m))
-	for k1, v1 := range m {
-		if k2, v2, ok := filter(k1, v1); ok {
-			newmap[k2] = v2
-		}
-	}
-
-	return newmap
-}
-
-// To converts the map from map[K1]V1 to map[K2]V2.
+// To converts each entry into a new map with space reserved for len(maps)
+// entries. It preserves nilness and does not modify maps. If converted keys
+// collide, the last visited entry wins; because map iteration order is
+// unspecified, the winning value is unspecified.
 func To[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1) (K2, V2)) map[K2]V2 {
 	if maps == nil {
 		return nil
@@ -66,40 +31,4 @@ func To[M ~map[K1]V1, K1, K2 comparable, V1, V2 any](maps M, convert func(K1, V1
 		newmap[k2] = v2
 	}
 	return newmap
-}
-
-// Values returns all the values of the map.
-func Values[M ~map[K]V, K comparable, V any](maps M) []V {
-	values := make([]V, 0, len(maps))
-	for _, v := range maps {
-		values = append(values, v)
-	}
-	return values
-}
-
-// Keys returns all the keys of the map.
-func Keys[M ~map[K]V, K comparable, V any](maps M) []K {
-	keys := make([]K, 0, len(maps))
-	for k := range maps {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-// KeysFunc returns all the keys of the map by the conversion function.
-func KeysFunc[M ~map[K]V, T any, K comparable, V any](maps M, convert func(K) T) []T {
-	keys := make([]T, 0, len(maps))
-	for k := range maps {
-		keys = append(keys, convert(k))
-	}
-	return keys
-}
-
-// Values returns all the values of the map by the conversion function.
-func ValuesFunc[M ~map[K]V, T any, K comparable, V any](maps M, convert func(V) T) []T {
-	values := make([]T, 0, len(maps))
-	for _, v := range maps {
-		values = append(values, convert(v))
-	}
-	return values
 }

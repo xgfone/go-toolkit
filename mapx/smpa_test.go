@@ -16,18 +16,6 @@ package mapx
 
 import "testing"
 
-func TestNewSMap(t *testing.T) {
-	m := NewSMap[int](10)
-	if m == nil {
-		t.Error("NewSMap return nil")
-	}
-
-	m["a"] = 123
-	if len(m) != 1 {
-		t.Errorf("expect len(m) == 1, got %d", len(m))
-	}
-}
-
 func TestSMap_Get(t *testing.T) {
 	m := SMap[int]{"a": 123}
 	if v := m.Get("a"); v != 123 {

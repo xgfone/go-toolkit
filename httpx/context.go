@@ -31,7 +31,7 @@ import (
 var _ctxpool = sync.Pool{
 	New: func() any {
 		return &Context{
-			Data: mapx.NewSMap[any](4),
+			Data: make(mapx.SMap[any], 4),
 		}
 	},
 }
