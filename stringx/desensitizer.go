@@ -15,118 +15,204 @@
 package stringx
 
 import (
-	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
 var (
-	// PhoneDesensitizer is used to desensitize the phone.
-	PhoneDesensitizer = NewDesensitizer(3, 4)
-
-	// ShortDesensitizer is used to desensitize the short string.
-	ShortDesensitizer = NewDesensitizer(2, 2)
-
-	// DefaultDesensitizer is the common desensitizer.
-	DefaultDesensitizer = NewDesensitizer(4, 4)
-
-	PasswordDesensitizer = NewDesensitizer(0, 0).WithChars("********")
+	phoneDesensitizer    atomic.Value
+	shortDesensitizer    atomic.Value
+	defaultDesensitizer  atomic.Value
+	passwordDesensitizer atomic.Value
 )
 
-// Desensitizer is used to desensitize a string.
-type Desensitizer struct {
-	// The length of the left undesensitized characters.
-	Left int
+// Keep the stored type fixed when a setter receives a different implementation.
+type desensitizerValue struct{ desensitizer Desensitizer }
 
-	// The length of the right undesensitized characters.
-	Right int
-
-	// The desensitized string
-	//
-	// Default: "****"
-	Chars string
+func init() {
+	SetPhoneDesensitizer(new(NewDesensitizer(3, 4)))
+	SetShortDesensitizer(new(NewDesensitizer(2, 2)))
+	SetDefaultDesensitizer(new(NewDesensitizer(4, 4)))
+	SetPasswordDesensitizer(new(NewDesensitizer(0, 0).WithChars("********")))
 }
 
-// NewDesensitizer returns a new string desensitizer.
-func NewDesensitizer(left, right int) Desensitizer {
-	return Desensitizer{Left: left, Right: right, Chars: "****"}
+// PhoneDesensitizer returns the current phone desensitizer, initially retaining
+// 3 leading and 4 trailing runes. It is safe to call concurrently with
+// SetPhoneDesensitizer.
+func PhoneDesensitizer() Desensitizer {
+	return phoneDesensitizer.Load().(desensitizerValue).desensitizer
 }
 
-// WithLeft returns a new string desensitizer with the left length.
-func (d Desensitizer) WithLeft(left int) Desensitizer {
-	d.Left = left
+// SetPhoneDesensitizer replaces the phone desensitizer.
+//
+// It panics if d is nil, including a typed nil. It is safe to call
+// concurrently, but does not make d itself safe for concurrent use.
+// Previously returned instances are unaffected.
+func SetPhoneDesensitizer(d Desensitizer) {
+	storeDesensitizer(&phoneDesensitizer, d)
+}
+
+// ShortDesensitizer returns the current short-string desensitizer, initially
+// retaining 2 leading and 2 trailing runes. It is safe to call concurrently
+// with SetShortDesensitizer.
+func ShortDesensitizer() Desensitizer {
+	return shortDesensitizer.Load().(desensitizerValue).desensitizer
+}
+
+// SetShortDesensitizer replaces the short-string desensitizer.
+//
+// It panics if d is nil, including a typed nil. It is safe to call
+// concurrently, but does not make d itself safe for concurrent use.
+// Previously returned instances are unaffected.
+func SetShortDesensitizer(d Desensitizer) {
+	storeDesensitizer(&shortDesensitizer, d)
+}
+
+// DefaultDesensitizer returns the current default desensitizer, initially
+// retaining 4 leading and 4 trailing runes. It is safe to call concurrently
+// with SetDefaultDesensitizer.
+func DefaultDesensitizer() Desensitizer {
+	return defaultDesensitizer.Load().(desensitizerValue).desensitizer
+}
+
+// SetDefaultDesensitizer replaces the default desensitizer.
+//
+// It panics if d is nil, including a typed nil. It is safe to call
+// concurrently, but does not make d itself safe for concurrent use.
+// Previously returned instances are unaffected.
+func SetDefaultDesensitizer(d Desensitizer) {
+	storeDesensitizer(&defaultDesensitizer, d)
+}
+
+// PasswordDesensitizer returns the current password desensitizer, initially
+// replacing the entire string with "********". It is safe to call concurrently
+// with SetPasswordDesensitizer.
+func PasswordDesensitizer() Desensitizer {
+	return passwordDesensitizer.Load().(desensitizerValue).desensitizer
+}
+
+// SetPasswordDesensitizer replaces the password desensitizer.
+//
+// It panics if d is nil, including a typed nil. It is safe to call
+// concurrently, but does not make d itself safe for concurrent use.
+// Previously returned instances are unaffected.
+func SetPasswordDesensitizer(d Desensitizer) {
+	storeDesensitizer(&passwordDesensitizer, d)
+}
+
+func storeDesensitizer(value *atomic.Value, d Desensitizer) {
+	checkNonNil(d, "stringx.Desensitizer: desensitizer must not be nil")
+	value.Store(desensitizerValue{desensitizer: d})
+}
+
+// Desensitizer desensitizes a string.
+type Desensitizer interface {
+	Desensitize(string) string
+}
+
+// DesensitizerFunc adapts a function to Desensitizer.
+type DesensitizerFunc func(string) string
+
+// Desensitize calls f(s).
+func (f DesensitizerFunc) Desensitize(s string) string { return f(s) }
+
+// MaskDesensitizer replaces the middle of a string while retaining leading and
+// trailing runes. Its methods do not modify the receiver and may be called
+// concurrently. The zero value replaces non-empty strings with "****".
+type MaskDesensitizer struct {
+	left  int
+	right int
+	chars string
+}
+
+// NewDesensitizer returns a desensitizer retaining left leading and right
+// trailing runes, with "****" as the replacement.
+//
+// It panics if either count is negative.
+func NewDesensitizer(left, right int) MaskDesensitizer {
+	if left < 0 || right < 0 {
+		panic("stringx.NewDesensitizer: rune counts must not be negative")
+	}
+	return MaskDesensitizer{left: left, right: right, chars: "****"}
+}
+
+// Left returns the number of leading runes to retain.
+func (d MaskDesensitizer) Left() int { return d.left }
+
+// Right returns the number of trailing runes to retain.
+func (d MaskDesensitizer) Right() int { return d.right }
+
+// Chars returns the configured replacement, which may be empty.
+func (d MaskDesensitizer) Chars() string { return d.chars }
+
+// WithLeft returns a copy with the given leading rune count.
+//
+// It panics if left is negative.
+func (d MaskDesensitizer) WithLeft(left int) MaskDesensitizer {
+	if left < 0 {
+		panic("stringx.MaskDesensitizer.WithLeft: left must not be negative")
+	}
+
+	d.left = left
 	return d
 }
 
-// WithRight returns a new string desensitizer with the right length.
-func (d Desensitizer) WithRight(right int) Desensitizer {
-	d.Right = right
+// WithRight returns a copy with the given trailing rune count.
+//
+// It panics if right is negative.
+func (d MaskDesensitizer) WithRight(right int) MaskDesensitizer {
+	if right < 0 {
+		panic("stringx.MaskDesensitizer.WithRight: right must not be negative")
+	}
+
+	d.right = right
 	return d
 }
 
-// WithChars returns a new string desensitizer with the new desensitization chars.
-func (d Desensitizer) WithChars(s string) Desensitizer {
-	d.Chars = s
+// WithChars returns a copy with the given replacement.
+//
+// An empty replacement preserves empty input and uses "****" for non-empty input.
+func (d MaskDesensitizer) WithChars(s string) MaskDesensitizer {
+	d.chars = s
 	return d
 }
 
 // Desensitize returns a desensitized string of s.
 //
-// If both s and d.Chars are empty, return "".
-func (d Desensitizer) Desensitize(s string) string {
-	if d.Chars == "" {
+// If s has no more than Left()+Right() runes, it is replaced entirely.
+// If both s and Chars() are empty, it returns ""; otherwise an empty Chars()
+// defaults to "****". Rune boundaries, rather than grapheme clusters, are used.
+func (d MaskDesensitizer) Desensitize(s string) string {
+	chars := d.chars
+	if chars == "" {
 		if s == "" {
 			return ""
 		}
-		d.Chars = "****"
+		chars = "****"
 	}
 
 	total := utf8.RuneCountInString(s)
-	if total <= d.Left+d.Right {
-		return d.Chars
+	// Subtract only after checking left to avoid overflowing left+right.
+	if d.left >= total || d.right >= total-d.left {
+		return chars
 	}
 
-	switch {
-	case d.Left <= 0 && d.Right <= 0:
-		return d.Chars
-
-	case d.Left <= 0:
-		d.Right = total - d.Right
-
-		var n int
-		for i := range s {
-			if n == d.Right {
-				s = d.Chars + s[i:]
-			}
-			n++
-		}
-
-	case d.Right <= 0:
-		var n int
-		for i := range s {
-			if n == d.Left {
-				s = s[:i] + d.Chars
-			}
-			n++
-		}
-
-	default:
-		d.Right = total - d.Right
-
-		var n, left, right int
-		for i := range s {
-			if n == d.Left {
-				left = i
-			}
-
-			if n == d.Right {
-				right = i
-			}
-
-			n++
-		}
-
-		s = strings.Join([]string{s[:left], d.Chars, s[right:]}, "")
+	if d.left == 0 && d.right == 0 {
+		return chars
 	}
 
-	return s
+	left, right := 0, len(s)
+	var n int
+	for i := range s {
+		if n == d.left {
+			left = i
+		}
+		if n == total-d.right {
+			right = i
+			break
+		}
+		n++
+	}
+
+	return s[:left] + chars + s[right:]
 }
