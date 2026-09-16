@@ -18,14 +18,19 @@
 //
 // FromSeq and FromSeq2 wrap standard iterators in Stream and Stream2. Map,
 // FilterMap, Filter, Take, and Skip use Rust-inspired names with Go signatures.
-// FilterMap callbacks return (value, ok). Map2 produces two values per element
-// from either stream type; FilterMap2 transforms and selects existing pairs.
-// Keys and Values switch to a one-value Stream. To, To2, FilterTo, FilterTo2,
-// and Drop are aliases for the corresponding transformation methods.
+// Map and FilterMap preserve the number of values yielded per element, while
+// allowing their types to change. FilterMap callbacks return (value, ok) for
+// Stream and (key, value, ok) for Stream2. Take and Skip work on both types,
+// counting each pair as one element for Stream2. They preserve the keys of
+// remaining pairs, including slice indices.
 //
-// Call Seq on either wrapper to use range, standard library collectors, or
-// terminal operations from github.com/xgfone/go-toolkit/iterx. Streams do not
-// start the input until iteration begins, cache values, or add concurrency.
+// Stream.To2 converts each value into a pair; Stream2.To converts each pair into
+// one value. Stream2.Keys and Stream2.Values project either side of each pair.
+// Drop is an alias for Skip on both types.
+//
+// Call Stream.Seq or Stream2.Seq2 to use range, standard library collectors,
+// or terminal operations from github.com/xgfone/go-toolkit/iterx. Streams do
+// not start the input until iteration begins, cache values, or add concurrency.
 // They preserve the input's order and stop it when the consumer stops. Repeated
 // iteration depends on the input; a single-use iterator remains single-use.
 //

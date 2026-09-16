@@ -35,6 +35,7 @@ func ExampleStream() {
 		Filter(func(n int) bool { return n%2 == 0 }).
 		Map(strconv.Itoa).
 		Take(2)
+
 	fmt.Println(slices.Collect(stream.Seq()))
 	// Output: [2 4]
 }
@@ -42,8 +43,9 @@ func ExampleStream() {
 func ExampleStream2() {
 	stream := iterx.FromSeq2(slices.All([]string{"go", "rust", "js"})).
 		Filter(func(_ int, s string) bool { return len(s) > 2 }).
-		Map2(func(i int, s string) (string, int) { return s, i })
-	fmt.Println(maps.Collect(stream.Seq()))
+		Map(func(i int, s string) (string, int) { return s, i })
+
+	fmt.Println(maps.Collect(stream.Seq2()))
 	// Output: map[rust:1]
 }
 
@@ -53,6 +55,7 @@ func ExampleStream2_Values() {
 		Values().
 		Map(func(s string) int { return len(s) }).
 		Take(1)
+
 	fmt.Println(baseiterx.Sum(stream.Seq()))
 	// Output: 3
 }
@@ -71,7 +74,9 @@ func TestStreamChain(t *testing.T) {
 	if *s != (visits{}) {
 		t.Fatalf("chain started its source: %+v", s)
 	}
-	if got := slices.Collect(stream.Take(0).Seq()); len(got) != 0 || *s != (visits{}) {
+
+	got := slices.Collect(stream.Take(0).Seq())
+	if len(got) != 0 || *s != (visits{}) {
 		t.Fatalf("Take(0) = %v, visits = %+v", got, s)
 	}
 	for v := range stream.Seq() {
@@ -83,9 +88,12 @@ func TestStreamChain(t *testing.T) {
 	if *s != (visits{started: 1, read: 2, closed: 1}) {
 		t.Fatalf("early stop: %+v", s)
 	}
+
 	for range 2 {
 		*s = visits{}
-		if got := slices.Collect(stream.Seq()); !slices.Equal(got, []int{20, 40}) {
+
+		got := slices.Collect(stream.Seq())
+		if !slices.Equal(got, []int{20, 40}) {
 			t.Fatalf("values = %v", got)
 		}
 		if *s != (visits{started: 1, read: 4, closed: 1}) {
@@ -98,8 +106,8 @@ func TestStream2Chain(t *testing.T) {
 	s := new(visits)
 	stream := iterx.FromSeq2(pairs(tracked(s))).
 		Filter(func(k, v int) bool { return k == v*10 && v > 1 }).
-		Map2(func(k, v int) ([]int, string) { return []int{k}, strconv.Itoa(v) }).
-		FilterMap2(func(k []int, v string) ([]int, int, bool) {
+		Map(func(k, v int) ([]int, string) { return []int{k}, strconv.Itoa(v) }).
+		FilterMap(func(k []int, v string) ([]int, int, bool) {
 			n, err := strconv.Atoi(v)
 			return k, n, err == nil && n%2 == 0
 		})
@@ -108,7 +116,7 @@ func TestStream2Chain(t *testing.T) {
 	}
 
 	// Two-value iteration accepts non-comparable first values and stops upstream.
-	for k, v := range stream.Seq() {
+	for k, v := range stream.Seq2() {
 		if !slices.Equal(k, []int{20}) || v != 2 {
 			t.Fatalf("first pair = (%v, %d)", k, v)
 		}
@@ -143,6 +151,7 @@ func TestStreamsPreserveSingleUseSource(t *testing.T) {
 		t.Run(fmt.Sprintf("pairs=%t", pair), func(t *testing.T) {
 			next, stop := iter.Pull(slices.Values([]int{1, 2, 3}))
 			defer stop()
+
 			seq := func(yield func(int) bool) {
 				for {
 					v, ok := next()
@@ -151,10 +160,14 @@ func TestStreamsPreserveSingleUseSource(t *testing.T) {
 					}
 				}
 			}
+
 			stream := iterx.FromSeq(seq)
 			if pair {
-				stream = iterx.FromSeq2(pairs(seq)).Values()
+				stream = stream.
+					To2(func(v int) (int, int) { return v * 10, v }).
+					To(func(_ int, v int) int { return v })
 			}
+
 			first := stream.Take(1)
 			for _, want := range []int{1, 2, 3} {
 				if got := slices.Collect(first.Seq()); !slices.Equal(got, []int{want}) {
@@ -193,27 +206,31 @@ func pairs(seq iter.Seq[int]) iter.Seq2[int, int] {
 	}
 }
 
-func ExampleStream_To() {
-	// Aliases can be mixed with the primary method names.
+func ExampleStream_FilterMap() {
+	// Drop is an alias for Skip.
 	stream := iterx.FromSeq(slices.Values([]string{"skip", "bad", "2", "3"})).
 		Drop(1).
-		FilterTo(func(s string) (int, bool) {
+		FilterMap(func(s string) (int, bool) {
 			n, err := strconv.Atoi(s)
 			return n, err == nil
 		}).
-		To(strconv.Itoa).
+		Map(strconv.Itoa).
 		Take(1)
+
 	fmt.Println(slices.Collect(stream.Seq()))
 	// Output: [2]
 }
 
-func ExampleStream2_To2() {
+func ExampleStream2_FilterMap() {
 	stream := iterx.FromSeq2(slices.All([]string{"bad", "2", "3"})).
-		FilterTo2(func(i int, s string) (int, int, bool) {
+		FilterMap(func(i int, s string) (int, int, bool) {
 			n, err := strconv.Atoi(s)
 			return i, n, err == nil
 		}).
-		To2(func(i, n int) (string, int) { return strconv.Itoa(i), n * 2 })
-	fmt.Println(maps.Collect(stream.Seq()))
+		Map(func(i, n int) (string, int) {
+			return strconv.Itoa(i), n * 2
+		})
+
+	fmt.Println(maps.Collect(stream.Seq2()))
 	// Output: map[1:4 2:6]
 }

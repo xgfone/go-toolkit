@@ -24,17 +24,17 @@ import (
 	"github.com/xgfone/go-toolkit/exp/iterx"
 )
 
-func ExampleStream_Map2() {
+func ExampleStream_To2_users() {
 	type User struct {
 		ID   int
 		Name string
 	}
 	users := []User{{1, "Alice"}, {2, "Bob"}}
 	stream := iterx.FromSeq(slices.Values(users)).
-		Map2(func(u User) (int, User) { return u.ID, u }).
+		To2(func(u User) (int, User) { return u.ID, u }).
 		Filter(func(id int, _ User) bool { return id > 1 })
 
-	fmt.Println(maps.Collect(stream.Seq()))
+	fmt.Println(maps.Collect(stream.Seq2()))
 	// Output: map[2:{2 Bob}]
 }
 
@@ -42,14 +42,14 @@ func ExampleStream_To2() {
 	stream := iterx.FromSeq(slices.Values([]string{"go", "rust"})).
 		To2(func(s string) (string, int) { return s, len(s) })
 
-	fmt.Println(maps.Collect(stream.Seq()))
+	fmt.Println(maps.Collect(stream.Seq2()))
 	// Output: map[go:2 rust:4]
 }
 
-func TestStreamMap2(t *testing.T) {
+func TestStreamTo2(t *testing.T) {
 	s := new(visits)
 	calls := 0
-	stream := iterx.FromSeq(tracked(s)).Map2(func(v int) ([]int, string) {
+	stream := iterx.FromSeq(tracked(s)).To2(func(v int) ([]int, string) {
 		calls++
 		return []int{v}, strconv.Itoa(v)
 	})
@@ -57,7 +57,7 @@ func TestStreamMap2(t *testing.T) {
 		t.Fatalf("eager evaluation: visits = %+v, callbacks = %d", s, calls)
 	}
 
-	for k, v := range stream.Seq() {
+	for k, v := range stream.Seq2() {
 		if !slices.Equal(k, []int{1}) || v != "1" {
 			t.Fatalf("first pair = (%v, %s)", k, v)
 		}
@@ -71,7 +71,7 @@ func TestStreamMap2(t *testing.T) {
 		*s = visits{}
 		calls = 0
 		var got []string
-		for k, v := range stream.Seq() {
+		for k, v := range stream.Seq2() {
 			got = append(got, fmt.Sprintf("%v=%s", k, v))
 		}
 		if !slices.Equal(got, []string{"[1]=1", "[2]=2", "[3]=3", "[4]=4"}) {
@@ -93,12 +93,65 @@ func TestStreamMap2(t *testing.T) {
 	}
 }
 
-func TestStreamMap2Empty(t *testing.T) {
-	stream := iterx.FromSeq(slices.Values([]int(nil))).Map2(func(int) (int, int) {
+func TestStreamTo2Empty(t *testing.T) {
+	stream := iterx.FromSeq(slices.Values([]int(nil))).To2(func(int) (int, int) {
 		t.Fatal("callback called on empty input")
 		return 0, 0
 	})
-	for range stream.Seq() {
+	for range stream.Seq2() {
 		t.Fatal("empty input yielded a pair")
+	}
+}
+
+func ExampleStream2_To() {
+	stream := iterx.FromSeq2(slices.All([]string{"go", "rust"})).
+		Map(func(i int, s string) (int, string) { return i + 1, s }).
+		To(func(i int, s string) string { return strconv.Itoa(i) + ": " + s })
+
+	fmt.Println(slices.Collect(stream.Seq()))
+	// Output: [1: go 2: rust]
+}
+
+func TestStream2To(t *testing.T) {
+	s := new(visits)
+	calls := 0
+	stream := iterx.FromSeq2(pairs(tracked(s))).
+		Map(func(k, v int) ([]int, string) { return []int{k}, strconv.Itoa(v) }).
+		To(func(k []int, v string) string {
+			calls++
+			return fmt.Sprintf("%v=%s", k, v)
+		})
+	if *s != (visits{}) || calls != 0 {
+		t.Fatalf("eager evaluation: visits = %+v, callbacks = %d", s, calls)
+	}
+
+	got := slices.Collect(stream.Take(1).Seq())
+	if !slices.Equal(got, []string{"[10]=1"}) {
+		t.Fatalf("first value = %v", got)
+	}
+	if *s != (visits{started: 1, read: 1, closed: 1}) || calls != 1 {
+		t.Fatalf("early stop: visits = %+v, callbacks = %d", s, calls)
+	}
+
+	for range 2 {
+		*s = visits{}
+		calls = 0
+		got := slices.Collect(stream.Seq())
+		if !slices.Equal(got, []string{"[10]=1", "[20]=2", "[30]=3", "[40]=4"}) {
+			t.Fatalf("values = %v", got)
+		}
+		if *s != (visits{started: 1, read: 4, closed: 1}) || calls != 4 {
+			t.Fatalf("repeated iteration: visits = %+v, callbacks = %d", s, calls)
+		}
+	}
+}
+
+func TestStream2ToEmpty(t *testing.T) {
+	stream := iterx.FromSeq2(slices.All([]int(nil))).To(func(int, int) string {
+		t.Fatal("callback called on empty input")
+		return ""
+	})
+	for range stream.Seq() {
+		t.Fatal("empty input yielded a value")
 	}
 }

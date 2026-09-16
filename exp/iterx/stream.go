@@ -32,7 +32,8 @@ type Stream[V any] struct {
 // Stream2 provides chainable, lazy transformations of a two-value iterator.
 // K and V may be any types; the first value need not be a comparable map key.
 // Like Stream, it preserves the input's iteration behavior and has an invalid
-// zero value. Use Keys or Values to continue with a one-value Stream.
+// zero value. Use Seq2 to access the iterator, or To, Keys, or Values to continue
+// with a one-value Stream.
 type Stream2[K, V any] struct {
 	seq iter.Seq2[K, V]
 }
@@ -52,8 +53,8 @@ func (s Stream[V]) Seq() iter.Seq[V] {
 	return s.seq
 }
 
-// Seq returns the underlying two-value iterator without starting it.
-func (s Stream2[K, V]) Seq() iter.Seq2[K, V] {
+// Seq2 returns the underlying two-value iterator without starting it.
+func (s Stream2[K, V]) Seq2() iter.Seq2[K, V] {
 	return s.seq
 }
 
@@ -62,21 +63,8 @@ func (s Stream[V]) Map[R any](convert func(V) R) Stream[R] {
 	return FromSeq(iterx.To(s.seq, convert))
 }
 
-// Map2 transforms each value into a pair. It calls convert once per input value
-// during iteration and stops the input when the consumer stops. K need not be
-// comparable; map key requirements apply only when collecting into a map.
-func (s Stream[V]) Map2[K, R any](convert func(V) (K, R)) Stream2[K, R] {
-	return FromSeq2(func(yield func(K, R) bool) {
-		for v := range s.seq {
-			if !yield(convert(v)) {
-				return
-			}
-		}
-	})
-}
-
-// Map2 transforms each pair into another pair. It is the chainable form of [iterx.To2].
-func (s Stream2[K, V]) Map2[K2, V2 any](convert func(K, V) (K2, V2)) Stream2[K2, V2] {
+// Map transforms each pair into another pair. It is the chainable form of [iterx.To2].
+func (s Stream2[K, V]) Map[K2, V2 any](convert func(K, V) (K2, V2)) Stream2[K2, V2] {
 	return FromSeq2(iterx.To2(s.seq, convert))
 }
 
@@ -96,9 +84,9 @@ func (s Stream[V]) FilterMap[R any](convert func(V) (R, bool)) Stream[R] {
 	return FromSeq(iterx.FilterTo(s.seq, convert))
 }
 
-// FilterMap2 transforms pairs and keeps results for which convert returns true.
+// FilterMap transforms pairs and keeps results for which convert returns true.
 // It is the chainable form of [iterx.FilterTo2].
-func (s Stream2[K, V]) FilterMap2[K2, V2 any](convert func(K, V) (K2, V2, bool)) Stream2[K2, V2] {
+func (s Stream2[K, V]) FilterMap[K2, V2 any](convert func(K, V) (K2, V2, bool)) Stream2[K2, V2] {
 	return FromSeq2(iterx.FilterTo2(s.seq, convert))
 }
 
@@ -107,9 +95,63 @@ func (s Stream[V]) Take(n int) Stream[V] {
 	return FromSeq(iterx.Take(s.seq, n))
 }
 
+// Take keeps at most n pairs and stops the input without requesting an extra
+// pair. If n is zero, it does not start the input. It panics if n is negative.
+func (s Stream2[K, V]) Take(n int) Stream2[K, V] {
+	if n < 0 {
+		panic("iterx.Stream2.Take: negative count")
+	}
+
+	return FromSeq2(func(yield func(K, V) bool) {
+		remaining := n
+		if remaining == 0 {
+			return
+		}
+
+		for k, v := range s.seq {
+			if !yield(k, v) {
+				return
+			}
+
+			remaining--
+			if remaining == 0 {
+				return
+			}
+		}
+	})
+}
+
+// Drop is an alias for [Stream.Skip].
+func (s Stream[V]) Drop(n int) Stream[V] { return s.Skip(n) }
+
+// Drop is an alias for [Stream2.Skip].
+func (s Stream2[K, V]) Drop(n int) Stream2[K, V] { return s.Skip(n) }
+
 // Skip skips the first n values. Like [iterx.Drop], it panics if n is negative.
 func (s Stream[V]) Skip(n int) Stream[V] {
 	return FromSeq(iterx.Drop(s.seq, n))
+}
+
+// Skip skips the first n pairs, preserving the remaining keys and values.
+// It panics if n is negative.
+func (s Stream2[K, V]) Skip(n int) Stream2[K, V] {
+	if n < 0 {
+		panic("iterx.Stream2.Skip: negative count")
+	}
+
+	return FromSeq2(func(yield func(K, V) bool) {
+		remaining := n
+		for k, v := range s.seq {
+			if remaining > 0 {
+				remaining--
+				continue
+			}
+
+			if !yield(k, v) {
+				return
+			}
+		}
+	})
 }
 
 // Keys projects the first value of each pair. It is the chainable form of [iterx.Keys].
@@ -122,32 +164,27 @@ func (s Stream2[K, V]) Values() Stream[V] {
 	return FromSeq(iterx.Values(s.seq))
 }
 
-// To is an alias for [Stream.Map].
-func (s Stream[V]) To[R any](convert func(V) R) Stream[R] {
-	return s.Map(convert)
+// To converts the two-value stream to a one-value stream. It calls convert once
+// per input pair during iteration and stops the input when the consumer stops.
+func (s Stream2[K, V]) To[R any](convert func(K, V) R) Stream[R] {
+	return FromSeq(func(yield func(R) bool) {
+		for k, v := range s.seq {
+			if !yield(convert(k, v)) {
+				return
+			}
+		}
+	})
 }
 
-// To2 is an alias for [Stream.Map2].
+// To2 converts the one-value stream to a two-value stream. It calls convert once
+// per input value during iteration and stops the input when the consumer stops.
+// K need not be comparable; map key requirements apply only when collecting into a map.
 func (s Stream[V]) To2[K, R any](convert func(V) (K, R)) Stream2[K, R] {
-	return s.Map2(convert)
-}
-
-// To2 is an alias for [Stream2.Map2].
-func (s Stream2[K, V]) To2[K2, V2 any](convert func(K, V) (K2, V2)) Stream2[K2, V2] {
-	return s.Map2(convert)
-}
-
-// FilterTo is an alias for [Stream.FilterMap].
-func (s Stream[V]) FilterTo[R any](convert func(V) (R, bool)) Stream[R] {
-	return s.FilterMap(convert)
-}
-
-// FilterTo2 is an alias for [Stream2.FilterMap2].
-func (s Stream2[K, V]) FilterTo2[K2, V2 any](convert func(K, V) (K2, V2, bool)) Stream2[K2, V2] {
-	return s.FilterMap2(convert)
-}
-
-// Drop is an alias for [Stream.Skip].
-func (s Stream[V]) Drop(n int) Stream[V] {
-	return s.Skip(n)
+	return FromSeq2(func(yield func(K, R) bool) {
+		for v := range s.seq {
+			if !yield(convert(v)) {
+				return
+			}
+		}
+	})
 }
