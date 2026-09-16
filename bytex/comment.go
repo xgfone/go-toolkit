@@ -16,12 +16,6 @@ package bytex
 
 import "bytes"
 
-// Pre-define some comment characters.
-var (
-	CommentHash    = []byte("#")
-	CommentSlashes = []byte("//")
-)
-
 // RemoveLineComments is a simple function to remove the whole line comment
 // that the first non-white character starts with comments,
 // and the similar line tail comment.

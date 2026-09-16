@@ -22,7 +22,7 @@ import (
 func TestRegressionQuotedMarkerThenComment(t *testing.T) {
 	in := []byte(`{"url":"https://example.com"} // comment`)
 	want := []byte("{\"url\":\"https://example.com\"}\n")
-	if got := RemoveLineComments(in, CommentSlashes); !bytes.Equal(got, want) {
+	if got := RemoveLineComments(in, []byte("//")); !bytes.Equal(got, want) {
 		t.Fatalf("trailing comment survived quoted marker: %s", got)
 	}
 }
@@ -30,7 +30,7 @@ func TestRegressionQuotedMarkerThenComment(t *testing.T) {
 func TestRegressionEscapedQuote(t *testing.T) {
 	in := []byte(`{"s":"a\"//b"}`)
 	want := append(append([]byte{}, in...), '\n')
-	if got := RemoveLineComments(in, CommentSlashes); !bytes.Equal(got, want) {
+	if got := RemoveLineComments(in, []byte("//")); !bytes.Equal(got, want) {
 		t.Fatalf("valid quoted JSON corrupted: %s", got)
 	}
 }

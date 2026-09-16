@@ -44,13 +44,13 @@ func ExampleRemoveLineComments() {
 `)
 
 	fmt.Println("Single Line:")
-	fmt.Println(string(RemoveLineComments(singleLine, CommentHash)))
+	fmt.Println(string(RemoveLineComments(singleLine, []byte("#"))))
 
 	fmt.Println("Hash Result:")
-	fmt.Println(string(RemoveLineComments(hashOrig, CommentHash)))
+	fmt.Println(string(RemoveLineComments(hashOrig, []byte("#"))))
 
 	fmt.Println("Slash Result:")
-	fmt.Println(string(RemoveLineComments(slashOrig, CommentSlashes)))
+	fmt.Println(string(RemoveLineComments(slashOrig, []byte("//"))))
 
 	// Output:
 	// Single Line:
