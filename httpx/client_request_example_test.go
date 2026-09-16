@@ -16,7 +16,7 @@ package httpx
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +56,7 @@ func ExampleGet() {
 		}
 
 		respf := func(r *http.Response) error {
-			return json.NewDecoder(r.Body).Decode(&resp)
+			return json.UnmarshalRead(r.Body, &resp)
 		}
 
 		err := Get(context.Background(), "http://127.0.0.1", respf)

@@ -15,19 +15,18 @@
 package codeint
 
 import (
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 func TestErrorDecode(t *testing.T) {
 	var err Error
 
 	if e := err.Decode(func(a any) error {
-		return jsonx.UnmarshalString(`{"Code":401}`, a)
+		return json.Unmarshal([]byte(`{"Code":401}`), a)
 	}); e != nil {
 		t.Errorf("got an error: %s", e.Error())
 	} else if err.Code != 401 {

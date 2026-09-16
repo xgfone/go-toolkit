@@ -16,7 +16,7 @@
 package codeint
 
 import (
-	"bytes"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/xgfone/go-toolkit/internal/pools"
-	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 var _ error = Error{}
@@ -211,17 +210,17 @@ func (e *Error) Decode(decode func(any) error) error {
 	return decode(e)
 }
 
-// DecodeJSON uses json decoder to decode from the reader into the error.
+// DecodeJSON decodes a single JSON value from the reader into the error.
 func (e *Error) DecodeJSON(reader io.Reader) error {
-	return jsonx.UnmarshalReader(e, reader)
+	return json.UnmarshalRead(reader, e)
 }
 
 // DecodeJSONBytes uses json decoder to decode the []byte data into the error.
 func (e *Error) DecodeJSONBytes(data []byte) error {
-	return jsonx.UnmarshalReader(e, bytes.NewReader(data))
+	return json.Unmarshal(data, e)
 }
 
 // DecodeJSONString uses json decoder to decode the string data into the error.
 func (e *Error) DecodeJSONString(data string) error {
-	return jsonx.UnmarshalReader(e, strings.NewReader(data))
+	return json.UnmarshalRead(strings.NewReader(data), e)
 }

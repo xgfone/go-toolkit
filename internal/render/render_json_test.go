@@ -28,18 +28,19 @@ func TestJSON(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	if err := JSON(rec, 400, map[string]string{"a": "b"}); err != nil {
+	const expectbody = `{"a":"<b>&"}`
+	if err := JSON(rec, 400, map[string]string{"a": "<b>&"}); err != nil {
 		t.Fatal(err)
-	} else if s := rec.Body.String(); s != `{"a":"b"}`+"\n" {
-		t.Errorf("expect response body '%s', but got '%s'", `{"a":"b"}`, s)
 	}
 
 	if rec.Code != 400 {
 		t.Errorf("expect status code %d, but got %d", 400, rec.Code)
 	}
 
-	expectbody := `{"a":"b"}` + "\n"
 	if body := rec.Body.String(); body != expectbody {
 		t.Errorf("expect response body '%s', but got '%s'", expectbody, body)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json; charset=UTF-8" {
+		t.Errorf("unexpected Content-Type: %q", ct)
 	}
 }

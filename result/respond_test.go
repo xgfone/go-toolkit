@@ -67,8 +67,8 @@ func TestDefaultRepond(t *testing.T) {
 	Respond(rec2, Response{Data: 123, Error: _Error{code: 400, msg: "test"}})
 	if rec2.Code != 400 {
 		t.Errorf("expect status code %d, but got %d", 400, rec2.Code)
-	} else if body := rec2.Body.String(); body != `{"Error":"test","Data":123}`+"\n" {
-		t.Errorf("expect body %s, but got %s", `{"Error":"test","Data":123}`+"\n", body)
+	} else if body := rec2.Body.String(); body != `{"Error":"test","Data":123}` {
+		t.Errorf("expect body %s, but got %s", `{"Error":"test","Data":123}`, body)
 	}
 
 	defer func() {

@@ -109,7 +109,7 @@ func TestRequestBodyReplayAfterReturn(t *testing.T) {
 
 		data, err := io.ReadAll(body)
 		_ = body.Close()
-		if err != nil || string(data) != "{\"value\":42}\n" {
+		if err != nil || string(data) != `{"value":42}` {
 			t.Fatalf("unexpected replay: %q, %v", data, err)
 		}
 	}

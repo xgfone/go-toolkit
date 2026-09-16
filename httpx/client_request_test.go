@@ -17,7 +17,7 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -132,7 +132,7 @@ func TestRequest_ReaderRequest(t *testing.T) {
 
 // Test Request function with struct request (JSON encoded)
 func TestRequest_StructRequest(t *testing.T) {
-	reqData := testRequest{Name: "struct", Value: 77}
+	reqData := testRequest{Name: "<struct>&", Value: 77}
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
 			if req.Method != http.MethodPut {
@@ -148,12 +148,15 @@ func TestRequest_StructRequest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to read request body: %v", err)
 			}
+			if string(body) != `{"name":"<struct>&","value":77}` {
+				t.Fatalf("unexpected encoded request body: %q", body)
+			}
 
 			var reqBody testRequest
 			if err := json.Unmarshal(body, &reqBody); err != nil {
 				t.Fatalf("failed to unmarshal request body: %v", err)
 			}
-			if reqBody.Name != "struct" || reqBody.Value != 77 {
+			if reqBody != reqData {
 				t.Errorf("unexpected request body: %+v", reqBody)
 			}
 

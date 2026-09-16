@@ -15,10 +15,8 @@
 package result
 
 import (
-	"bytes"
+	"encoding/json/v2"
 	"io"
-
-	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 // Success is a convenient function, which is equal to
@@ -74,14 +72,14 @@ func (r *Response) Decode(decode func(any) error) error {
 	return decode(r)
 }
 
-// DecodeJSON uses json decoder to decode from the reader into the response.
+// DecodeJSON decodes a single JSON value from the reader into the response.
 func (r *Response) DecodeJSON(reader io.Reader) error {
-	return jsonx.UnmarshalReader(r, reader)
+	return json.UnmarshalRead(reader, r)
 }
 
 // DecodeJSONBytes uses json decoder to decode the []byte data into the response.
 func (r *Response) DecodeJSONBytes(data []byte) error {
-	return jsonx.UnmarshalReader(r, bytes.NewReader(data))
+	return json.Unmarshal(data, r)
 }
 
 // Respond sends the response by the responder,

@@ -16,7 +16,7 @@ package httpx
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
@@ -106,6 +106,28 @@ func TestDoRequestDecodeTarget(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
+		body string
+	}{
+		{"multiple json values", `{"value":42}{"value":43}`},
+		{"trailing json garbage", `{"value":42}garbage`},
+		{"duplicate json names", `{"value":42,"value":43}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var dst testResponse
+			var clientErr interface{ ResponseBody() string }
+
+			err := do(tc.body, &dst)
+			if !errors.As(err, &clientErr) {
+				t.Fatalf("expected a response body error, got %v", err)
+			}
+			if body := clientErr.ResponseBody(); body != tc.body {
+				t.Fatalf("response body = %q, want %q", body, tc.body)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
 		dst  any
 	}{
 		{"non-pointer", testResponse{}},
@@ -113,9 +135,8 @@ func TestDoRequestDecodeTarget(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := do(`{"value":42}`, tc.dst)
-			var invalid *json.InvalidUnmarshalError
-			if !errors.As(err, &invalid) {
-				t.Fatalf("expected InvalidUnmarshalError, got %v", err)
+			if _, ok := errors.AsType[*json.SemanticError](err); !ok {
+				t.Fatalf("expected SemanticError, got %v", err)
 			}
 		})
 	}

@@ -17,13 +17,13 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 
-	"github.com/xgfone/go-toolkit/jsonx"
 	"github.com/xgfone/go-toolkit/unsafex"
 )
 
@@ -126,7 +126,7 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 
 	default:
 		var buf bytes.Buffer
-		if err = jsonx.MarshalWriter(&buf, r); err != nil {
+		if err = json.MarshalWrite(&buf, r); err != nil {
 			return fmt.Errorf("fail to encode request body: %w", err)
 		}
 
@@ -189,7 +189,7 @@ func DoRequest(ctx context.Context, req *http.Request, respbody any) (err error)
 	}
 
 	if respbody != nil && len(data) > 0 {
-		if err = jsonx.UnmarshalBytes(data, respbody); err != nil {
+		if err = json.Unmarshal(data, respbody); err != nil {
 			err = fmt.Errorf("fail to decode the response body: %w", err)
 			return newClientError(req, rsp).WithBody(data).WithError(err)
 		}
@@ -228,7 +228,7 @@ func readRequestBody(req *http.Request) any {
 	}
 
 	if len(bodystr) > 0 && ContentType(req.Header) == MIMEApplicationJSON {
-		if data := unsafex.Bytes(bodystr); json.Valid(data) {
+		if data := unsafex.Bytes(bodystr); jsontext.Value(data).IsValid() {
 			return _JSONBody(bodystr)
 		}
 	}

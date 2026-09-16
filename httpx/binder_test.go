@@ -172,6 +172,20 @@ func TestBindBodyErrors(t *testing.T) {
 		assertHasError(t, BindBody(req, &bindValidatingBody{}))
 	})
 
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"multiple json values", `{"age":12}{"age":13}`},
+		{"trailing json garbage", `{"age":12}garbage`},
+		{"duplicate json names", `{"age":12,"age":13}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := newBindRequest(http.MethodPost, "/", MIMEApplicationJSON, tc.body)
+			assertHasError(t, BindBody(req, &bindValidatingBody{}))
+		})
+	}
+
 	t.Run("invalid xml", func(t *testing.T) {
 		req := newBindRequest(http.MethodPost, "/", MIMEApplicationXML, `<request>`)
 		assertHasError(t, BindBody(req, &bindValidatingBody{}))

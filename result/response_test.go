@@ -15,13 +15,11 @@
 package result
 
 import (
-	"bytes"
+	"encoding/json/v2"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 type _Responser struct {
@@ -30,9 +28,9 @@ type _Responser struct {
 }
 
 func (r _Responser) Respond(resp Response) {
-	if s, err := jsonx.MarshalString(resp); err != nil {
+	if data, err := json.Marshal(resp); err != nil {
 		r.t.Fatalf("expect nil, but got %v", err)
-	} else if s != r.s {
+	} else if s := string(data); s != r.s {
 		r.t.Fatalf("expect '%s', but got '%s'", r.s, s)
 	}
 }
@@ -78,7 +76,7 @@ func TestResponse(t *testing.T) {
 	}
 
 	_resp3 := Response{Error: new(_Error)}
-	decode := func(v any) error { return jsonx.UnmarshalBytes([]byte(s), v) }
+	decode := func(v any) error { return json.Unmarshal([]byte(s), v) }
 	if err := _resp3.Decode(decode); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(_resp3.Data, resp.Data) {
@@ -107,8 +105,8 @@ func (e _Error) Error() string   { return e.msg }
 func (e _Error) StatusCode() int { return e.code }
 
 func (e _Error) MarshalJSON() ([]byte, error) {
-	return jsonx.MarshalBytes(e.msg)
+	return json.Marshal(e.msg)
 }
 func (e *_Error) UnmarshalJSON(data []byte) error {
-	return jsonx.UnmarshalReader(&e.msg, bytes.NewReader(data))
+	return json.Unmarshal(data, &e.msg)
 }

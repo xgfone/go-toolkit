@@ -15,13 +15,13 @@
 package httpx
 
 import (
+	"encoding/json/v2"
 	"encoding/xml"
 	"errors"
 	"net/http"
 	"net/url"
 
 	"github.com/xgfone/go-toolkit/codeint"
-	"github.com/xgfone/go-toolkit/jsonx"
 	"github.com/xgfone/go-toolkit/structx"
 	"github.com/xgfone/go-toolkit/validation"
 )
@@ -50,7 +50,7 @@ func BindBody[T any](r *http.Request, dst *T) error {
 		return codeint.ErrMissingContentType
 
 	case MIMEApplicationJSON:
-		if err := jsonx.UnmarshalReader(dst, r.Body); err != nil {
+		if err := json.UnmarshalRead(r.Body, dst); err != nil {
 			return err
 		}
 

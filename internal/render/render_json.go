@@ -15,10 +15,10 @@
 package render
 
 import (
+	"encoding/json/v2"
 	"net/http"
 
 	"github.com/xgfone/go-toolkit/internal/pools"
-	"github.com/xgfone/go-toolkit/jsonx"
 )
 
 // JSON sends the response by the json format to the client.
@@ -31,7 +31,7 @@ func JSON(w http.ResponseWriter, code int, v any) (err error) {
 	pool, buf := pools.GetBuffer(64 * 1024) // 64KB
 	defer pools.PutBuffer(pool, buf)
 
-	if err = jsonx.MarshalWriter(buf, v); err == nil {
+	if err = json.MarshalWrite(buf, v); err == nil {
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(code)
 		err = write(w, buf)

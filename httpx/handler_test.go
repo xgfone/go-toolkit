@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -51,7 +50,7 @@ func TestJSON(t *testing.T) {
 	expectbody := `{"a":"b"}`
 	if err := JSON(rec, 200, map[string]string{"a": "b"}); err != nil {
 		t.Fatal(err)
-	} else if body := strings.TrimSpace(rec.Body.String()); body != expectbody {
+	} else if body := rec.Body.String(); body != expectbody {
 		t.Errorf("expect response body '%s', but got '%s'", expectbody, body)
 	}
 }
