@@ -1,4 +1,4 @@
-// Copyright 2025 xgfone
+// Copyright 2025~2026 xgfone
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,107 +16,69 @@ package iterx
 
 import "iter"
 
-// Integer is the integer type.
-type Integer interface {
+type number interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
-		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64
 }
 
-// Number is the integer or float type.
-type Number interface {
-	Integer | ~float32 | ~float64
-}
-
-func _predicate[V any](seq iter.Seq[V], predicate func(V) bool, result bool) bool {
+// Sum returns the sum of the integer or floating-point elements in seq,
+// or zero if seq is empty. It accumulates in V using Go's addition semantics.
+func Sum[V number](seq iter.Seq[V]) (sum V) {
 	for v := range seq {
-		if predicate(v) == result {
-			return result
-		}
+		sum += v
 	}
-	return !result
+	return
 }
 
-// All returns true if all elements in the sequences match the predicate.
-func All[V any](seq iter.Seq[V], predicate func(V) bool) bool {
-	return _predicate(seq, predicate, false)
-}
-
-// Any returns true if any element in the sequences matches the predicate.
-func Any[V any](seq iter.Seq[V], predicate func(V) bool) bool {
-	return _predicate(seq, predicate, true)
-}
-
-// Sum returns the sum of the elements in the sequence.
-func Sum[V any, R Number](seq iter.Seq[V], f func(V) R) R {
-	var r R
+// SumFunc returns the sum of f(v) for every element v in seq, or zero if seq is
+// empty. It calls f once per element and accumulates in R using Go's addition
+// semantics. R may be an integer or floating-point type.
+func SumFunc[V any, R number](seq iter.Seq[V], f func(V) R) (sum R) {
 	for v := range seq {
-		r += f(v)
+		sum += f(v)
 	}
-	return r
+	return
 }
 
-// Count returns the number of elements in the sequence that match the predicate.
-func Count[V any](seq iter.Seq[V], predicate func(V) bool) int {
-	var total int
+// Count returns the number of elements in seq, or zero if seq is empty.
+// It consumes the entire sequence.
+func Count[V any](seq iter.Seq[V]) (count int) {
+	for range seq {
+		count++
+	}
+	return
+}
+
+// CountFunc returns the number of elements that match predicate, or zero if seq
+// is empty. It calls predicate once per element and consumes the entire sequence.
+func CountFunc[V any](seq iter.Seq[V], predicate func(V) bool) (count int) {
 	for v := range seq {
 		if predicate(v) {
-			total++
+			count++
 		}
 	}
-	return total
+	return
 }
 
-// Filter returns a new sequence that only contains the elements that match the predicate.
-func Filter[V any](seq iter.Seq[V], predicate func(V) bool) iter.Seq[V] {
-	return func(yield func(V) bool) {
-		for v := range seq {
-			if predicate(v) && !yield(v) {
-				return
-			}
+// Find returns the first element that matches predicate and stops the sequence.
+// If no element matches, it returns the zero value of V and false.
+func Find[V any](seq iter.Seq[V], predicate func(V) bool) (V, bool) {
+	for v := range seq {
+		if predicate(v) {
+			return v, true
 		}
 	}
+	var zero V
+	return zero, false
 }
 
-// Filter2 returns a new sequence that only contains the elements that match the predicate.
-func Filter2[K, V any](seq iter.Seq2[K, V], predicate func(K, V) bool) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for k, v := range seq {
-			if predicate(k, v) && !yield(k, v) {
-				return
-			}
-		}
+// Reduce folds seq from left to right, starting with initial. It calls f once
+// per element with the current accumulator and element, and returns the final
+// accumulator. If seq is empty, it returns initial without calling f.
+func Reduce[V, R any](seq iter.Seq[V], initial R, f func(R, V) R) R {
+	for v := range seq {
+		initial = f(initial, v)
 	}
-}
-
-// Map returns a new sequence that contains the results of applying the mapper function to the elements.
-func Map[T any, R any](seq iter.Seq[T], mapper func(T) R) iter.Seq[R] {
-	return func(yield func(R) bool) {
-		for v := range seq {
-			if !yield(mapper(v)) {
-				return
-			}
-		}
-	}
-}
-
-// Seq returns a new sequence that converts iter.Seq2 to iter.Seq.
-func Seq[K, V, T any](seq2 iter.Seq2[K, V], mapper func(K, V) T) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		for k, v := range seq2 {
-			if !yield(mapper(k, v)) {
-				return
-			}
-		}
-	}
-}
-
-// Seq2 returns a new sequence that converts iter.Seq to iter.Seq2.
-func Seq2[T, K, V any](seq iter.Seq[T], mapper func(T) (K, V)) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		for v := range seq {
-			if !yield(mapper(v)) {
-				return
-			}
-		}
-	}
+	return initial
 }
