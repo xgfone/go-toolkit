@@ -22,28 +22,29 @@ import (
 	"github.com/xgfone/go-toolkit/internal/render"
 )
 
-// Pre-define some http handlers.
-var (
-	Handler200 = handler(200)
-	Handler201 = handler(201)
-	Handler204 = handler(204)
-	Handler400 = handler(400)
-	Handler401 = handler(401)
-	Handler403 = handler(403)
-	Handler404 = handler(404)
-	Handler500 = handler(500)
-	Handler501 = handler(501)
-	Handler502 = handler(502)
-	Handler503 = handler(503)
+// Predefined HTTP handlers that write only their status code.
+// Handler404 also sets the Connection header to "close".
+const (
+	Handler200 = statusHandler(200)
+	Handler201 = statusHandler(201)
+	Handler204 = statusHandler(204)
+	Handler400 = statusHandler(400)
+	Handler401 = statusHandler(401)
+	Handler403 = statusHandler(403)
+	Handler404 = statusHandler(404)
+	Handler500 = statusHandler(500)
+	Handler501 = statusHandler(501)
+	Handler502 = statusHandler(502)
+	Handler503 = statusHandler(503)
 )
 
-func handler(code int) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if code == 404 {
-			w.Header().Set("Connection", "close")
-		}
-		w.WriteHeader(code)
-	})
+type statusHandler int
+
+func (h statusHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	if h == 404 {
+		w.Header().Set("Connection", "close")
+	}
+	w.WriteHeader(int(h))
 }
 
 // JSON sends the response by the json format to the client.
