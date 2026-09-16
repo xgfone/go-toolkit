@@ -39,7 +39,7 @@ func TestRegressionMillisPadding(t *testing.T) {
 		return time.Now().In(timex.Location())
 	})
 
-	s := NewBuilder(DateTimeMilliRandGenerator).Build(18)
+	s := DateTimeMilliRandGenerator().Generate(18)
 	if !strings.HasPrefix(s, "20260906010203005") {
 		t.Fatalf("5ms must be 005 in YYYYMMDDHHMMSSmmm1, got %q", s)
 	}
