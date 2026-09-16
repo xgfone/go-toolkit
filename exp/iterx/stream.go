@@ -62,6 +62,19 @@ func (s Stream[V]) Map[R any](convert func(V) R) Stream[R] {
 	return FromSeq(iterx.To(s.seq, convert))
 }
 
+// Map2 transforms each value into a pair. It calls convert once per input value
+// during iteration and stops the input when the consumer stops. K need not be
+// comparable; map key requirements apply only when collecting into a map.
+func (s Stream[V]) Map2[K, R any](convert func(V) (K, R)) Stream2[K, R] {
+	return FromSeq2(func(yield func(K, R) bool) {
+		for v := range s.seq {
+			if !yield(convert(v)) {
+				return
+			}
+		}
+	})
+}
+
 // Map2 transforms each pair into another pair. It is the chainable form of [iterx.To2].
 func (s Stream2[K, V]) Map2[K2, V2 any](convert func(K, V) (K2, V2)) Stream2[K2, V2] {
 	return FromSeq2(iterx.To2(s.seq, convert))
@@ -112,6 +125,11 @@ func (s Stream2[K, V]) Values() Stream[V] {
 // To is an alias for [Stream.Map].
 func (s Stream[V]) To[R any](convert func(V) R) Stream[R] {
 	return s.Map(convert)
+}
+
+// To2 is an alias for [Stream.Map2].
+func (s Stream[V]) To2[K, R any](convert func(V) (K, R)) Stream2[K, R] {
+	return s.Map2(convert)
 }
 
 // To2 is an alias for [Stream2.Map2].

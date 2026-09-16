@@ -18,9 +18,10 @@
 //
 // FromSeq and FromSeq2 wrap standard iterators in Stream and Stream2. Map,
 // FilterMap, Filter, Take, and Skip use Rust-inspired names with Go signatures.
-// FilterMap callbacks return (value, ok). Map2 and FilterMap2 keep two values
-// per element; Keys and Values switch to a one-value Stream. To, To2, FilterTo,
-// FilterTo2, and Drop are aliases matching the stable iterx package's names.
+// FilterMap callbacks return (value, ok). Map2 produces two values per element
+// from either stream type; FilterMap2 transforms and selects existing pairs.
+// Keys and Values switch to a one-value Stream. To, To2, FilterTo, FilterTo2,
+// and Drop are aliases for the corresponding transformation methods.
 //
 // Call Seq on either wrapper to use range, standard library collectors, or
 // terminal operations from github.com/xgfone/go-toolkit/iterx. Streams do not
