@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/xgfone/go-toolkit/httpx"
-	"github.com/xgfone/go-toolkit/slicex"
 )
 
 // HostNormalizer normalizes a non-IP origin host. It may be used to apply
@@ -305,7 +304,11 @@ func (c *cors) preflightAllowHeaders(r *http.Request) (string, bool) {
 		return strings.Join(requestHeaders, ", "), true
 	}
 
-	if c.allowHeadersWildcard || slicex.ContainsAllFunc(c.allowHeadersList, requestHeaders, strings.EqualFold) {
+	if c.allowHeadersWildcard || !slices.ContainsFunc(requestHeaders, func(h string) bool {
+		return !slices.ContainsFunc(c.allowHeadersList, func(allowed string) bool {
+			return strings.EqualFold(allowed, h)
+		})
+	}) {
 		return c.allowHeaders, true
 	}
 

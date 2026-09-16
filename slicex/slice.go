@@ -12,28 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package slicex provides some extra slice functions.
+// Package slicex provides slice operations with capacity-aware allocation.
+// To converts elements, and FilterTo selects and converts them.
+// Map and Map2 collect converted elements into a Go map.
 package slicex
 
-// Empty returns itself if vs is not nil, otherwise returns an empty slice.
-//
-// DEPRECATED. DO NOT USE IT.
-func Empty[S ~[]E, E any](vs S) S {
-	if vs == nil {
-		return S{}
-	}
-	return vs
-}
-
-// Convert converts the slice from []E1 to []E2.
-//
-// DEPRECATED. Please use To instead.
-func Convert[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
-	return To(vs, convert)
-}
-
-// Filter filters the elements of the slice s and converts them.
-func Filter[S1 ~[]E1, E1, E2 any](s S1, filter func(E1) (E2, bool)) []E2 {
+// FilterTo converts each element and keeps the result only when filter returns
+// true. It preserves order and nilness, does not modify s, and reserves space
+// for len(s) output elements.
+func FilterTo[S1 ~[]E1, E1, E2 any](s S1, filter func(E1) (E2, bool)) []E2 {
 	if s == nil {
 		return nil
 	}
@@ -48,7 +35,8 @@ func Filter[S1 ~[]E1, E1, E2 any](s S1, filter func(E1) (E2, bool)) []E2 {
 	return newslice
 }
 
-// To converts the slice from []E1 to []E2.
+// To converts each element of vs, allocating the output at its final length.
+// It preserves order and nilness and does not modify vs.
 func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	if vs == nil {
 		return nil
@@ -61,7 +49,7 @@ func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	return newslice
 }
 
-// To2 converts the slice from []E1 to []E2.
+// To2 is like To, but passes both the index and value to convert.
 func To2[S1 ~[]E1, E1, E2 any](vs S1, convert func(int, E1) E2) []E2 {
 	if vs == nil {
 		return nil
@@ -74,12 +62,14 @@ func To2[S1 ~[]E1, E1, E2 any](vs S1, convert func(int, E1) E2) []E2 {
 	return newslice
 }
 
-// Map converts a slice to a map.
+// Map converts a slice to a map, reserving space for len(s) entries.
+// Later elements overwrite earlier entries with the same converted key.
+// Empty or nil input returns a non-nil empty map.
 func Map[S ~[]E, K comparable, V, E any](s S, convert func(E) (K, V)) map[K]V {
 	return Map2(s, func(_ int, e E) (K, V) { return convert(e) })
 }
 
-// Map2 converts a slice with the index to a map.
+// Map2 is like Map, but passes both the index and value to convert.
 func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[K]V {
 	_len := len(s)
 	maps := make(map[K]V, _len)
@@ -100,92 +90,6 @@ func GroupBy[S ~[]E, K comparable, E any](s S, key func(E) K) map[K][]E {
 		groups[k] = append(groups[k], value)
 	}
 	return groups
-}
-
-// Merge concatenates multiple slices into a single slice.
-//
-// If no slices are provided, it returns nil.
-// If all input slices are empty or nil, it returns an empty slice of type S.
-//
-// Note: If there is only one slice, it will return that slice directly
-// without cloning as the performance optimization.
-func Merge[S ~[]E, E any](ss ...S) S {
-	switch len(ss) {
-	case 0:
-		return nil
-
-	case 1:
-		return ss[0]
-	}
-
-	var _len int
-	for i := range ss {
-		_len += len(ss[i])
-	}
-
-	if _len == 0 {
-		return S{}
-	}
-
-	vs := make(S, 0, _len)
-	for i := range ss {
-		vs = append(vs, ss[i]...)
-	}
-	return vs
-}
-
-// ContainsAll reports whether subset is a subset of superset.
-//
-// It treats the slices as sets: the element order and repeated elements do not
-// affect the result.
-func ContainsAll[S1 ~[]E, S2 ~[]E, E comparable](superset S1, subset S2) bool {
-	if len(subset) == 0 {
-		return true
-	}
-
-	if len(superset) == 0 {
-		return false
-	}
-
-	set := make(map[E]struct{}, len(superset))
-	for _, value := range superset {
-		set[value] = struct{}{}
-	}
-
-	for _, value := range subset {
-		if _, ok := set[value]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// ContainsAllFunc reports whether subset is a subset of superset using equal.
-//
-// It treats the slices as sets: the element order and repeated elements do not
-// affect the result.
-func ContainsAllFunc[S1 ~[]E1, S2 ~[]E2, E1, E2 any](superset S1, subset S2, equal func(E1, E2) bool) bool {
-	if len(subset) == 0 {
-		return true
-	}
-
-	if len(superset) == 0 {
-		return false
-	}
-
-	for _, sub := range subset {
-		found := false
-		for _, super := range superset {
-			if equal(super, sub) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
 }
 
 // HasDuplicates reports whether s contains equal elements, including

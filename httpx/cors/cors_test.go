@@ -154,29 +154,53 @@ func TestCORSPreflightForbidden(t *testing.T) {
 		requestHeaders string
 	}{
 		{
-			name:          "disallowed method",
-			config:        Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodGet}},
+			name: "disallowed method",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: []string{http.MethodGet},
+			},
 			origin:        "https://example.com",
 			requestMethod: http.MethodPut,
 		},
 		{
-			name:          "invalid request method token",
-			config:        Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodPut}},
+			name: "invalid request method token",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: []string{http.MethodPut},
+			},
 			origin:        "https://example.com",
 			requestMethod: "BAD METHOD",
 		},
 		{
-			name:          "disallowed origin",
-			config:        Config{AllowOrigins: []string{"https://allowed.example"}, AllowMethods: []string{http.MethodPut}},
+			name: "disallowed origin",
+			config: Config{
+				AllowOrigins: []string{"https://allowed.example"},
+				AllowMethods: []string{http.MethodPut},
+			},
 			origin:        "https://denied.example",
 			requestMethod: http.MethodPut,
 		},
 		{
-			name:           "disallowed header",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: []string{http.MethodPut}, AllowHeaders: []string{"X-Allowed"}},
+			name: "disallowed header",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: []string{http.MethodPut},
+				AllowHeaders: []string{"X-Allowed"},
+			},
 			origin:         "https://example.com",
 			requestMethod:  http.MethodPut,
 			requestHeaders: "X-Denied",
+		},
+		{
+			name: "all requested headers must be allowed",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: []string{http.MethodPut},
+				AllowHeaders: []string{"X-Allowed"},
+			},
+			origin:         "https://example.com",
+			requestMethod:  http.MethodPut,
+			requestHeaders: "x-allowed, X-Denied",
 		},
 	}
 
@@ -220,48 +244,89 @@ func TestCORSPreflightAllowHeaders(t *testing.T) {
 		want           string
 	}{
 		{
-			name:           "wildcard reflects authorization",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"*"}},
+			name: "wildcard reflects authorization",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+				AllowHeaders: []string{"*"},
+			},
 			requestHeaders: []string{"Authorization, X-Token"},
 			want:           "Authorization, X-Token",
 		},
 		{
-			name:           "explicit headers match case insensitively",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"X-Token"}},
+			name: "explicit headers match case insensitively",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+				AllowHeaders: []string{"X-Token"},
+			},
 			requestHeaders: []string{"x-token"},
 			want:           "X-Token",
 		},
 		{
-			name:           "multiple request header lines",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowHeaders: []string{"X-Token", "X-Trace"}},
+			name: "repeated requested headers match case insensitively",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+				AllowHeaders: []string{"X-Token", "X-Trace"},
+			},
+			requestHeaders: []string{"x-token, X-TOKEN, x-trace"},
+			want:           "X-Token, X-Trace",
+		},
+		{
+			name: "multiple request header lines",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+				AllowHeaders: []string{"X-Token", "X-Trace"},
+			},
 			requestHeaders: []string{"X-Token,", " X-Trace"},
 			want:           "X-Token, X-Trace",
 		},
 		{
-			name:           "default reflects comma separated request headers",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			name: "default reflects comma separated request headers",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+			},
 			requestHeaders: []string{"X-One, X-Two, X-Three, X-Four"},
 			want:           "X-One, X-Two, X-Three, X-Four",
 		},
 		{
-			name:           "default reflects multiple request header lines",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			name: "default reflects multiple request header lines",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+			},
 			requestHeaders: []string{"X-One", "X-Two", "X-Three", "X-Four"},
 			want:           "X-One, X-Two, X-Three, X-Four",
 		},
 		{
-			name:           "default ignores empty request header lines",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut},
+			name: "default ignores empty request header lines",
+			config: Config{
+				AllowOrigins: []string{"https://example.com"},
+				AllowMethods: allowPut,
+			},
 			requestHeaders: []string{"", "X-Token"},
 			want:           "X-Token",
 		},
 		{
-			name:   "credentialed wildcard allows no request header",
-			config: Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowCredentials: true, AllowHeaders: []string{"*"}},
+			name: "credentialed wildcard allows no request header",
+			config: Config{
+				AllowOrigins:     []string{"https://example.com"},
+				AllowMethods:     allowPut,
+				AllowCredentials: true,
+				AllowHeaders:     []string{"*"},
+			},
 		},
 		{
-			name:           "credentialed wildcard allows empty request header",
-			config:         Config{AllowOrigins: []string{"https://example.com"}, AllowMethods: allowPut, AllowCredentials: true, AllowHeaders: []string{"*"}},
+			name: "credentialed wildcard allows empty request header",
+			config: Config{
+				AllowOrigins:     []string{"https://example.com"},
+				AllowMethods:     allowPut,
+				AllowCredentials: true,
+				AllowHeaders:     []string{"*"},
+			},
 			requestHeaders: []string{""},
 		},
 	}

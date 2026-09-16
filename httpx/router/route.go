@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/xgfone/go-toolkit/httpx"
-	"github.com/xgfone/go-toolkit/slicex"
 )
 
 func normalizePath(path string) string {
@@ -92,7 +91,7 @@ type Route struct {
 // Use adds middlewares to the route, which will be applied to the route handler,
 // so they are called after routing.
 func (r Route) Use(mdws ...httpx.Middleware) Route {
-	r.mdws = slicex.Merge(r.mdws, mdws)
+	r.mdws = slices.Concat(r.mdws, mdws)
 	return r
 }
 
@@ -189,7 +188,7 @@ func (r Route) Handler(handler http.Handler) Route {
 	} else if len(r.mdws) == 0 {
 		mdws = httpx.Middlewares{r.auth}
 	} else {
-		mdws = slicex.Merge([]httpx.Middleware{r.auth}, r.mdws)
+		mdws = slices.Concat([]httpx.Middleware{r.auth}, r.mdws)
 	}
 
 	mdws.Sort()
