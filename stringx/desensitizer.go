@@ -21,6 +21,7 @@ import (
 
 var (
 	phoneDesensitizer    atomic.Value
+	emailDesensitizer    atomic.Value
 	shortDesensitizer    atomic.Value
 	defaultDesensitizer  atomic.Value
 	passwordDesensitizer atomic.Value
@@ -34,6 +35,7 @@ func init() {
 	SetShortDesensitizer(new(NewDesensitizer(2, 2)))
 	SetDefaultDesensitizer(new(NewDesensitizer(4, 4)))
 	SetPasswordDesensitizer(new(NewDesensitizer(0, 0).WithChars("********")))
+	SetEmailDesensitizer(NewEmailDesensitizer(NewDesensitizer(1, 0)))
 }
 
 // PhoneDesensitizer returns the current phone desensitizer, initially retaining
@@ -50,6 +52,28 @@ func PhoneDesensitizer() Desensitizer {
 // Previously returned instances are unaffected.
 func SetPhoneDesensitizer(d Desensitizer) {
 	storeDesensitizer(&phoneDesensitizer, d)
+}
+
+// EmailDesensitizer returns the current email desensitizer.
+//
+// Initially it retains the first rune of the local part and the entire domain,
+// replacing the remaining local part with "****". A single-rune local part is
+// replaced entirely.
+//
+// The initial implementation parses a single address, discarding display names
+// and comments. Empty input stays empty; unparseable input becomes "****".
+// It is safe to call concurrently with SetEmailDesensitizer.
+func EmailDesensitizer() Desensitizer {
+	return emailDesensitizer.Load().(desensitizerValue).desensitizer
+}
+
+// SetEmailDesensitizer replaces the email desensitizer.
+//
+// It panics if d is nil, including a typed nil. It is safe to call
+// concurrently, but does not make d itself safe for concurrent use.
+// Previously returned instances are unaffected.
+func SetEmailDesensitizer(d Desensitizer) {
+	storeDesensitizer(&emailDesensitizer, d)
 }
 
 // ShortDesensitizer returns the current short-string desensitizer, initially

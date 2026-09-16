@@ -125,6 +125,7 @@ func TestDesensitizerSetters(t *testing.T) {
 		set  func(Desensitizer)
 	}{
 		{"phone", PhoneDesensitizer, SetPhoneDesensitizer},
+		{"email", EmailDesensitizer, SetEmailDesensitizer},
 		{"short", ShortDesensitizer, SetShortDesensitizer},
 		{"default", DefaultDesensitizer, SetDefaultDesensitizer},
 		{"password", PasswordDesensitizer, SetPasswordDesensitizer},
@@ -160,8 +161,9 @@ func TestDesensitizerSetters(t *testing.T) {
 			}
 
 			var nilPointer *MaskDesensitizer
+			var nilEmail *emailMaskDesensitizer
 			var nilFunc DesensitizerFunc
-			for _, d := range []Desensitizer{nil, nilPointer, nilFunc} {
+			for _, d := range []Desensitizer{nil, nilPointer, nilEmail, nilFunc} {
 				mustPanic(t, func() { tt.set(d) })
 				if got := tt.get().Desensitize("secret"); got != "SECRET" {
 					t.Fatalf("failed setter changed the current implementation: %q", got)
