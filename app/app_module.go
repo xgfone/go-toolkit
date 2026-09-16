@@ -23,8 +23,8 @@ import (
 
 // Module represents a lifecycle-managed component.
 //
-// Init and Start are executed in registration order.
-// Stop is executed in reverse registration order.
+// [Module.Init] and [Module.Start] are executed in registration order.
+// [Module.Stop] is executed in reverse registration order.
 type Module interface {
 	Name() string
 	Init(ctx context.Context, app *App) error
@@ -34,14 +34,14 @@ type Module interface {
 
 // Use registers lifecycle modules for the default app.
 //
-// It must be called before Run.
+// It must be called before [Run].
 func Use(mods ...Module) {
 	defaultApp.Use(mods...)
 }
 
 // Use registers lifecycle modules.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) Use(mods ...Module) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

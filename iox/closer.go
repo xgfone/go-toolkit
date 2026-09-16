@@ -14,10 +14,10 @@
 
 package iox
 
-// CloserFunc is the Close function.
+// CloserFunc is the [CloserFunc.Close] function.
 type CloserFunc func() error
 
-// Close implements the interface io.Closer.
+// Close implements the interface [io.Closer].
 func (f CloserFunc) Close() error {
 	return f()
 }

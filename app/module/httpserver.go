@@ -28,15 +28,15 @@ import (
 	"github.com/xgfone/go-toolkit/app"
 )
 
-// NewHttpServer returns a new HttpServer instance.
+// NewHttpServer returns a new [HttpServer] instance.
 //
-// The addr function is called during Init to get the listen address. If addr is
-// nil or returns an empty string, the HTTP server is disabled and won't start.
+// The addr function is called during [HttpServer.Init] to get the listen address.
+// If addr is nil or returns an empty string, the HTTP server is disabled and won't start.
 func NewHttpServer(name string, addr func() string, handler http.Handler) *HttpServer {
 	return &HttpServer{name: name, getAddr: addr, handler: handler}
 }
 
-// HttpServer is an app module that starts an HTTP server.
+// HttpServer is an [app.Module] that starts an HTTP server.
 type HttpServer struct {
 	name string
 	addr string
@@ -48,8 +48,8 @@ type HttpServer struct {
 	wrapln  func(net.Listener) net.Listener
 }
 
-// onceCloseListener shares one close operation between Serve and Stop,
-// including when Stop runs before Serve has registered the listener.
+// onceCloseListener shares one close operation between [http.Server.Serve] and [HttpServer.Stop],
+// including when [HttpServer.Stop] runs before [http.Server.Serve] has registered the listener.
 type onceCloseListener struct {
 	net.Listener
 	once sync.Once
@@ -61,7 +61,7 @@ func (l *onceCloseListener) Close() error {
 	return l.err
 }
 
-// WrapListener registers wrap to replace the listener created by Init,
+// WrapListener registers wrap to replace the listener created by [HttpServer.Init],
 // which must be called before app runs.
 func (s *HttpServer) WrapListener(wrap func(net.Listener) net.Listener) {
 	s.wrapln = wrap
@@ -116,8 +116,8 @@ func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 	return
 }
 
-// Start runs Serve as an application-managed background task.
-// An enabled server requires a running App.
+// Start runs [http.Server.Serve] as an application-managed background task.
+// An enabled server requires a running [app.App].
 func (s *HttpServer) Start(_ context.Context, a *app.App) (err error) {
 	if !s.IsValid() {
 		return

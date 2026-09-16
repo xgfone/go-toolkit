@@ -57,7 +57,7 @@ func IsInteger(s string) bool {
 // Rules:
 //   - An optional leading '+' or '-' sign is allowed.
 //   - At least one digit must appear either before or after the decimal point.
-//   - The integer part follows the same rules as IsInteger (no leading zero unless it is exactly "0").
+//   - The integer part follows the same rules as [IsInteger] (no leading zero unless it is exactly "0").
 //   - The fractional part, if present, must consist only of digits; it may be empty (e.g. "123.").
 //   - No leading/trailing whitespace, no exponent (e.g. "1e5").
 //

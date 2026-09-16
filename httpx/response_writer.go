@@ -20,7 +20,7 @@ import (
 	"net/http"
 )
 
-// ResponseWriter is an extended http.ResponseWriter.
+// ResponseWriter is an extended [http.ResponseWriter].
 type ResponseWriter interface {
 	http.ResponseWriter
 

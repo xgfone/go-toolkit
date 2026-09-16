@@ -40,8 +40,8 @@ var (
 
 // StatusCode returns the http status code.
 //
-// If Status is in [100, 599], return it. An invalid nonzero Status uses 500.
-// Or, return Code if it is in [100, 599].
+// If [Error.Status] is in [100, 599], return it. An invalid nonzero [Error.Status] uses 500.
+// Or, return [Error.Code] if it is in [100, 599].
 // Or, return 500.
 func (e Error) StatusCode() int {
 	if e.Status != 0 {
@@ -56,7 +56,7 @@ func (e Error) StatusCode() int {
 	return 500
 }
 
-// ServeHTTP implements the interface http.Handler.
+// ServeHTTP implements the interface [http.Handler].
 func (e Error) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = render.JSON(w, e.StatusCode(), e)
 }

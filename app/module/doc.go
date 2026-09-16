@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package module provides some common app modules.
+// Package module provides some common [app] modules.
 package module

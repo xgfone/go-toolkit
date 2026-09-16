@@ -35,7 +35,7 @@ import (
 
 var defaultApp = New()
 
-// Default returns the package-level default App instance.
+// Default returns the package-level default [App] instance.
 func Default() *App {
 	return defaultApp
 }
@@ -90,14 +90,15 @@ type App struct {
 	done  chan struct{}
 }
 
-// New creates an App with minimal default behavior.
+// New creates an [App] with minimal default behavior.
 //
 // By default, it:
 //   - sets version to "0.0.0"
-//   - sets name to strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
-//   - uses a minimal flag-based ConfigLoader
+//   - derives name from the first entry of [os.Args] using [filepath.Base]
+//     and [strings.TrimSuffix] to remove the ".exe" suffix
+//   - uses a minimal [flag] config loader (see [App.SetConfigLoader])
 //   - uses 30 seconds as shutdown timeout
-//   - listens to SIGINT, SIGTERM
+//   - listens to [syscall.SIGINT], [syscall.SIGTERM]
 func New() *App {
 	app := &App{
 		state: stateNew,
@@ -113,7 +114,7 @@ func New() *App {
 	return app
 }
 
-// Run starts the default app, see App.Run.
+// Run starts the default app, see [App.Run].
 func Run(ctx context.Context) error {
 	return defaultApp.Run(ctx)
 }
@@ -150,7 +151,7 @@ func (a *App) BuildTime() time.Time {
 
 // SetName sets app name.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetName(name string) {
 	if name == "" {
 		panic("app: empty name")
@@ -165,7 +166,7 @@ func (a *App) SetName(name string) {
 
 // SetCommit sets the app commit.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetCommit(commit string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -176,7 +177,7 @@ func (a *App) SetCommit(commit string) {
 
 // SetVersion sets app version.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetVersion(version string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -187,7 +188,7 @@ func (a *App) SetVersion(version string) {
 
 // SetBuildTime sets the app build time.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetBuildTime(builtat time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -198,7 +199,7 @@ func (a *App) SetBuildTime(builtat time.Time) {
 
 // SetShutdownTimeout sets graceful shutdown timeout.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetShutdownTimeout(timeout time.Duration) {
 	if timeout <= 0 {
 		panic("app: shutdown timeout must be positive")
@@ -213,10 +214,10 @@ func (a *App) SetShutdownTimeout(timeout time.Duration) {
 
 // SetSignals sets signals that trigger graceful shutdown.
 //
-// Passing no signals means App will not listen to OS signals and will only stop
+// Passing no signals means [App] will not listen to OS signals and will only stop
 // when parent ctx is canceled or a background task returns error.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetSignals(signals ...os.Signal) {
 	for _, sig := range signals {
 		if sig == nil {
@@ -234,7 +235,8 @@ func (a *App) SetSignals(signals ...os.Signal) {
 // Run starts the app lifecycle and blocks until shutdown,
 // which can only be called once.
 //
-// If Run returns a non-nil error, caller may print it and os.Exit(1).
+// If [App.Run] returns a non-nil error, caller may print it and call [os.Exit]
+// with status 1.
 func (a *App) Run(ctx context.Context) (err error) {
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
@@ -372,10 +374,10 @@ func (a *App) Run(ctx context.Context) (err error) {
 	return err
 }
 
-// Stop requests Run to stop.
+// Stop requests [App.Run] to stop.
 //
-// It is safe to call Stop multiple times from different goroutines.
-// If Run is not running anymore, Stop is a no-op.
+// It is safe to call [App.Stop] multiple times from different goroutines.
+// If [App.Run] is not running anymore, [App.Stop] is a no-op.
 func (a *App) Stop() {
 	a.mu.Lock()
 	cancel := a.cancelRun
@@ -386,17 +388,18 @@ func (a *App) Stop() {
 	}
 }
 
-// Wait blocks until Run returns.
+// Wait blocks until [App.Run] returns.
 //
-// If Run is still running, Wait blocks until the shutdown lifecycle finishes.
-// If Run has already returned, Wait returns immediately.
+// If [App.Run] is still running, [App.Wait] blocks until the shutdown lifecycle finishes.
+// If [App.Run] has already returned, [App.Wait] returns immediately.
 func (a *App) Wait() {
 	_ = a.WaitContext(context.Background())
 }
 
-// WaitContext blocks until Run returns or ctx is done.
+// WaitContext blocks until [App.Run] returns or ctx is done.
 //
-// It returns nil if Run has exited, or ctx.Err() if canceled first.
+// It returns nil if [App.Run] has exited, or the error from [context.Context.Err]
+// if canceled first.
 func (a *App) WaitContext(ctx context.Context) error {
 	select {
 	case <-a.done:

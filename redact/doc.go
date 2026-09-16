@@ -17,11 +17,10 @@
 //
 // The package is intentionally minimal:
 //
-//   - Redactor is for ordinary values that need to expose a redacted view.
-//   - ErrorRedactor is for errors that need to expose a redacted message.
-//   - Redact and RedactError apply those interfaces when present and otherwise
-//     fall back to the original value or error text.
+//   - [Redactor] is for ordinary values that need to expose a redacted view.
+//   - [Redact] applies that interface when present and otherwise returns the
+//     original value.
 //
-// Redaction behavior is controlled by Level. Each level describes the intended
+// Redaction behavior is controlled by [Level]. Each level describes the intended
 // exposure range of the output, from fully trusted internal use to public use.
 package redact

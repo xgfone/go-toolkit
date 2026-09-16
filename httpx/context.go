@@ -47,15 +47,15 @@ func ReleaseContext(c *Context) {
 	_ctxpool.Put(c)
 }
 
-// GetContext returns the Context from the context.Context.
+// GetContext returns the [Context] from the [context.Context].
 //
-// Return nil if the context.Context does not contain a Context.
+// Return nil if the [context.Context] does not contain a [Context].
 func GetContext(ctx context.Context) *Context {
 	c, _ := ctx.Value(_CtxKeyType(1)).(*Context)
 	return c
 }
 
-// SetContext sets the Context into the context.Context and returns a new context.Context.
+// SetContext sets the [Context] into the [context.Context] and returns a new [context.Context].
 func SetContext(ctx context.Context, c *Context) context.Context {
 	return context.WithValue(ctx, _CtxKeyType(1), c)
 }
@@ -74,10 +74,10 @@ type Context struct {
 	Error error // The error occurred during the request
 
 	BytesWritten int // Total bytes written to the response body
-	ResponseCode int // Response StatusCode
+	ResponseCode int // Response status code (see [Context.StatusCode]).
 	ResponseBody any // The Response Body
 
-	// w is the original http.ResponseWriter never implement ResponseWriter.
+	// w is the original [http.ResponseWriter] never implement [ResponseWriter].
 	w http.ResponseWriter
 }
 
@@ -126,7 +126,7 @@ func (c *Context) StatusCode() int {
 	return 0
 }
 
-// AppendError appends the error err into c.Error.
+// AppendError appends the error err into [Context.Error].
 func (c *Context) AppendError(err error) {
 	if err != nil {
 		if c.Error == nil {
@@ -142,7 +142,7 @@ func (c *Context) SetContentType(ct string) {
 	SetContentType(c.ResponseWriter.Header(), ct)
 }
 
-// SetConnectionClose sets the response header "Content-Disposition".
+// SetContentDisposition sets the response header "Content-Disposition".
 // For example,
 //
 //	Content-Disposition: inline
@@ -178,7 +178,7 @@ func (c *Context) Redirect(code int, toURL string) {
 	c.WriteHeader(code)
 }
 
-// NoContent is the alias of WriteHeader.
+// NoContent is the alias of [http.ResponseWriter.WriteHeader].
 func (c *Context) NoContent(code int) { c.WriteHeader(code) }
 
 // JSON sends a JSON response with the status code.
@@ -203,7 +203,7 @@ func (c *Context) Failure(err error) {
 	result.Failure(c, err)
 }
 
-// Respond implements the interface result.Responder.
+// Respond sends the response from [result.Respond] using the function set by [SetRespond].
 func (c *Context) Respond(response result.Response) {
 	respond(c, response)
 }
@@ -220,9 +220,9 @@ func SetRespond(f func(*Context, result.Response)) {
 	respond = f
 }
 
-// DefaultRespond is the default respond implementation used by SetRespond.
+// DefaultRespond is the default respond implementation used by [SetRespond].
 // It is exposed for callers who need to invoke the default logic directly
-// (e.g., in a custom SetRespond wrapper that delegates to the default).
+// (e.g., in a custom [SetRespond] wrapper that delegates to the default).
 func DefaultRespond(c *Context, response result.Response) {
 	if !response.IsZero() {
 		c.ResponseBody = response

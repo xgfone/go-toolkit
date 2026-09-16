@@ -22,30 +22,30 @@ const (
 	StageStart Stage = "start"
 	StageReady Stage = "ready"
 
-	// If a StageStopping hook returns an error, the error is collected, but the
+	// If a [StageStopping] hook returns an error, the error is collected, but the
 	// remaining cleanup hooks will continue to run.
 	StageStopping Stage = "stopping"
 
-	// StageCleanup is triggered after StageStopping and before StageExited.
+	// StageCleanup is triggered after [StageStopping] and before [StageExited].
 	//
-	// Hooks registered for StageCleanup are executed in reverse registration
+	// Hooks registered for [StageCleanup] are executed in reverse registration
 	// order, making it suitable for releasing resources that were initialized
 	// earlier in the app lifecycle.
 	//
-	// If a StageCleanup hook returns an error, the error is collected, but the
+	// If a [StageCleanup] hook returns an error, the error is collected, but the
 	// remaining cleanup hooks will continue to run.
 	StageCleanup Stage = "cleanup"
 
 	// StageExited is the final lifecycle stage.
 	//
-	// It is triggered after StageCleanup has completed and before Run returns.
-	// Hooks registered for StageExited are intended for fast final notification
+	// It is triggered after [StageCleanup] has completed and before [App.Run] returns.
+	// Hooks registered for [StageExited] are intended for fast final notification
 	// logic, such as logging, metrics, or status reporting.
 	//
-	// StageExited does not mean the process has already exited. It means the App
+	// [StageExited] does not mean the process has already exited. It means the [App]
 	// has reached its final lifecycle stage.
 	//
-	// If a StageExited hook returns an error, the error is collected, but the
+	// If a [StageExited] hook returns an error, the error is collected, but the
 	// remaining cleanup hooks will continue to run.
 	StageExited Stage = "exited"
 )
@@ -60,8 +60,8 @@ func (s Stage) OnNamed(name string, hook Hook) {
 	defaultApp.OnNamed(s, name, hook)
 }
 
-// OnCleanup registers a hook for StageCleanup,
-// which is a convenience wrapper around a.On(StageCleanup, hook).
+// OnCleanup registers a hook for [StageCleanup],
+// which is a convenience wrapper around [App.On].
 func (a *App) OnCleanup(hook Hook) {
 	a.On(StageCleanup, hook)
 }

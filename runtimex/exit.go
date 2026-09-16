@@ -27,7 +27,7 @@ var (
 	_exitcontext, _exitcancelf = context.WithCancel(context.Background())
 )
 
-// ExitContext returns a context that will be cancelled when Exit is called.
+// ExitContext returns a context that will be cancelled when [Exit] is called.
 // This can be used to signal cleanup operations that should complete before
 // the program terminates.
 func ExitContext() context.Context {
@@ -35,9 +35,9 @@ func ExitContext() context.Context {
 }
 
 // Exit terminates the program with the given exit code.
-// By default, Exit is equivalent to os.Exit(code).
+// By default, [Exit] calls [os.Exit] with code.
 //
-// The exit behavior can be customized via SetExitFunc
+// The exit behavior can be customized via [SetExitFunc]
 // to perform some cleanup operations before exit.
 func Exit(code int) {
 	_exitcancelf()
@@ -57,11 +57,11 @@ func GetExitFunc() func(code int) {
 	return exit
 }
 
-// SetExitFunc sets the exit function to be called by Exit.
+// SetExitFunc sets the exit function to be called by [Exit].
 //
-// The provided function exit should typically call os.Exit(code)
+// The provided function exit should typically call [os.Exit] with code
 // to ensure proper program termination. However, in some scenarios,
-// such as testing, exit may choose not to call os.Exit to avoid
+// such as testing, exit may choose not to call [os.Exit] to avoid
 // terminating the test process.
 //
 // The function exit must not be nil, otherwise panic.

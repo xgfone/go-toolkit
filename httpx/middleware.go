@@ -34,13 +34,13 @@ type Middleware interface {
 // MiddlewareFunc is the middleware function.
 type MiddlewareFunc func(next http.Handler) http.Handler
 
-// HTTPHandler implements the interface Middleware.
+// HTTPHandler implements the interface [Middleware].
 func (f MiddlewareFunc) HTTPHandler(next http.Handler) http.Handler { return f(next) }
 
 // Middlewares is a set of middlewares.
 type Middlewares []Middleware
 
-// HTTPHandler implements the Middleware interface to returns a new HTTP handler.
+// HTTPHandler implements the [Middleware] interface to returns a new HTTP handler.
 func (ms Middlewares) HTTPHandler(next http.Handler) http.Handler {
 	for i := len(ms) - 1; i >= 0; i-- {
 		next = ms[i].HTTPHandler(next)

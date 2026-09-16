@@ -19,9 +19,10 @@ import (
 	"time"
 )
 
-// Sleep waits for d or until ctx is done. It returns ctx.Err() if cancellation
-// or a deadline is observed, otherwise nil. An already-done context takes
-// precedence over a non-positive duration, which otherwise returns immediately.
+// Sleep waits for d or until ctx is done. It returns the error from
+// [context.Context.Err] if cancellation or a deadline is observed, otherwise nil.
+// An already-done context takes precedence over a non-positive duration,
+// which otherwise returns immediately.
 // The context must not be nil.
 func Sleep(ctx context.Context, d time.Duration) error {
 	if err := ctx.Err(); err != nil {

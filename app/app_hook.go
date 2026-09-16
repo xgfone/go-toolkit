@@ -29,7 +29,7 @@ type namedHook struct {
 	hook Hook
 }
 
-// Hook is a function type that can be used as a hook for the App.
+// Hook is a function type that can be used as a hook for the [App].
 type Hook func(ctx context.Context, app *App) error
 
 func CloserFuncHook(f iox.CloserFunc) Hook {
@@ -38,25 +38,25 @@ func CloserFuncHook(f iox.CloserFunc) Hook {
 	}
 }
 
-// On is short for App.OnNamed(stage, "", hook).
+// On calls [App.OnNamed] with stage, an empty name, and hook.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) On(stage Stage, hook Hook) {
 	a.OnNamed(stage, "", hook)
 }
 
-// On registers a lifecycle hook.
+// OnNamed registers a lifecycle hook.
 //
-// Name is optional but useful for error messages.
+// The name is optional but useful for error messages.
 //
-// Before Run starts, hooks may be registered for any valid stage.
+// Before [App.Run] starts, hooks may be registered for any valid stage.
 //
-// After Run starts, hooks may only be registered for future stages. The App
+// After [App.Run] starts, hooks may only be registered for future stages. The [App]
 // tracks the lifecycle stage it has reached, and registering a hook for the
 // current or a past stage will panic.
 //
 // Hooks are executed in registration order for most stages. The only exception
-// is StageCleanup: hooks registered for StageCleanup are executed in reverse
+// is [StageCleanup]: hooks registered for [StageCleanup] are executed in reverse
 // registration order.
 func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 	if hook == nil {
@@ -77,14 +77,14 @@ func (a *App) OnNamed(stage Stage, name string, hook Hook) {
 	a.hooks[stage] = append(a.hooks[stage], namedHook{name: name, hook: hook})
 }
 
-// Cleanup registers a simple function for StageCleanup,
-// which is a convenience wrapper around OnNamed(StageCleanup, ...).
+// Cleanup registers a simple function for [StageCleanup],
+// which is a convenience wrapper around [App.OnNamed].
 func (a *App) Cleanup(fn func() error) {
 	a.On(StageCleanup, CloserFuncHook(fn))
 }
 
-// AtExit registers a simple function for StageExited,
-// which is a convenience wrapper around OnNamed(StageExited, ...).
+// AtExit registers a simple function for [StageExited],
+// which is a convenience wrapper around [App.OnNamed].
 func (a *App) AtExit(fn func() error) {
 	a.On(StageExited, CloserFuncHook(fn))
 }

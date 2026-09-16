@@ -42,7 +42,7 @@ func (r Route) Pattern() string {
 
 var _ io.WriterTo = (Route{})
 
-// WriteTo implements the io.WriterTo interface to write the route pattern to w.
+// WriteTo implements the [io.WriterTo] interface to write the route pattern to w.
 func (r Route) WriteTo(w io.Writer) (n int64, err error) {
 	err = tryWriteString(w, r.Method, &n, err)
 

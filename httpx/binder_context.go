@@ -14,34 +14,34 @@
 
 package httpx
 
-// BindBody binds c.Request's body into dst according to the request
+// BindBody binds the embedded [http.Request]'s body into dst according to its
 // Content-Type, then sets defaults and validates dst.
 //
-// It is a convenience wrapper for BindBody(c.Request, dst).
+// It is a convenience wrapper for [BindBody] with that request and dst.
 func (c *Context) BindBody[T any](dst *T) error {
 	return BindBody(c.Request, dst)
 }
 
-// BindQuery binds c.Request's query parameters into dst using the "query"
-// struct tag, then sets defaults and validates dst.
+// BindQuery binds the embedded [http.Request]'s query parameters into dst using
+// the "query" struct tag, then sets defaults and validates dst.
 //
-// It is a convenience wrapper for BindQuery(c.Request, dst).
+// It is a convenience wrapper for [BindQuery] with that request and dst.
 func (c *Context) BindQuery[T any](dst *T) error {
 	return BindQuery(c.Request, dst)
 }
 
-// BindHeader binds c.Request's headers into dst using the "header" struct tag,
-// then sets defaults and validates dst.
+// BindHeader binds the embedded [http.Request]'s headers into dst using the
+// "header" struct tag, then sets defaults and validates dst.
 //
-// It is a convenience wrapper for BindHeader(c.Request, dst).
+// It is a convenience wrapper for [BindHeader] with that request and dst.
 func (c *Context) BindHeader[T any](dst *T) error {
 	return BindHeader(c.Request, dst)
 }
 
-// BindPath binds c.Request's path wildcard values into dst using the "path"
-// struct tag, then sets defaults and validates dst.
+// BindPath binds the embedded [http.Request]'s path wildcard values into dst using
+// the "path" struct tag, then sets defaults and validates dst.
 //
-// It is a convenience wrapper for BindPath(c.Request, dst).
+// It is a convenience wrapper for [BindPath] with that request and dst.
 func (c *Context) BindPath[T any](dst *T) error {
 	return BindPath(c.Request, dst)
 }

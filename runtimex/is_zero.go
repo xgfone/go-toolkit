@@ -17,7 +17,7 @@ package runtimex
 import "reflect"
 
 // EqualZero reports whether value equals the zero value of T using ==.
-// Unlike IsZero, it does not call an IsZero method. If T is an interface,
+// Unlike [IsZero], it does not call an IsZero method. If T is an interface,
 // only a nil interface is equal to zero; an interface containing a typed
 // nil is not.
 func EqualZero[T comparable](value T) bool {

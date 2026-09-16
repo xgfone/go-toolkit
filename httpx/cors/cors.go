@@ -48,14 +48,14 @@ type Config struct {
 	// succeeds for any non-safelisted request header the browser asks to use.
 	// Prefer an explicit allow-list for stricter APIs.
 	//
-	// If AllowCredentials is true, "*" is also reflected from the request
+	// If [Config.AllowCredentials] is true, "*" is also reflected from the request
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
 	// Optional. Default: nil.
 	AllowHeaders []string `json:"allowHeaders" yaml:"allowHeaders"`
 
 	// AllowMethods indicates methods allowed when accessing the resource.
-	// This is used in response to a preflight request. If AllowCredentials is
+	// This is used in response to a preflight request. If [Config.AllowCredentials] is
 	// true, "*" is reflected from the request because browsers do not treat it
 	// as a wildcard for credentialed requests.
 	//
@@ -63,7 +63,7 @@ type Config struct {
 	AllowMethods []string `json:"allowMethods" yaml:"allowMethods"`
 
 	// ExposeHeaders indicates response headers browsers are allowed to access
-	// from an actual CORS response. If AllowCredentials is true, "*" is omitted
+	// from an actual CORS response. If [Config.AllowCredentials] is true, "*" is omitted
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
 	// Optional. Default: nil.
@@ -83,7 +83,7 @@ type Config struct {
 	// Optional. Default: nil.
 	MaxAge *int `json:"maxAge" yaml:"maxAge"`
 
-	// NormalizeHost optionally normalizes non-IP origin hosts in AllowOrigins.
+	// NormalizeHost optionally normalizes non-IP origin hosts in [Config.AllowOrigins].
 	//
 	// If nil, hosts are only lower-cased; IDNA is intentionally not handled
 	// by default. A caller may provide an IDNA ToASCII implementation here.
@@ -99,8 +99,8 @@ var defaultAllowMethods = []string{
 }
 
 // NewDefaultConfig returns a default CORS config that only presets
-//   - AllowOrigins: []string{"*"}
-//   - AllowMethods: []string{"GET", "PUT", "HEAD", "POST", "PATCH", "DELETE"}
+//   - [Config.AllowOrigins]: []string{"*"}
+//   - [Config.AllowMethods]: []string{"GET", "PUT", "HEAD", "POST", "PATCH", "DELETE"}
 func NewDefaultConfig() Config {
 	return Config{
 		AllowOrigins: []string{"*"},
@@ -112,8 +112,9 @@ func NewDefaultConfig() Config {
 //
 // The returned middleware will write the CORS Vary fields before passing actual
 // requests to the next handler. Therefore, the downstream handlers should use
-// Header().Add("Vary", field) instead of Header().Set when adding their own
-// Vary fields, otherwise they may overwrite the CORS fields.
+// [http.Header.Add] on the header returned by [http.ResponseWriter.Header]
+// instead of [http.Header.Set] when adding their own Vary fields, otherwise
+// they may overwrite the CORS fields.
 //
 // A failed preflight request is rejected with 403. A rejected or invalid Origin
 // on an actual request is passed to the next handler without CORS allow headers;

@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package middleware provides some common http middleware.
+// Package middleware provides some common [net/http] middleware.
 package middleware

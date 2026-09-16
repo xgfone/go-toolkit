@@ -265,7 +265,7 @@ func TestDefaultGenerator(t *testing.T) {
 	wg.Wait()
 }
 
-// customGenerator deliberately implements Generator without the function adapter.
+// customGenerator deliberately implements [Generator] without the function adapter.
 type customGenerator struct{ char string }
 
 func (g *customGenerator) MinLen() int { return 2 }

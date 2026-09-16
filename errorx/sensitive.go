@@ -18,7 +18,7 @@ import "strings"
 
 const defaultSensitiveMessage = "[REDACTED]"
 
-// Sensitive wraps an error with a safe message and returns a *SensitiveError,
+// Sensitive wraps an error with a safe message and returns a [*SensitiveError],
 // or nil if err is nil.
 func Sensitive(err error, safe string) error {
 	if err == nil {
@@ -27,7 +27,7 @@ func Sensitive(err error, safe string) error {
 	return NewSensitiveError(err, safe)
 }
 
-// NewSensitiveError returns a new SensitiveError from err and a safe message.
+// NewSensitiveError returns a new [SensitiveError] from err and a safe message.
 //
 // If err is nil, it returns nil.
 // If safe is empty, "[REDACTED]" is used.
@@ -68,7 +68,7 @@ func (e *SensitiveError) Unwrap() error {
 	return e.err
 }
 
-// SensitiveError is similar to Unwrap, but it more explicitly indicates
+// SensitiveError is similar to [SensitiveError.Unwrap], but it more explicitly indicates
 // that the returned error may contain sensitive information.
 func (e *SensitiveError) SensitiveError() error {
 	return e.Unwrap()

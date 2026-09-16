@@ -24,7 +24,7 @@ func init() {
 
 // SetClient resets the default http client.
 //
-// Default: http.DefaultClient
+// Default: [http.DefaultClient]
 func SetClient(client Client) {
 	if client == nil {
 		panic("httpx.SetClient: client must not be nil")
@@ -45,7 +45,7 @@ type Client interface {
 // DoFunc is a function that sends a http request and returns a http response.
 type DoFunc func(req *http.Request) (*http.Response, error)
 
-// Do implements the Client interface.
+// Do implements the [Client] interface.
 func (f DoFunc) Do(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
@@ -59,7 +59,7 @@ func (c *wclient) Unwrap() Client                             { return c.client 
 func (c *wclient) Do(r *http.Request) (*http.Response, error) { return c.wrapf(c.client, r) }
 
 // WrapClient wraps the client to handler the http request and
-// returns a new Client that has implemented the interface { Unwrap() Client }
+// returns a new [Client] that has implemented the interface { Unwrap() [Client] }
 // to unwrap the inner client.
 func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error)) Client {
 	return &wclient{client: c, wrapf: f}
@@ -67,7 +67,7 @@ func WrapClient(c Client, f func(Client, *http.Request) (*http.Response, error))
 
 // UnwrapClient unwraps and returns the inner client.
 //
-// Return nil if client has not implemented the interface { Unwrap() Client }.
+// Return nil if client has not implemented the interface { Unwrap() [Client] }.
 func UnwrapClient(client Client) Client {
 	if c, ok := client.(interface{ Unwrap() Client }); ok {
 		return c.Unwrap()

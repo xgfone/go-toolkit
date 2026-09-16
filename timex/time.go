@@ -26,7 +26,7 @@ var location = time.UTC
 
 // SetLocation resets the time location.
 //
-// Default: time.UTC
+// Default: [time.UTC]
 func SetLocation(loc *time.Location) {
 	if loc == nil {
 		panic("timex.SetLocation: location is nil")
@@ -36,7 +36,7 @@ func SetLocation(loc *time.Location) {
 
 // Location returns the current time location.
 //
-// Default: time.UTC
+// Default: [time.UTC]
 func Location() *time.Location {
 	return location
 }
@@ -45,7 +45,7 @@ var _now func() time.Time
 
 // SetNowFunc sets the now function.
 //
-// Default: time.Now().In(Location())
+// Default: [time.Now], converted to [Location] using [time.Time.In].
 func SetNowFunc(now func() time.Time) {
 	if now == nil {
 		panic("timex.SetNowFunc: now function is nil")
@@ -53,7 +53,7 @@ func SetNowFunc(now func() time.Time) {
 	_now = now
 }
 
-// Now returns the now time by use the now function set by SetNowFunc.
+// Now returns the now time by use the now function set by [SetNowFunc].
 func Now() time.Time {
 	return _now()
 }
@@ -61,7 +61,7 @@ func Now() time.Time {
 func init()             { SetNowFunc(nowloc) }
 func nowloc() time.Time { return time.Now().In(Location()) }
 
-// Unix is the same as time.Unix, but set the location with Location().
+// Unix is the same as [time.Unix], but sets the location returned by [Location].
 func Unix(sec, nsec int64) time.Time {
 	return time.Unix(sec, nsec).In(location)
 }
@@ -71,7 +71,7 @@ func Today() time.Time {
 	return ToToday(Now())
 }
 
-// ToToday converts the any time.Time to today at 00:00:00.
+// ToToday converts the any [time.Time] to today at 00:00:00.
 func ToToday(any time.Time) (today time.Time) {
 	return time.Date(any.Year(), any.Month(), any.Day(), 0, 0, 0, 0, any.Location())
 }

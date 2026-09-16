@@ -19,25 +19,25 @@ import (
 	"fmt"
 )
 
-// Go is a convenience function that calls Default().Go.
+// Go is a convenience function that calls [App.Go] on [Default].
 func Go(fn func(ctx context.Context) error) {
 	GoNamed("", fn)
 }
 
-// GoNamed is a convenience function that calls Default().GoNamed.
+// GoNamed is a convenience function that calls [App.GoNamed] on [Default].
 func GoNamed(name string, fn func(ctx context.Context) error) {
 	defaultApp.GoNamed(name, fn)
 }
 
-// Go is short for App.GoNamed("", fn).
+// Go calls [App.GoNamed] with an empty name and fn.
 func (a *App) Go(fn func(ctx context.Context) error) {
 	a.goNamed("", fn)
 }
 
 // GoNamed starts a lifecycle-managed background task with the optional name.
 //
-// It can only be called after Run starts, usually inside Module.Start or hooks.
-// If fn returns a non-nil error while App is still running, App will start shutdown.
+// It can only be called after [App.Run] starts, usually inside [Module.Start] or hooks.
+// If fn returns a non-nil error while [App] is still running, [App] will start shutdown.
 func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
 	a.goNamed(name, fn)
 }

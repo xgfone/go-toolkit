@@ -20,7 +20,7 @@ import (
 	"testing"
 )
 
-// TestMiddlewareFunc tests MiddlewareFunc
+// TestMiddlewareFunc tests [MiddlewareFunc]
 func TestMiddlewareFunc(t *testing.T) {
 	mw := MiddlewareFunc(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +43,7 @@ func TestMiddlewareFunc(t *testing.T) {
 	}
 }
 
-// TestMiddlewares tests Middlewares
+// TestMiddlewares tests [Middlewares]
 func TestMiddlewares(t *testing.T) {
 	order := ""
 	mw1 := MiddlewareFunc(func(next http.Handler) http.Handler {
@@ -78,7 +78,7 @@ func TestMiddlewares(t *testing.T) {
 	}
 }
 
-// TestMiddlewaresEmpty tests empty Middlewares
+// TestMiddlewaresEmpty tests empty [Middlewares]
 func TestMiddlewaresEmpty(t *testing.T) {
 	called := false
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +97,7 @@ func TestMiddlewaresEmpty(t *testing.T) {
 	}
 }
 
-// TestMiddlewaresSort tests Sort method
+// TestMiddlewaresSort tests [Middlewares.Sort] method
 func TestMiddlewaresSort(t *testing.T) {
 	order := ""
 
@@ -137,7 +137,7 @@ func TestMiddlewaresSort(t *testing.T) {
 	}
 }
 
-// TestMiddlewaresSortWithDefaultPriority tests Sort with default priority
+// TestMiddlewaresSortWithDefaultPriority tests [Middlewares.Sort] with default priority
 func TestMiddlewaresSortWithDefaultPriority(t *testing.T) {
 	order := ""
 

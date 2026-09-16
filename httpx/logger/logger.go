@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package logger provides an HTTP middleware that logs requests and responses
-// with the default slog logger.
+// with the default [slog] logger.
 package logger
 
 import (
@@ -34,7 +34,7 @@ import (
 type Config struct {
 	// Enabled reports whether the request should be logged.
 	//
-	// If nil, all requests are logged when the configured slog level is enabled.
+	// If nil, all requests are logged when the configured [slog] level is enabled.
 	Enabled func(*http.Request) bool
 
 	// GetRequestId returns the request id written to the "reqid" log attribute.
@@ -54,7 +54,8 @@ type Config struct {
 	// If nil, those response-derived attributes are omitted.
 	GetResponse func(w http.ResponseWriter, r *http.Request) (status int, response any, err error)
 
-	// PostHandle is called after PreHandle is called and before the Logger handler ends.
+	// PostHandle is called after [Config.PreHandle] and before the handler
+	// returned by [Config.Middleware] ends.
 	PostHandle func(w http.ResponseWriter, r *http.Request)
 
 	// PreHandle is called immediately before the next HTTP handler.
@@ -77,12 +78,12 @@ func (c Config) Middleware(priority int) httpx.Middleware {
 	return logger
 }
 
-// NewDefaultConfig returns a new default Config.
+// NewDefaultConfig returns a new default [Config].
 //
-//   - Enabled: logs requests by default, except for the root path "/".
-//   - GetRequestId: reads the request id from the X-Request-Id header.
-//   - GetResponse: reads the response status, body, and error from the
-//     httpx.Context or httpx.ResponseWriter. If httpx.Context.BytesWritten
+//   - [Config.Enabled]: logs requests by default, except for the root path "/".
+//   - [Config.GetRequestId]: reads the request id from the X-Request-Id header.
+//   - [Config.GetResponse]: reads the response status, body, and error from the
+//     [httpx.Context] or [httpx.ResponseWriter]. If [httpx.Context.BytesWritten]
 //     is greater than 2048, it logs a short replacement message instead of
 //     the response body.
 func NewDefaultConfig() Config {

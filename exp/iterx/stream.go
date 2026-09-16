@@ -21,9 +21,9 @@ import (
 )
 
 // Stream provides chainable, lazy transformations of a one-value iterator.
-// Use Seq to iterate or pass the result to standard library functions.
+// Use [Stream.Seq] to iterate or pass the result to standard library functions.
 // Transformations return new wrappers without consuming or caching the input.
-// Repeated iteration depends on the input, just as with iter.Seq.
+// Repeated iteration depends on the input, just as with [iter.Seq].
 // The zero value contains a nil iterator and is not an empty stream.
 type Stream[V any] struct {
 	seq iter.Seq[V]
@@ -31,9 +31,9 @@ type Stream[V any] struct {
 
 // Stream2 provides chainable, lazy transformations of a two-value iterator.
 // K and V may be any types; the first value need not be a comparable map key.
-// Like Stream, it preserves the input's iteration behavior and has an invalid
-// zero value. Use Seq2 to access the iterator, or To, Keys, or Values to continue
-// with a one-value Stream.
+// Like [Stream], it preserves the input's iteration behavior and has an invalid
+// zero value. Use [Stream2.Seq2] to access the iterator, or [Stream2.To],
+// [Stream2.Keys], or [Stream2.Values] to continue with a one-value [Stream].
 type Stream2[K, V any] struct {
 	seq iter.Seq2[K, V]
 }

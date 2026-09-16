@@ -41,7 +41,7 @@ func newServeMuxBackend(routes []httpx.Route, notfound http.Handler) http.Handle
 	return server
 }
 
-// Only called for successfully registered paths: ServeMux has already
+// Only called for successfully registered paths: [http.ServeMux] has already
 // validated wildcard names, so no separate identifier parser is needed.
 func isCatchAllPath(path string) bool {
 	return path == "/" || (strings.HasPrefix(path, "/{") &&

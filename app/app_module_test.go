@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-// testModule is a minimal Module implementation for testing.
+// testModule is a minimal [Module] implementation for testing.
 type testModule struct {
 	name                    string
 	init, start, stop       func(ctx context.Context, app *App) error

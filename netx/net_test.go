@@ -187,7 +187,7 @@ func TestIpIsOnInternal(t *testing.T) {
 	})
 }
 
-// mockNetAddr implements net.Addr interface for testing
+// mockNetAddr implements [net.Addr] interface for testing
 type mockNetAddr struct {
 	network string
 	address string

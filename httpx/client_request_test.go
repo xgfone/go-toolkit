@@ -58,7 +58,7 @@ func (r *errorReader) Read(p []byte) (n int, err error) {
 	return 0, errors.New("read error")
 }
 
-// Test Request function with nil request
+// Test [Request] function with nil request
 func TestRequest_NilRequest(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -90,7 +90,7 @@ func TestRequest_NilRequest(t *testing.T) {
 	}
 }
 
-// Test Request function with io.Reader request
+// Test [Request] function with [io.Reader] request
 func TestRequest_ReaderRequest(t *testing.T) {
 	requestBody := `{"name":"reader","value":99}`
 	client := &mockClient{
@@ -130,7 +130,7 @@ func TestRequest_ReaderRequest(t *testing.T) {
 	}
 }
 
-// Test Request function with struct request (JSON encoded)
+// Test [Request] function with struct request (JSON encoded)
 func TestRequest_StructRequest(t *testing.T) {
 	reqData := testRequest{Name: "<struct>&", Value: 77}
 	client := &mockClient{
@@ -182,7 +182,7 @@ func TestRequest_StructRequest(t *testing.T) {
 	}
 }
 
-// Test Request function with response function
+// Test [Request] function with response function
 func TestRequest_ResponseFunction(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -220,7 +220,7 @@ func TestRequest_ResponseFunction(t *testing.T) {
 	}
 }
 
-// Test Request function with non-200 status code
+// Test [Request] function with non-200 status code
 func TestRequest_Non200StatusCode(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -248,7 +248,7 @@ func TestRequest_Non200StatusCode(t *testing.T) {
 	}
 }
 
-// Test Request function with HTTP request failure
+// Test [Request] function with HTTP request failure
 func TestRequest_HttpRequestFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -271,7 +271,7 @@ func TestRequest_HttpRequestFailed(t *testing.T) {
 	}
 }
 
-// Test Request function with invalid URL
+// Test [Request] function with invalid URL
 func TestRequest_InvalidURL(t *testing.T) {
 	SetClient(&mockClient{})
 	defer SetClient(http.DefaultClient)
@@ -285,7 +285,7 @@ func TestRequest_InvalidURL(t *testing.T) {
 	}
 }
 
-// Test Request function with JSON encode failure
+// Test [Request] function with JSON encode failure
 func TestRequest_JsonEncodeFailed(t *testing.T) {
 	// Create a value that cannot be JSON encoded
 	unencodable := func() {}
@@ -311,7 +311,7 @@ func TestRequest_JsonEncodeFailed(t *testing.T) {
 	}
 }
 
-// Test Request function with JSON decode failure
+// Test [Request] function with JSON decode failure
 func TestRequest_JsonDecodeFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -337,7 +337,7 @@ func TestRequest_JsonDecodeFailed(t *testing.T) {
 	}
 }
 
-// Test Request function with read response body failure
+// Test [Request] function with read response body failure
 func TestRequest_ReadResponseBodyFailed(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -363,7 +363,7 @@ func TestRequest_ReadResponseBodyFailed(t *testing.T) {
 	}
 }
 
-// Test Request function with nil response
+// Test [Request] function with nil response
 func TestRequest_NilResponse(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -385,7 +385,7 @@ func TestRequest_NilResponse(t *testing.T) {
 	}
 }
 
-// Test Request function with empty response body
+// Test [Request] function with empty response body
 func TestRequest_EmptyResponseBody(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -412,7 +412,7 @@ func TestRequest_EmptyResponseBody(t *testing.T) {
 	}
 }
 
-// Test Request function with response function error
+// Test [Request] function with response function error
 func TestRequest_ResponseFunctionError(t *testing.T) {
 	client := &mockClient{
 		doFunc: func(req *http.Request) (*http.Response, error) {
@@ -442,7 +442,7 @@ func TestRequest_ResponseFunctionError(t *testing.T) {
 	}
 }
 
-// Test Request function with various HTTP methods
+// Test [Request] function with various HTTP methods
 func TestRequest_VariousMethods(t *testing.T) {
 	testCases := []struct {
 		method string
@@ -487,7 +487,7 @@ func TestRequest_VariousMethods(t *testing.T) {
 	}
 }
 
-// Test Request function with the debug logging
+// Test [Request] function with the debug logging
 func TestRequest_DebugLogging(t *testing.T) {
 	origLogger := slog.Default()
 	defer slog.SetDefault(origLogger)
@@ -606,7 +606,7 @@ func TestReadRequestBody(t *testing.T) {
 	}
 }
 
-// stringerReader implements fmt.Stringer
+// stringerReader implements [fmt.Stringer]
 type stringerReader struct {
 	content string
 }
@@ -623,7 +623,7 @@ func (r *stringerReader) String() string {
 	return r.content
 }
 
-// sizeSeekerReader implements SizeSeeker interface
+// sizeSeekerReader implements [io.ReadSeeker] and provides a Size method.
 type sizeSeekerReader struct {
 	content string
 	pos     int64
@@ -662,7 +662,7 @@ func (r *sizeSeekerReader) Size() int64 {
 	return int64(len(r.content))
 }
 
-// readSeekerReader implements io.ReadSeeker
+// readSeekerReader implements [io.ReadSeeker]
 type readSeekerReader struct {
 	content string
 	pos     int64

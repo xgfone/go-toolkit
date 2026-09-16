@@ -39,12 +39,12 @@ type Error struct {
 	Status int   `json:"-"`
 }
 
-// NewError returns a new Error with the code.
+// NewError returns a new [Error] with the code.
 func NewError(code int) Error {
 	return Error{Code: code}.WithStatus(code)
 }
 
-// String implements the interface fmt.Stringer.
+// String implements the interface [fmt.Stringer].
 func (e Error) String() string {
 	pool, buf := pools.GetBuffer(256)
 	defer pools.PutBuffer(pool, buf)
@@ -108,7 +108,7 @@ func (e Error) GetCode() int {
 	return e.Code
 }
 
-// WithData returns a new Error with the data.
+// WithData returns a new [Error] with the data.
 func (e Error) WithData(data any) Error {
 	e.Data = data
 	return e
@@ -120,7 +120,7 @@ func (e Error) WithCode(code int) Error {
 	return e
 }
 
-// WithStatus returns a new Error with the status.
+// WithStatus returns a new [Error] with the status.
 //
 // Zero clears the explicit status; other values outside [100, 599] use 500.
 func (e Error) WithStatus(status int) Error {
@@ -137,9 +137,9 @@ func (e Error) WithStatus(status int) Error {
 	return e
 }
 
-// WithError returns a new Error with the error.
+// WithError returns a new [Error] with the error.
 //
-// If err is nil, it will clear Reason and Err to ZERO.
+// If err is nil, it will clear [Error.Reason] and [Error.Err] to ZERO.
 func (e Error) WithError(err error) Error {
 	if err == nil {
 		e.Reason = ""
@@ -151,37 +151,37 @@ func (e Error) WithError(err error) Error {
 	return e
 }
 
-// WithErrorf returns a new Error with the error formatted by fmt.Errorf(format, args...).
+// WithErrorf returns a new [Error] with the error formatted by [fmt.Errorf].
 func (e Error) WithErrorf(format string, args ...any) Error {
 	return e.WithError(fmt.Errorf(format, args...))
 }
 
-// WithReason returns a new Error with the reason.
+// WithReason returns a new [Error] with the reason.
 func (e Error) WithReason(reason string) Error {
 	e.Reason = reason
 	return e
 }
 
-// WithReasonf returns a new Error with the reason formatted by fmt.Sprintf(reason, args...).
+// WithReasonf returns a new [Error] with the reason formatted by [fmt.Sprintf].
 func (e Error) WithReasonf(format string, args ...any) Error {
 	return e.WithReason(fmt.Sprintf(format, args...))
 }
 
-// WithMessage returns a new Error with the message.
+// WithMessage returns a new [Error] with the message.
 func (e Error) WithMessage(msg string) Error {
 	e.Message = msg
 	return e
 }
 
-// WithMessagef returns a new Error with the message formatted by fmt.Sprintf(msg, args...).
+// WithMessagef returns a new [Error] with the message formatted by [fmt.Sprintf].
 func (e Error) WithMessagef(msg string, args ...any) Error {
 	return e.WithMessage(fmt.Sprintf(msg, args...))
 }
 
 // Wrap converts err into an error suitable for returning from a function.
 //
-// It returns nil if err is nil, preserves err if it is already an Error or
-// *Error, converts err if it implements interface{ ToError() error }, and
+// It returns nil if err is nil, preserves err if it is already an [Error] or
+// [*Error], converts err if it implements interface{ ToError() error }, and
 // otherwise returns a copy of e wrapping err.
 func (e Error) Wrap(err error) error {
 	switch _err := err.(type) {
@@ -215,12 +215,12 @@ func (e *Error) DecodeJSON(reader io.Reader) error {
 	return json.UnmarshalRead(reader, e)
 }
 
-// DecodeJSONBytes uses json decoder to decode the []byte data into the error.
+// DecodeJSONBytes uses [json.Unmarshal] to decode the []byte data into the error.
 func (e *Error) DecodeJSONBytes(data []byte) error {
 	return json.Unmarshal(data, e)
 }
 
-// DecodeJSONString uses json decoder to decode the string data into the error.
+// DecodeJSONString uses [json.UnmarshalRead] to decode the string data into the error.
 func (e *Error) DecodeJSONString(data string) error {
 	return json.UnmarshalRead(strings.NewReader(data), e)
 }

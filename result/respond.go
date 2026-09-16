@@ -26,23 +26,23 @@ var respond func(responder any, response Response) = defaultRespond
 // Respond sends the response via the given responder.
 //
 // The actual logic is delegated to the global respond function,
-// which can be overridden by calling SetRespondFunc.
+// which can be overridden by calling [SetRespondFunc].
 //
-// By default, the responder must implement one of:
+// By default, the responder must implement [http.ResponseWriter], or one of
+// the following interfaces (the first receives a [Response]):
 //
-//	http.ResponseWriter
 //	interface{ Respond(Response) }
 //	interface{ JSON(code int, value any) }
 func Respond(responder any, response Response) {
 	respond(responder, response)
 }
 
-// GetRespondFunc returns the global response-sending function used by Respond.
+// GetRespondFunc returns the global response-sending function used by [Respond].
 func GetRespondFunc() func(responder any, response Response) {
 	return respond
 }
 
-// SetRespondFunc replaces the global response-sending function used by Respond.
+// SetRespondFunc replaces the global response-sending function used by [Respond].
 //
 // It panics if f is nil.
 func SetRespondFunc(f func(responder any, response Response)) {

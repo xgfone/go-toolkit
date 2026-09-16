@@ -40,7 +40,7 @@ func init() {
 
 // PhoneDesensitizer returns the current phone desensitizer, initially retaining
 // 3 leading and 4 trailing runes. It is safe to call concurrently with
-// SetPhoneDesensitizer.
+// [SetPhoneDesensitizer].
 func PhoneDesensitizer() Desensitizer {
 	return phoneDesensitizer.Load().(desensitizerValue).desensitizer
 }
@@ -62,7 +62,7 @@ func SetPhoneDesensitizer(d Desensitizer) {
 //
 // The initial implementation parses a single address, discarding display names
 // and comments. Empty input stays empty; unparseable input becomes "****".
-// It is safe to call concurrently with SetEmailDesensitizer.
+// It is safe to call concurrently with [SetEmailDesensitizer].
 func EmailDesensitizer() Desensitizer {
 	return emailDesensitizer.Load().(desensitizerValue).desensitizer
 }
@@ -78,7 +78,7 @@ func SetEmailDesensitizer(d Desensitizer) {
 
 // ShortDesensitizer returns the current short-string desensitizer, initially
 // retaining 2 leading and 2 trailing runes. It is safe to call concurrently
-// with SetShortDesensitizer.
+// with [SetShortDesensitizer].
 func ShortDesensitizer() Desensitizer {
 	return shortDesensitizer.Load().(desensitizerValue).desensitizer
 }
@@ -94,7 +94,7 @@ func SetShortDesensitizer(d Desensitizer) {
 
 // DefaultDesensitizer returns the current default desensitizer, initially
 // retaining 4 leading and 4 trailing runes. It is safe to call concurrently
-// with SetDefaultDesensitizer.
+// with [SetDefaultDesensitizer].
 func DefaultDesensitizer() Desensitizer {
 	return defaultDesensitizer.Load().(desensitizerValue).desensitizer
 }
@@ -110,7 +110,7 @@ func SetDefaultDesensitizer(d Desensitizer) {
 
 // PasswordDesensitizer returns the current password desensitizer, initially
 // replacing the entire string with "********". It is safe to call concurrently
-// with SetPasswordDesensitizer.
+// with [SetPasswordDesensitizer].
 func PasswordDesensitizer() Desensitizer {
 	return passwordDesensitizer.Load().(desensitizerValue).desensitizer
 }
@@ -134,7 +134,7 @@ type Desensitizer interface {
 	Desensitize(string) string
 }
 
-// DesensitizerFunc adapts a function to Desensitizer.
+// DesensitizerFunc adapts a function to [Desensitizer].
 type DesensitizerFunc func(string) string
 
 // Desensitize calls f(s).
@@ -203,8 +203,9 @@ func (d MaskDesensitizer) WithChars(s string) MaskDesensitizer {
 
 // Desensitize returns a desensitized string of s.
 //
-// If s has no more than Left()+Right() runes, it is replaced entirely.
-// If both s and Chars() are empty, it returns ""; otherwise an empty Chars()
+// If s has no more runes than the sum returned by [MaskDesensitizer.Left] and
+// [MaskDesensitizer.Right], it is replaced entirely. If both s and the result of
+// [MaskDesensitizer.Chars] are empty, it returns ""; otherwise an empty replacement
 // defaults to "****". Rune boundaries, rather than grapheme clusters, are used.
 func (d MaskDesensitizer) Desensitize(s string) string {
 	chars := d.chars

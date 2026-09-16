@@ -41,13 +41,13 @@ func init() {
 	defaultCharset.Store(AlphaNumLowerCharset)
 }
 
-// DefaultCharset returns the default charset, initially AlphaNumLowerCharset.
-// It is safe to call concurrently with SetDefaultCharset.
+// DefaultCharset returns the default charset, initially [AlphaNumLowerCharset].
+// It is safe to call concurrently with [SetDefaultCharset].
 func DefaultCharset() string {
 	return defaultCharset.Load().(string)
 }
 
-// SetDefaultCharset sets the default charset used by callers of DefaultCharset.
+// SetDefaultCharset sets the default charset used by callers of [DefaultCharset].
 // It panics if charset is empty and is safe to call concurrently.
 func SetDefaultCharset(charset string) {
 	if charset == "" {

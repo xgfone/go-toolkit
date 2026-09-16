@@ -23,7 +23,7 @@ import (
 )
 
 // Predefined HTTP handlers that write only their status code.
-// Handler404 also sets the Connection header to "close".
+// [Handler404] also sets the Connection header to "close".
 const (
 	Handler200 = statusHandler(200)
 	Handler201 = statusHandler(201)
@@ -65,15 +65,15 @@ var (
 // ContextHandler is the handler function for the request context.
 type ContextHandler func(c *Context) error
 
-// ServeHTTP implements the http.Handler interface.
+// ServeHTTP implements the [http.Handler] interface.
 //
-// Note: a Context must be got by GetContext from the request context.
+// Note: a [Context] must be got by [GetContext] from the request context.
 func (h ContextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := GetContext(r.Context())
 	c.AppendError(h(c))
 }
 
-// HTTPHandler implements the Middleware interface.
+// HTTPHandler implements the [Middleware] interface.
 func (h ContextHandler) HTTPHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c := GetContext(r.Context()); c == nil {
@@ -87,8 +87,8 @@ func (h ContextHandler) HTTPHandler(next http.Handler) http.Handler {
 	})
 }
 
-// ContextHandlerAnd combines multiple ContextHandlers with AND logic and
-// returns a ContextHandler that calls each handler in order.
+// ContextHandlerAnd combines multiple [ContextHandler] functions with AND logic and
+// returns a [ContextHandler] that calls each handler in order.
 //
 // If any handler returns a non-nil error, the combined handler short-circuits
 // and returns that error immediately without calling the remaining handlers.
@@ -100,8 +100,8 @@ func ContextHandlerAnd(handlers ...ContextHandler) ContextHandler {
 	return contextHandlers(true, handlers...)
 }
 
-// ContextHandlerOr combines multiple ContextHandlers with OR logic and
-// returns a ContextHandler that calls each handler in order.
+// ContextHandlerOr combines multiple [ContextHandler] functions with OR logic and
+// returns a [ContextHandler] that calls each handler in order.
 //
 // If any handler returns nil (success), the combined handler short-circuits
 // and returns nil immediately without calling the remaining handlers.

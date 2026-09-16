@@ -23,7 +23,7 @@ import (
 
 // SetConfigLoader replaces the default config loader.
 //
-// It must be called before Run.
+// It must be called before [App.Run].
 func (a *App) SetConfigLoader(loader Hook) {
 	if loader == nil {
 		panic("app: nil config loader")

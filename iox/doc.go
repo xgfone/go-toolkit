@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package iox provides some io functions.
+// Package iox provides some [io] functions.
 package iox

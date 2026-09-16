@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package netx provides some convenient net functions.
+// Package netx provides some convenient [net] functions.
 package netx
 
 import (
@@ -42,7 +42,7 @@ func IsLocalIP(ip string) (on bool, err error) {
 	return isLocalIP(ip, net.InterfaceAddrs)
 }
 
-// isLocalIP is the internal implementation of IsLocalIP that accepts a function
+// isLocalIP is the internal implementation of [IsLocalIP] that accepts a function
 // to get interface addresses, making it testable.
 func isLocalIP(ip string, getAddrs func() ([]net.Addr, error)) (on bool, err error) {
 	if ip == "" {

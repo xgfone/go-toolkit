@@ -77,7 +77,7 @@ func (e _ClientError) Error() string {
 //
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
-//   - func(*http.Response) error: custom response handler function
+//   - func([*http.Response]) error: custom response handler function
 //   - non-nil pointer: response body is automatically decoded as JSON into the destination
 func Get(ctx context.Context, url string, respbody any) (err error) {
 	return Request(ctx, http.MethodGet, url, respbody, nil)
@@ -88,12 +88,12 @@ func Get(ctx context.Context, url string, respbody any) (err error) {
 //
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
-//   - func(*http.Response) error: custom response handler function
+//   - func([*http.Response]) error: custom response handler function
 //   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
-//   - io.Reader: used directly as the request body
+//   - [io.Reader]: used directly as the request body
 //   - any other type: automatically encoded as JSON
 //
 // If reqbody is not nil, it will set the Content-Type header to "application/json".
@@ -106,12 +106,12 @@ func Post(ctx context.Context, url string, respbody any, reqbody any) (err error
 //
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
-//   - func(*http.Response) error: custom response handler function
+//   - func([*http.Response]) error: custom response handler function
 //   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // The reqbody parameter supports the following types:
 //   - nil: no request body will be sent
-//   - io.Reader: used directly as the request body
+//   - [io.Reader]: used directly as the request body
 //   - any other type: automatically encoded as JSON
 //
 // If reqbody is not nil, it will set the Content-Type header to "application/json".
@@ -149,7 +149,7 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 //
 // The respbody parameter supports the following types:
 //   - nil: response body is ignored, only HTTP status code 200 is checked
-//   - func(*http.Response) error: custom response handler function
+//   - func([*http.Response]) error: custom response handler function
 //   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
 // It will log the request and response details at the debug level if the debug log is enabled.

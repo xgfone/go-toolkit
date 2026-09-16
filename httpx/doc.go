@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package httpx provides some http functions.
+// Package httpx provides some [net/http] functions.
 package httpx

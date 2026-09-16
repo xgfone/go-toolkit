@@ -17,7 +17,7 @@ package stringx
 // AffixGenerator wraps a generator with a prefix and suffix. Configuration
 // methods return copies; they do not modify the receiver. Concurrent use requires
 // a concurrency-safe underlying generator and separate append buffers.
-// Its zero value needs WithGenerator before use, or use NewAffixGenerator.
+// Its zero value needs [AffixGenerator.WithGenerator] before use, or use [NewAffixGenerator].
 type AffixGenerator struct {
 	prefix string
 	suffix string
@@ -80,11 +80,11 @@ func (g AffixGenerator) MinLen() int {
 	return minlen + len(g.suffix)
 }
 
-// Generate returns a string including the affixes. See Generator for length handling.
+// Generate returns a string including the affixes. See [Generator] for length handling.
 func (g AffixGenerator) Generate(length int) string { return generateString(g, length) }
 
 // Append appends a generated string including the affixes to dst.
-// See Generator for length handling.
+// See [Generator] for length handling.
 func (g AffixGenerator) Append(dst []byte, length int) []byte {
 	length = checkGeneratorLength(length, g.MinLen())
 	length -= len(g.prefix) + len(g.suffix)

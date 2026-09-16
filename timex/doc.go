@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package timex provides some extra time functions.
+// Package timex provides some extra [time] functions.
 package timex

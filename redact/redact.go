@@ -20,16 +20,16 @@ import "fmt"
 //
 // The levels are ordered from least redaction to most redaction:
 //
-//   - LevelRaw: for fully trusted internal use, such as debugging, diagnostics,
+//   - [LevelRaw]: for fully trusted internal use, such as debugging, diagnostics,
 //     and other program-internal paths where raw data may be shown.
-//   - LevelTrusted: for trusted but still bounded internal use, such as admin
+//   - [LevelTrusted]: for trusted but still bounded internal use, such as admin
 //     tools, operations consoles, or protected internal pages, where only the
 //     most sensitive parts should be removed.
-//   - LevelExternal: for callers outside the current program boundary, such as
+//   - [LevelExternal]: for callers outside the current program boundary, such as
 //     other services, SDK consumers, or external integrations, where secrets
 //     and internal details should be hidden but business-useful information may
 //     still be preserved.
-//   - LevelPublic: for public or low-trust output, such as content visible to
+//   - [LevelPublic]: for public or low-trust output, such as content visible to
 //     end users or broadly exposed outside the platform, where only the
 //     safest information should remain.
 type Level uint8
@@ -52,7 +52,7 @@ const (
 	LevelPublic
 )
 
-// Valid reports whether the level l is a defined Level value.
+// Valid reports whether the level l is a defined [Level] value.
 func (l Level) Valid() bool {
 	return LevelRaw <= l && l <= LevelPublic
 }
@@ -78,21 +78,21 @@ func (l Level) String() string {
 }
 
 // Redactor is implemented by values that can produce a redacted view of
-// themselves for the given Level.
+// themselves for the given [Level].
 //
-// Implementations are not required to handle every possible Level explicitly.
-// If an implementation receives a Level that it does not specifically support,
-// it should fall back to another Level that it considers reasonably safe for
+// Implementations are not required to handle every possible [Level] explicitly.
+// If an implementation receives a [Level] that it does not specifically support,
+// it should fall back to another [Level] that it considers reasonably safe for
 // its own use case. That fallback does not need to be the most restrictive
-// Level.
+// [Level].
 type Redactor interface {
 	Redact(level Level) any
 }
 
-// Redact returns a redacted view of value at the given Level.
+// Redact returns a redacted view of value at the given [Level].
 //
-// Only the top-level value is checked. If value implements Redactor, its
-// Redact method is used. Otherwise value is returned unchanged.
+// Only the top-level value is checked. If value implements [Redactor], its
+// [Redactor.Redact] method is used. Otherwise value is returned unchanged.
 func Redact(value any, level Level) any {
 	if redactor, ok := value.(Redactor); ok {
 		return redactor.Redact(level)

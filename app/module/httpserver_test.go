@@ -32,8 +32,8 @@ func getAddrFunc(addr string) func() string {
 	return func() string { return addr }
 }
 
-// TestNewHttpServer verifies that NewHttpServer creates a Module
-// with the given name, and the returned Name() matches.
+// TestNewHttpServer verifies that [NewHttpServer] creates a [app.Module]
+// with the given name, and the result of [HttpServer.Name] matches.
 func TestNewHttpServer(t *testing.T) {
 	m := NewHttpServer("test-server", getAddrFunc(":0"), http.NotFoundHandler())
 	if got := m.Name(); got != "test-server" {
@@ -41,14 +41,14 @@ func TestNewHttpServer(t *testing.T) {
 	}
 }
 
-// TestHttpServerLifecycle exercises the full Init → Start (concurrently) → Stop
+// TestHttpServerLifecycle exercises the full [HttpServer.Init] → [HttpServer.Start] (concurrently) → [HttpServer.Stop]
 // lifecycle on a random port.
 func TestHttpServerLifecycle(t *testing.T) {
 	m := NewHttpServer("lifecycle", getAddrFunc(":0"), http.NotFoundHandler())
 	testHttpServerLifecycle(t, m)
 }
 
-// TestHttpServerInitFail verifies that Init fails when the port is already in use.
+// TestHttpServerInitFail verifies that [HttpServer.Init] fails when the port is already in use.
 func TestHttpServerInitFail(t *testing.T) {
 	// Listen on a random port and hold it.
 	holder := httptest.NewUnstartedServer(http.NotFoundHandler())
@@ -132,7 +132,7 @@ func TestHttpServerStartRequiresApp(t *testing.T) {
 	}
 }
 
-// TestHttpServerURLScheme verifies that Init correctly parses a "tcp://..." URL
+// TestHttpServerURLScheme verifies that [HttpServer.Init] correctly parses a "tcp://..." URL
 // and extracts the network and address from it.
 func TestHttpServerURLScheme(t *testing.T) {
 	m := NewHttpServer("scheme", getAddrFunc("tcp://:0"), http.NotFoundHandler())

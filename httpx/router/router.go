@@ -41,7 +41,7 @@ type Router struct {
 	once   sync.Once
 }
 
-// New creates a new Router.
+// New creates a new [Router].
 func New() *Router {
 	r := &Router{}
 	r.SetBackend(newServeMuxBackend)
@@ -51,7 +51,7 @@ func New() *Router {
 
 // SetBackend sets the backend handler factory.
 //
-// Default: use *http.ServeMux as the backend.
+// Default: use [*http.ServeMux] as the backend.
 func (r *Router) SetBackend(new func(routes []httpx.Route, notfound http.Handler) http.Handler) {
 	if new == nil {
 		panic("Router.SetBackend: new function must not be nil")
@@ -63,7 +63,7 @@ func (r *Router) SetBackend(new func(routes []httpx.Route, notfound http.Handler
 
 // SetNotFound sets the not found handler.
 //
-// Default: use httpx.Handler404.
+// Default: use [httpx.Handler404].
 //
 // The default backend uses a catch-all route, so unmatched methods also reach
 // this handler. An explicitly registered catch-all route takes precedence.
@@ -83,7 +83,7 @@ func (r *Router) Use(mdws ...httpx.Middleware) {
 	r.rmutex.Unlock()
 }
 
-// ServeHTTP implements the http.Handler interface.
+// ServeHTTP implements the [http.Handler] interface.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.once.Do(r.initServer)
 	r.server.ServeHTTP(w, req)

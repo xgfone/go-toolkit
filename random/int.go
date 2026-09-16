@@ -24,7 +24,7 @@ import (
 	"sync"
 )
 
-// cryptoRandInt is a variable that holds the function to call for crypto/rand.Int.
+// cryptoRandInt is a variable that holds the function to call for [crypto/rand.Int].
 // This allows mocking it during tests.
 var cryptoRandInt = crand.Int
 

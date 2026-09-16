@@ -50,7 +50,7 @@ func (f *Field[Data]) GetValue(m map[string]any) any {
 // GetField returns the field value, allocating nil intermediate struct
 // pointers while traversing the field path.
 //
-// Notice: Use GetFieldByIndex with alloc=false for non-allocating lookup.
+// Notice: Use [GetFieldByIndex] with alloc=false for non-allocating lookup.
 func (f *Field[Data]) GetField(root reflect.Value) reflect.Value {
 	return GetFieldByIndex(root, f.Indexes, true)
 }

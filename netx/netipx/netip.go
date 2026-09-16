@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package netipx provides some convenient netip functions.
+// Package netipx provides some convenient [netip] functions.
 package netipx
 
 import (
@@ -23,7 +23,7 @@ import (
 	"github.com/xgfone/go-toolkit/internal/netx"
 )
 
-// AddrFromNetAddr converts a net.Addr to netip.Addr.
+// AddrFromNetAddr converts a [net.Addr] to [netip.Addr].
 func AddrFromNetAddr(netaddr net.Addr) (addr netip.Addr, err error) {
 	switch v := netaddr.(type) {
 	case nil:

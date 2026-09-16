@@ -29,13 +29,13 @@ type _Validator interface {
 }
 
 // Validate validates whether the value is the valid,
-// which can be overrided by SetValidateFunc.
+// which can be overrided by [SetValidateFunc].
 func Validate(value any) error {
 	return _validate(value)
 }
 
 // SetValidateFunc resets the global validation function,
-// which will be used by Validate.
+// which will be used by [Validate].
 //
 // If f is nil, it will panic.
 func SetValidateFunc(f func(value any) error) {

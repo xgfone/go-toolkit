@@ -38,7 +38,7 @@ var errNilRequest = errors.New("httpx: request is nil")
 // BindBody binds the request body into dst according to the request
 // Content-Type, then sets defaults and validates dst.
 //
-// For JSON and XML bodies, BindBody uses the standard struct tags "json" and
+// For JSON and XML bodies, [BindBody] uses the standard struct tags "json" and
 // "xml". For form and multipart form bodies, it uses the "form" struct tag.
 func BindBody[T any](r *http.Request, dst *T) error {
 	if r == nil {
@@ -116,8 +116,8 @@ func BindQuery[T any](r *http.Request, dst *T) error {
 // BindPath binds the request's path wildcard values into dst using the "path"
 // struct tag, then sets defaults and validates dst.
 //
-// Values come from r.PathValue, as populated by http.ServeMux or r.SetPathValue.
-// Missing and empty values are ignored, as in BindQuery. Use validation to
+// Values come from [http.Request.PathValue], as populated by [http.ServeMux] or [http.Request.SetPathValue].
+// Missing and empty values are ignored, as in [BindQuery]. Use validation to
 // require a value. Query parameters and the request body are not read.
 func BindPath[T any](r *http.Request, dst *T) error {
 	if r == nil {

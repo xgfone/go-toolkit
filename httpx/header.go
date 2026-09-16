@@ -196,7 +196,7 @@ func Charset(header http.Header) string {
 }
 
 // Common media types have no parameters or one unquoted parameter. Leave
-// quoting, duplicate parameters and RFC 2231 continuations to mime.ParseMediaType.
+// quoting, duplicate parameters and RFC 2231 continuations to [mime.ParseMediaType].
 func parseSimpleMediaType(value string) (mediaType, key, parameter string, ok bool) {
 	base, parameters, hasParameters := strings.Cut(value, ";")
 	mediaType = strings.TrimSpace(base)
@@ -254,12 +254,12 @@ func Accept(header http.Header) []string {
 	return accept(strings.Join(header.Values(HeaderAccept), ","))
 }
 
-// AcceptEncoding is the same as Accept, but using the "Accept-Encoding" header.
+// AcceptEncoding is the same as [Accept], but using the "Accept-Encoding" header.
 func AcceptEncoding(header http.Header) []string {
 	return accept(strings.Join(header.Values(HeaderAcceptEncoding), ","))
 }
 
-// AcceptLanguage is the same as Accept, but using the "Accept-Language" header.
+// AcceptLanguage is the same as [Accept], but using the "Accept-Language" header.
 func AcceptLanguage(header http.Header) []string {
 	return accept(strings.Join(header.Values(HeaderAcceptLanguage), ","))
 }

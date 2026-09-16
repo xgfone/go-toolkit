@@ -30,19 +30,19 @@ var (
 )
 
 // DateTimeMilliRandGenerator returns a generator of YYYYMMDDHHMMSSmmm followed
-// by random decimal digits, with a minimum length of 18 bytes. It uses timex.Now.
+// by random decimal digits, with a minimum length of 18 bytes. It uses [timex.Now].
 func DateTimeMilliRandGenerator() Generator { return dateTimeMilliRandGenerator }
 
 // UnixTimeMilliRandGenerator returns a generator of Unix milliseconds followed
-// by random decimal digits, with a minimum length of 14 bytes. It uses timex.Now.
+// by random decimal digits, with a minimum length of 14 bytes. It uses [timex.Now].
 func UnixTimeMilliRandGenerator() Generator { return unixTimeMilliRandGenerator }
 
 // DateTimeRandGenerator returns a generator of YYYYMMDDHHMMSS followed by random
-// decimal digits, with a minimum length of 15 bytes. It uses timex.Now.
+// decimal digits, with a minimum length of 15 bytes. It uses [timex.Now].
 func DateTimeRandGenerator() Generator { return dateTimeRandGenerator }
 
 // UnixTimeRandGenerator returns a generator of Unix seconds followed by random
-// decimal digits, with a minimum length of 11 bytes. It uses timex.Now.
+// decimal digits, with a minimum length of 11 bytes. It uses [timex.Now].
 func UnixTimeRandGenerator() Generator { return unixTimeRandGenerator }
 
 // appendTimeRand generates a string with the given length and

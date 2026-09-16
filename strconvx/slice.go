@@ -22,23 +22,23 @@ import (
 
 // ParseInt64Slice parses s as a comma-separated list of decimal int64 values.
 // Leading and trailing Unicode whitespace is ignored for each element.
-// Each element is parsed using strconv.ParseInt with base 10 and bit size 64.
+// Each element is parsed using [strconv.ParseInt] with base 10 and bit size 64.
 //
 // Empty or whitespace-only input returns nil, nil. An empty, invalid, or
 // out-of-range element returns a nil slice and an error containing the element's
-// one-based position and wrapping the underlying *strconv.NumError.
+// one-based position and wrapping the underlying [*strconv.NumError].
 func ParseInt64Slice(s string) ([]int64, error) {
 	return parseIntegerSlice(s, strconv.ParseInt)
 }
 
 // ParseUint64Slice parses s as a comma-separated list of decimal uint64 values.
 // Leading and trailing Unicode whitespace is ignored for each element.
-// Each element is parsed using strconv.ParseUint with base 10 and bit size 64;
+// Each element is parsed using [strconv.ParseUint] with base 10 and bit size 64;
 // neither '+' nor '-' signs are permitted.
 //
 // Empty or whitespace-only input returns nil, nil. An empty, invalid, or
 // out-of-range element returns a nil slice and an error containing the element's
-// one-based position and wrapping the underlying *strconv.NumError.
+// one-based position and wrapping the underlying [*strconv.NumError].
 func ParseUint64Slice(s string) ([]uint64, error) {
 	return parseIntegerSlice(s, strconv.ParseUint)
 }

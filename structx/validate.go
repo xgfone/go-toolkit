@@ -32,10 +32,10 @@ import (
 // skipped.
 //
 // validateField is called with each field value and its validate tag value.
-// The field value is passed as reflect.Value so callers can choose whether
+// The field value is passed as [reflect.Value] so callers can choose whether
 // and when to convert it to an interface value.
 //
-// ValidateAny stops at the first validation error and wraps it with the field name,
+// [ValidateAny] stops at the first validation error and wraps it with the field name,
 // preferring json, form, yaml, query, then header tag names before the Go field name.
 func ValidateAny(v any, validateField func(fieldValue reflect.Value, rule string) error) (err error) {
 	if v == nil {

@@ -32,7 +32,7 @@ func init() {
 
 // SetAcquireContext resets the acquire function for the context.
 //
-// Default: httpx.AcquireContext
+// Default: [httpx.AcquireContext]
 func SetAcquireContext(acquire func() *httpx.Context) {
 	if acquire == nil {
 		panic("middleware.SetAcquireContext: acquire function is nil")
@@ -42,7 +42,7 @@ func SetAcquireContext(acquire func() *httpx.Context) {
 
 // SetReleaseContext resets the release function for the context.
 //
-// Default: httpx.ReleaseContext
+// Default: [httpx.ReleaseContext]
 func SetReleaseContext(release func(*httpx.Context)) {
 	if release == nil {
 		panic("middleware.SetReleaseContext: release function is nil")

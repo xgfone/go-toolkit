@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package slicex provides slice operations with capacity-aware allocation.
-// To converts elements, and FilterTo selects and converts them.
-// Map and Map2 collect converted elements into a Go map.
+// [To] converts elements, and [FilterTo] selects and converts them.
+// [Map] and [Map2] collect converted elements into a Go map.
 package slicex
 
 // FilterTo converts each element and keeps the result only when filter returns
@@ -49,7 +49,7 @@ func To[S1 ~[]E1, E1, E2 any](vs S1, convert func(E1) E2) []E2 {
 	return newslice
 }
 
-// To2 is like To, but passes both the index and value to convert.
+// To2 is like [To], but passes both the index and value to convert.
 func To2[S1 ~[]E1, E1, E2 any](vs S1, convert func(int, E1) E2) []E2 {
 	if vs == nil {
 		return nil
@@ -69,7 +69,7 @@ func Map[S ~[]E, K comparable, V, E any](s S, convert func(E) (K, V)) map[K]V {
 	return Map2(s, func(_ int, e E) (K, V) { return convert(e) })
 }
 
-// Map2 is like Map, but passes both the index and value to convert.
+// Map2 is like [Map], but passes both the index and value to convert.
 func Map2[S ~[]E, K comparable, V, E any](s S, convert func(int, E) (K, V)) map[K]V {
 	_len := len(s)
 	maps := make(map[K]V, _len)
@@ -115,7 +115,7 @@ func HasDuplicates[S ~[]E, E comparable](s S) bool {
 // share its backing array, and it preserves the nilness of s.
 // Elements are compared using ==, so floating-point NaNs are all retained.
 //
-// Unlike slices.Compact, Unique also removes non-adjacent duplicates.
+// Unlike [slices.Compact], [Unique] also removes non-adjacent duplicates.
 func Unique[S ~[]E, E comparable](s S) S {
 	if s == nil {
 		return nil

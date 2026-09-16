@@ -19,7 +19,7 @@ type Priority interface {
 	Priority() int
 }
 
-// Get extracts the priority of v if it implemented the interface Priority.
+// Get extracts the priority of v if it implemented the interface [Priority].
 // Or, return 1 instead.
 func Get(v any) int {
 	if p, ok := v.(Priority); ok {

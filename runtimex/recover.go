@@ -21,7 +21,7 @@ import (
 
 // Recover is a convenient function to wrap and recover the panic if occurring.
 //
-// NOTICE: It must be called after defer, like
+// NOTICE: It must be called after defer, for example with [context.Background]:
 //
 //	defer Recover(context.Background())
 func Recover(ctx context.Context, logargs ...any) {

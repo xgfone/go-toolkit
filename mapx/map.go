@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package mapx provides map operations with capacity-aware allocation.
-// To converts entries into a new map preallocated to the size of the input.
+// [To] converts entries into a new map preallocated to the size of the input.
 package mapx
 
 // To converts each entry into a new map with space reserved for len(maps)

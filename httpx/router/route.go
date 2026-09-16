@@ -106,9 +106,9 @@ func (r Route) Auth(auth httpx.Middleware) Route {
 // Note: The path must be empty or start with /. An empty path uses the
 // current group prefix as the route path; when no group is set, it is
 // registered as "/". A non-empty path is appended to the group prefix after
-// normalization. With the default ServeMux backend, a path ending in "/" is
-// a subtree match. In particular, Path("/") matches the path prefix rooted at
-// the current group prefix.
+// normalization. With the default [http.ServeMux] backend, a path ending in "/" is
+// a subtree match. In particular, calling [Route.Path] with "/" matches the path
+// prefix rooted at the current group prefix.
 func (r Route) Path(path string) Route {
 	path = normalizePath(path)
 	if path == "" {
@@ -133,8 +133,8 @@ func (r Route) Host(host string) Route {
 // Group sets the route group prefix.
 //
 // Note: The group must be empty or start with /. Any trailing "/" is removed,
-// so Group("/api/").Path("") uses "/api" as the exact path instead of the
-// "/api/" subtree path.
+// so calling [Route.Group] with "/api/" followed by [Route.Path] with "" uses
+// "/api" as the exact path instead of the "/api/" subtree path.
 func (r Route) Group(group string) Route {
 	group = strings.TrimRight(group, "/")
 	group = normalizePath(group)

@@ -22,8 +22,8 @@ import (
 	"testing"
 )
 
-// TestInt64N_ErrorBranch tests the error handling branch in Int64N function.
-// This test uses a technique to mock the crypto/rand.Int function by
+// TestInt64N_ErrorBranch tests the error handling branch in [Int64N] function.
+// This test uses a technique to mock the [crypto/rand.Int] function by
 // temporarily replacing it during the test.
 func TestInt64N_ErrorBranch(t *testing.T) {
 	// Save the original crypto/rand.Int function

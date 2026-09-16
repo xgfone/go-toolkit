@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package reflectx provides some extra helpful reflect functions.
+// Package reflectx provides some extra helpful [reflect] functions.
 package reflectx

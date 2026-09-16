@@ -46,7 +46,7 @@ func Implements(typ, target reflect.Type) bool {
 // Unwrap() Source. The method's return type must be exactly Source.
 //
 // If Source is a concrete type, only source itself is examined.
-// If no value matches, As returns the zero value of Target and false.
+// If no value matches, [As] returns the zero value of Target and false.
 func As[Target any, Source any](source Source) (Target, bool) {
 	sourceType := reflect.TypeFor[Source]()
 	if sourceType.Kind() != reflect.Interface {

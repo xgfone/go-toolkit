@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-// TestRoutePattern tests Pattern method
+// TestRoutePattern tests [Route.Pattern] method
 func TestRoutePattern(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -85,7 +85,7 @@ func TestRoutePattern(t *testing.T) {
 	}
 }
 
-// TestRouteWriteTo tests WriteTo method
+// TestRouteWriteTo tests [Route.WriteTo] method
 func TestRouteWriteTo(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -139,7 +139,7 @@ func TestRouteWriteTo(t *testing.T) {
 	}
 }
 
-// TestRouteWriteToWithError tests WriteTo with failing writer
+// TestRouteWriteToWithError tests [Route.WriteTo] with failing writer
 func TestRouteWriteToWithError(t *testing.T) {
 	route := Route{
 		Method:  http.MethodGet,
@@ -159,7 +159,7 @@ func TestRouteWriteToWithError(t *testing.T) {
 	}
 }
 
-// TestRouteHandler tests Handler field
+// TestRouteHandler tests the embedded [http.Handler] field of [Route].
 func TestRouteHandler(t *testing.T) {
 	called := false
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -237,7 +237,7 @@ func TestRouteWriteToLargeData(t *testing.T) {
 	}
 }
 
-// failingWriter always fails on Write
+// failingWriter always fails on [io.Writer.Write].
 type failingWriter struct{}
 
 func (w *failingWriter) Write(p []byte) (int, error) {

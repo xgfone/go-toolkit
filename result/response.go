@@ -19,14 +19,14 @@ import (
 	"io"
 )
 
-// Success is a convenient function, which is equal to
+// Success calls [Respond] with the response returned by [Ok], which is equal to
 //
 //	Respond(responder, Ok(data))
 func Success(responder, data any) {
 	Respond(responder, Ok(data))
 }
 
-// Failure is a convenient function, which is equal to
+// Failure calls [Respond] with the response returned by [Err], which is equal to
 //
 //	Respond(responder, Err(err))
 func Failure(responder any, err error) {
@@ -44,10 +44,10 @@ func NewResponse(data any, err error) Response {
 	return Response{Data: data, Error: err}
 }
 
-// Ok is equal to NewResponse(data, nil).
+// Ok calls [NewResponse] with data and a nil error.
 func Ok(data any) Response { return Response{Data: data} }
 
-// Err is equal to NewResponse(nil, err).
+// Err calls [NewResponse] with nil data and err.
 func Err(err error) Response { return Response{Error: err} }
 
 // IsZero reports whether the response is ZERO.
@@ -55,13 +55,13 @@ func (r Response) IsZero() bool {
 	return r.Error == nil && r.Data == nil
 }
 
-// WithData returns a new Response with the given data.
+// WithData returns a new [Response] with the given data.
 func (r Response) WithData(data any) Response {
 	r.Data = data
 	return r
 }
 
-// WithError returns a new Response with the given error.
+// WithError returns a new [Response] with the given error.
 func (r Response) WithError(err error) Response {
 	r.Error = err
 	return r
@@ -77,19 +77,19 @@ func (r *Response) DecodeJSON(reader io.Reader) error {
 	return json.UnmarshalRead(reader, r)
 }
 
-// DecodeJSONBytes uses json decoder to decode the []byte data into the response.
+// DecodeJSONBytes uses [json.Unmarshal] to decode the []byte data into the response.
 func (r *Response) DecodeJSONBytes(data []byte) error {
 	return json.Unmarshal(data, r)
 }
 
 // Respond sends the response by the responder,
-// which will forward the calling to Respond.
+// which will forward the calling to [Respond].
 func (r Response) Respond(responder any) {
 	Respond(responder, r)
 }
 
 // StatusCode returns the status code from the outermost error without unwrapping it.
-// It returns 200 if Error is nil, or 500 if Error does not provide a status code.
+// It returns 200 if [Response.Error] is nil, or 500 if [Response.Error] does not provide a status code.
 func (r Response) StatusCode() int {
 	if r.Error == nil {
 		return 200
