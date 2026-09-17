@@ -231,6 +231,18 @@ func TestPredefinedGenerators(t *testing.T) {
 	}
 }
 
+func TestAppendTimeRand(t *testing.T) {
+	const prefix = "keep:time:"
+	for digits := 1; digits <= 9; digits++ {
+		got := string(appendTimeRand([]byte("keep:"), len("time:")+digits, func(dst []byte, _ time.Time) []byte {
+			return append(dst, "time:"...)
+		}))
+		if len(got) != len(prefix)+digits || !strings.HasPrefix(got, prefix) || !IsASCIIDigits(got[len(prefix):]) {
+			t.Errorf("%d random digits: unexpected generated string %q", digits, got)
+		}
+	}
+}
+
 func TestDefaultGenerator(t *testing.T) {
 	original := DefaultGenerator()
 	t.Cleanup(func() { SetDefaultGenerator(original) })

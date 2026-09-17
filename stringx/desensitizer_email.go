@@ -46,12 +46,14 @@ func (d *emailMaskDesensitizer) Desensitize(s string) string {
 		return "****"
 	}
 
+	result := "****"
+
 	// Use only the parsed mailbox, omitting names and comments. A quoted local
 	// part may contain '@', so the final separator identifies the domain.
 	at := strings.LastIndexByte(address.Address, '@')
-	if at <= 0 || at == len(address.Address)-1 {
-		return "****"
+	if at > 0 && at < len(address.Address)-1 {
+		result = d.local.Desensitize(address.Address[:at]) + address.Address[at:]
 	}
 
-	return d.local.Desensitize(address.Address[:at]) + address.Address[at:]
+	return result
 }
