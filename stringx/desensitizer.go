@@ -35,7 +35,7 @@ func init() {
 	SetShortDesensitizer(new(NewDesensitizer(2, 2)))
 	SetDefaultDesensitizer(new(NewDesensitizer(4, 4)))
 	SetPasswordDesensitizer(new(NewDesensitizer(0, 0).WithChars("********")))
-	SetEmailDesensitizer(NewEmailDesensitizer(NewDesensitizer(1, 0)))
+	SetEmailDesensitizer(NewEmailDesensitizer(NewDesensitizer(1, 0), nil))
 }
 
 // PhoneDesensitizer returns the current phone desensitizer, initially retaining

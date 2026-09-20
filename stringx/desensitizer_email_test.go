@@ -56,7 +56,7 @@ func TestEmailDesensitizer(t *testing.T) {
 
 func TestNewEmailDesensitizerConfiguration(t *testing.T) {
 	local := stringx.NewDesensitizer(2, 1).WithChars("#")
-	d := stringx.NewEmailDesensitizer(local)
+	d := stringx.NewEmailDesensitizer(local, nil)
 	if got := d.Desensitize("abcdef@example.com"); got != "ab#f@example.com" {
 		t.Fatalf("custom configuration returned %q", got)
 	}
@@ -65,7 +65,7 @@ func TestNewEmailDesensitizerConfiguration(t *testing.T) {
 	}
 
 	local = local.WithLeft(0).WithRight(0).WithChars("hidden")
-	changed := stringx.NewEmailDesensitizer(local)
+	changed := stringx.NewEmailDesensitizer(local, nil)
 	if got := changed.Desensitize("abcdef@example.com"); got != "hidden@example.com" {
 		t.Fatalf("updated configuration returned %q", got)
 	}
@@ -85,12 +85,77 @@ func TestNewEmailDesensitizerConfiguration(t *testing.T) {
 }
 
 func TestNewEmailDesensitizerZeroMask(t *testing.T) {
-	d := stringx.NewEmailDesensitizer(stringx.MaskDesensitizer{})
+	d := stringx.NewEmailDesensitizer(stringx.MaskDesensitizer{}, nil)
 	if got := d.Desensitize("alice@example.com"); got != "****@example.com" {
 		t.Fatalf("zero value returned %q", got)
 	}
 	if got := d.Desensitize(""); got != "" {
 		t.Fatalf("empty input returned %q", got)
+	}
+}
+
+func TestNewEmailDesensitizerSuffix(t *testing.T) {
+	d := stringx.NewEmailDesensitizer(
+		stringx.NewDesensitizer(1, 0),
+		stringx.NewDesensitizer(1, 4).WithChars("#"),
+	)
+	if got := d.Desensitize("alice@example.com"); got != "a****@e#.com" {
+		t.Fatalf("masked domain returned %q", got)
+	}
+
+	var prefixes, suffixes []string
+	d = stringx.NewEmailDesensitizer(
+		stringx.DesensitizerFunc(func(s string) string {
+			prefixes = append(prefixes, s)
+			return "local"
+		}),
+		stringx.DesensitizerFunc(func(s string) string {
+			suffixes = append(suffixes, s)
+			return "domain"
+		}),
+	)
+	if got := d.Desensitize(`Alice <"alice@work"@例子.公司>`); got != "local@domain" {
+		t.Fatalf("custom functions returned %q", got)
+	}
+	for _, input := range []string{"", "invalid", "alice@\xff.com"} {
+		want := "****"
+		if input == "" {
+			want = ""
+		}
+		if got := d.Desensitize(input); got != want {
+			t.Errorf("Desensitize(%q) = %q, want %q", input, got, want)
+		}
+	}
+	if len(prefixes) != 1 || prefixes[0] != "alice@work" {
+		t.Errorf("prefix inputs = %q", prefixes)
+	}
+	if len(suffixes) != 1 || suffixes[0] != "例子.公司" {
+		t.Errorf("suffix inputs = %q", suffixes)
+	}
+}
+
+func TestNewEmailDesensitizerNil(t *testing.T) {
+	var pointer *stringx.MaskDesensitizer
+	var function stringx.DesensitizerFunc
+	for _, tt := range []struct {
+		name           string
+		prefix, suffix stringx.Desensitizer
+	}{
+		{"nil_prefix", nil, nil},
+		{"nil_prefix_with_suffix", nil, stringx.MaskDesensitizer{}},
+		{"typed_nil_prefix_pointer", pointer, nil},
+		{"typed_nil_prefix_function", function, nil},
+		{"typed_nil_suffix_pointer", stringx.MaskDesensitizer{}, pointer},
+		{"typed_nil_suffix_function", stringx.MaskDesensitizer{}, function},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error("NewEmailDesensitizer did not panic")
+				}
+			}()
+			stringx.NewEmailDesensitizer(tt.prefix, tt.suffix)
+		})
 	}
 }
 
@@ -108,6 +173,7 @@ func ExampleEmailDesensitizer() {
 func ExampleNewEmailDesensitizer() {
 	d := stringx.NewEmailDesensitizer(
 		stringx.NewDesensitizer(2, 1).WithChars("***"),
+		nil,
 	)
 	fmt.Println(d.Desensitize("abcdef@example.com"))
 	// Output: ab***f@example.com

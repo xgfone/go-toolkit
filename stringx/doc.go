@@ -24,8 +24,8 @@
 // concurrency guarantees.
 // [EmailDesensitizer] masks the local part of a single email address while
 // preserving its domain; its implementation is replaceable with [SetEmailDesensitizer].
-// [NewEmailDesensitizer] wraps a custom [MaskDesensitizer] for the local part and
-// returns the [Desensitizer] interface.
+// [NewEmailDesensitizer] wraps a required local-part [Desensitizer] and an optional
+// domain [Desensitizer], returning the [Desensitizer] interface.
 //
 // [Generator] produces strings and appends to byte buffers using byte lengths.
 // [NewGenerator] adapts an append callback, and [NewAffixGenerator] adds a prefix

@@ -36,15 +36,18 @@ It uses `net/mail.ParseAddress` to parse one address; display names and comments
 are discarded. Unicode local parts are masked by rune, and address lists are
 not supported. Use `SetEmailDesensitizer` to replace this policy.
 
-`NewEmailDesensitizer(local)` returns a `Desensitizer` using a copy of the supplied
-`MaskDesensitizer`; its concrete implementation is private. Configure the local
-mask before creating the email desensitizer, or create another one to use a new
-configuration. A zero-value mask hides the entire local part. Empty input and
-invalid-input handling are independent of the custom local-part mask.
+`NewEmailDesensitizer(prefix, suffix)` accepts a required local-part
+`Desensitizer` and an optional domain `Desensitizer`. A nil `prefix` (including a
+typed nil) panics; a nil `suffix` preserves the domain, while a typed nil panics.
+Both arguments support custom functions through `DesensitizerFunc`. Concurrent
+use requires both supplied implementations to be safe for concurrent use.
+A zero-value `MaskDesensitizer` hides the entire corresponding part. Empty input
+and invalid-input handling are independent of both desensitizers.
 
 ```go
 d := stringx.NewEmailDesensitizer(
     stringx.NewDesensitizer(2, 1).WithChars("***"),
+    nil, // Preserve the domain.
 )
 masked := d.Desensitize("abcdef@example.com") // "ab***f@example.com"
 stringx.SetEmailDesensitizer(d)
@@ -92,17 +95,17 @@ synchronize access to shared buffers. The time presets use `timex.Now`; configur
 
 This redesign changes public API names and signatures:
 
-| Previous API | Replacement |
-| --- | --- |
-| Concrete `Desensitizer` | `MaskDesensitizer`; `Desensitizer` is now an interface |
-| `d.Left`, `d.Right`, `d.Chars` | `d.Left()`, `d.Right()`, `d.Chars()`; configure with `WithXxx` |
-| Desensitizer preset variables | Same names as getter functions, plus corresponding setters such as `SetPhoneDesensitizer(d)` |
-| `Builder`, `NewBuilder(g)` | `AffixGenerator`, `NewAffixGenerator(g)` |
-| `b.Build(n)` | `g.Generate(n)` |
-| `g.Generate(dst, n)` | `g.Append(dst, n)` |
-| `DefaultBuilder` | `DefaultGenerator()` and `SetDefaultGenerator(g)` |
-| Time generator preset variables | Same names as getter functions |
-| Package-level `Generate(dst, n, timeCallback)` | Internal helper; use a time preset or `NewGenerator` with a custom append callback |
+| Previous API                                   | Replacement                                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Concrete `Desensitizer`                        | `MaskDesensitizer`; `Desensitizer` is now an interface                                       |
+| `d.Left`, `d.Right`, `d.Chars`                 | `d.Left()`, `d.Right()`, `d.Chars()`; configure with `WithXxx`                               |
+| Desensitizer preset variables                  | Same names as getter functions, plus corresponding setters such as `SetPhoneDesensitizer(d)` |
+| `Builder`, `NewBuilder(g)`                     | `AffixGenerator`, `NewAffixGenerator(g)`                                                     |
+| `b.Build(n)`                                   | `g.Generate(n)`                                                                              |
+| `g.Generate(dst, n)`                           | `g.Append(dst, n)`                                                                           |
+| `DefaultBuilder`                               | `DefaultGenerator()` and `SetDefaultGenerator(g)`                                            |
+| Time generator preset variables                | Same names as getter functions                                                               |
+| Package-level `Generate(dst, n, timeCallback)` | Internal helper; use a time preset or `NewGenerator` with a custom append callback           |
 
 The `NewGenerator` constructor now returns concrete `FuncGenerator`, implementing
 the new `Generator` interface. Existing custom generator types need the new

@@ -20,17 +20,22 @@ import (
 	"unicode/utf8"
 )
 
-type emailMaskDesensitizer struct{ local MaskDesensitizer }
+type emailMaskDesensitizer struct{ prefix, suffix Desensitizer }
 
-// NewEmailDesensitizer returns a desensitizer that masks the local part of a
-// single email address using a copy of local, preserving the domain. The
-// returned implementation is safe for concurrent use. A zero-value local
-// replaces the entire local part with "****".
+// NewEmailDesensitizer returns a desensitizer that masks the parts before and
+// after '@' in a single email address using prefix and suffix, respectively.
+// If suffix is nil, the domain is preserved. It panics if prefix is nil
+// (including a typed nil), or if suffix is a typed nil.
+// The returned implementation is safe for concurrent use if prefix and suffix are.
 //
 // Display names and comments are discarded. Empty input stays empty;
-// unparseable input always becomes "****", regardless of local's configuration.
-func NewEmailDesensitizer(local MaskDesensitizer) Desensitizer {
-	return &emailMaskDesensitizer{local: local}
+// unparseable input always becomes "****", regardless of prefix and suffix.
+func NewEmailDesensitizer(prefix, suffix Desensitizer) Desensitizer {
+	checkNonNil(prefix, "stringx.NewEmailDesensitizer: prefix must not be nil")
+	if suffix != nil {
+		checkNonNil(suffix, "stringx.NewEmailDesensitizer: suffix must not be a typed nil")
+	}
+	return &emailMaskDesensitizer{prefix: prefix, suffix: suffix}
 }
 
 func (d *emailMaskDesensitizer) Desensitize(s string) string {
@@ -52,7 +57,12 @@ func (d *emailMaskDesensitizer) Desensitize(s string) string {
 	// part may contain '@', so the final separator identifies the domain.
 	at := strings.LastIndexByte(address.Address, '@')
 	if at > 0 && at < len(address.Address)-1 {
-		result = d.local.Desensitize(address.Address[:at]) + address.Address[at:]
+		prefix := d.prefix.Desensitize(address.Address[:at])
+		suffix := address.Address[at+1:]
+		if d.suffix != nil {
+			suffix = d.suffix.Desensitize(suffix)
+		}
+		result = prefix + "@" + suffix
 	}
 
 	return result
