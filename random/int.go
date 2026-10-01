@@ -16,17 +16,20 @@ package random
 
 import (
 	crand "crypto/rand"
-	"log/slog"
+	"encoding/binary"
 	"math"
-	"math/big"
 	"math/rand/v2"
 	"strconv"
-	"sync"
 )
 
-// cryptoRandInt is a variable that holds the function to call for [crypto/rand.Int].
-// This allows mocking it during tests.
-var cryptoRandInt = crand.Int
+// cryptoSource supplies cryptographic randomness to math/rand/v2's sampling algorithms.
+type cryptoSource struct{}
+
+func (cryptoSource) Uint64() uint64 {
+	var buf [8]byte
+	_, _ = crand.Read(buf[:]) // Read always fills buf and never returns an error.
+	return binary.LittleEndian.Uint64(buf[:])
+}
 
 // SeedString returns a random 64-bit signed integer string.
 func SeedString() string { return strconv.FormatInt(Seed(), 10) }
@@ -34,40 +37,15 @@ func SeedString() string { return strconv.FormatInt(Seed(), 10) }
 // Seed returns a random 64-bit signed integer seed.
 func Seed() int64 { return Int64N(math.MaxInt64) }
 
-// IntN returns a random integer in [0, n) as int.
+// IntN returns a uniformly distributed, cryptographically secure random integer
+// in [0, n) as int. It panics if n <= 0.
 func IntN(n int) int { return int(Int64N(int64(n))) }
 
-// Int64N returns a random integer in [0, n) as int64.
+// Int64N returns a uniformly distributed, cryptographically secure random integer
+// in [0, n) as int64. It panics if n <= 0.
 func Int64N(n int64) int64 {
-	var v int64
-	max := getBigInt(n)
-	if m, err := cryptoRandInt(crand.Reader, max); err != nil {
-		slog.Error("crypto/rand.Int failed", "n", n, "err", err)
-		v = rand.Int64N(n)
-	} else {
-		v = m.Int64()
+	if n == 1 {
+		return 0
 	}
-	return v
-}
-
-var (
-	_block  = new(sync.Mutex)
-	_bigmap = new(sync.Map)
-)
-
-func getBigInt(n int64) *big.Int {
-	if value, loaded := _bigmap.Load(n); loaded {
-		return value.(*big.Int)
-	}
-
-	_block.Lock()
-	defer _block.Unlock()
-
-	if value, loaded := _bigmap.Load(n); loaded {
-		return value.(*big.Int)
-	}
-
-	v := big.NewInt(n)
-	_bigmap.Store(n, v)
-	return v
+	return rand.New(cryptoSource{}).Int64N(n)
 }
