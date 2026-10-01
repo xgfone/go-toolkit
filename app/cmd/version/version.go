@@ -15,6 +15,9 @@
 // Command version generates a Go source file that sets the app version and
 // build time. It is intended to be invoked via //go:generate.
 //
+// When HEAD has commits beyond the selected version tag, the version includes
+// their count as a suffix, such as "v1.2.0-3".
+//
 // It supports the following flags:
 //
 //	-output   The output Go source file name (default "main_version.go").
@@ -78,11 +81,25 @@ func getVersion(prefix string) (string, error) {
 		"git", "for-each-ref",
 		"--count=1",
 		"--sort=-version:refname",
-		"--format=%(refname:short)",
+		"--format=%(refname)",
 		"refs/tags/"+prefix+"*",
 	)
 	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
+	ref := strings.TrimSpace(string(out))
+	version := strings.TrimPrefix(ref, "refs/tags/")
+	if err != nil || version == "" {
+		return version, err
+	}
+
+	out, err = exec.Command("git", "rev-list", "--count", ref+"..HEAD").Output()
+	if err != nil {
+		return "", err
+	}
+	if count := strings.TrimSpace(string(out)); count != "0" {
+		version += "-" + count
+	}
+
+	return version, nil
 }
 
 // Generate returns the generated Go source code content

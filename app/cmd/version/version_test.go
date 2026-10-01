@@ -85,6 +85,77 @@ func TestGetBuildTime(t *testing.T) {
 	}
 }
 
+func TestGetVersion(t *testing.T) {
+	commit := []string{"commit", "--allow-empty", "-m", "next"}
+	tests := []struct {
+		name     string
+		tag      string
+		prefix   string
+		want     string
+		commands [][]string
+	}{
+		{"at_tag", "v1.0.0", "v", "v1.0.0", nil},
+		{"one_commit", "v1.0.0", "v", "v1.0.0-1", [][]string{commit}},
+		{"multiple_commits", "v1.0.0", "v", "v1.0.0-2", [][]string{commit, commit}},
+		{"annotated_tag", "", "v", "v1.0.0-2", [][]string{{"tag", "-a", "v1.0.0", "-m", "release"}, commit, commit}},
+		{"custom_prefix", "release-1.0.0", "release-", "release-1.0.0-1", [][]string{commit}},
+		{"highest_version_tag", "v1.10.0", "v", "v1.10.0-2", [][]string{commit, commit, {"tag", "v1.9.0"}}},
+		{"branch_with_same_name", "v1.0.0", "v", "v1.0.0-1", [][]string{commit, {"branch", "v1.0.0"}}},
+		{"merge_history", "v1.0.0", "v", "v1.0.0-3", [][]string{
+			{"checkout", "-b", "feature"},
+			{"commit", "--allow-empty", "-m", "feature"},
+			{"checkout", "-"}, commit,
+			{"merge", "--no-ff", "-m", "merge feature", "feature"},
+		}},
+		{"no_tag", "", "v", "", nil},
+		{"no_matching_tag", "release-1.0.0", "v", "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			initGitRepo(t, dir, tt.tag)
+			for _, args := range tt.commands {
+				cmd := exec.Command("git", args...)
+				cmd.Dir = dir
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v\n%s", args, err, out)
+				}
+			}
+
+			withChdir(t, dir)
+			got, err := getVersion(tt.prefix)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("getVersion(%q) = %q, want %q", tt.prefix, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetVersionWithoutHead(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir, "v1.0.0")
+
+	// Keep the tag, but move to a branch with no commits: listing tags succeeds
+	// while counting commits relative to HEAD fails.
+	cmd := exec.Command("git", "checkout", "--orphan", "unborn")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("create orphan branch: %v\n%s", err, out)
+	}
+	withChdir(t, dir)
+
+	got, err := getVersion("v")
+	if err == nil {
+		t.Fatal("expected an error for HEAD without a commit")
+	}
+	if got != "" {
+		t.Errorf("getVersion returned %q on error, want an empty version", got)
+	}
+}
+
 func TestRun(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		dir := t.TempDir()
@@ -153,6 +224,17 @@ func TestRun(t *testing.T) {
 		err := run(filepath.Join(dir, "out.go"), "123bad", "v")
 		if err == nil || !strings.Contains(err.Error(), "not an identifier") {
 			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("write_error", func(t *testing.T) {
+		dir := t.TempDir()
+		initGitRepo(t, dir, "v1.0.0")
+		withChdir(t, dir)
+
+		out := filepath.Join(dir, "missing", "out.go")
+		if err := run(out, "main", "v"); !os.IsNotExist(err) {
+			t.Fatalf("expected a missing output directory error, got %v", err)
 		}
 	})
 }
