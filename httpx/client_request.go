@@ -17,7 +17,6 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"io"
@@ -152,7 +151,8 @@ func Request(ctx context.Context, method, url string, respbody, reqbody any) (er
 //   - func([*http.Response]) error: custom response handler function
 //   - non-nil pointer: response body is automatically decoded as JSON into the destination
 //
-// It will log the request and response details at the debug level if the debug log is enabled.
+// It logs the method, host, path, and response status at the debug level.
+// Use [WrapClient] to add custom logging of headers or bodies.
 //
 // Returns an error if the request fails, the response status code is not 200,
 // or the response body decoding fails.
@@ -174,14 +174,11 @@ func DoRequest(ctx context.Context, req *http.Request, respbody any) (err error)
 	}
 
 	if slog.Default().Enabled(ctx, slog.LevelDebug) {
-		slog.Debug("log http response",
+		slog.DebugContext(ctx, "log http response",
 			"method", req.Method,
-			"url", req.URL.String(),
-			"reqheader", req.Header,
-			"reqbody", readRequestBody(req),
-			"statuscode", rsp.StatusCode,
-			"respheader", rsp.Header,
-			"respbody", _JSONBody(unsafex.String(data)))
+			"host", req.URL.Host,
+			"path", req.URL.Path,
+			"statuscode", rsp.StatusCode)
 	}
 
 	if rsp.StatusCode != 200 {
@@ -196,57 +193,4 @@ func DoRequest(ctx context.Context, req *http.Request, respbody any) (err error)
 	}
 
 	return
-}
-
-func readRequestBody(req *http.Request) any {
-	if req.Body == nil {
-		return nil
-	}
-
-	type SizeSeeker interface {
-		io.Reader
-		io.Seeker
-
-		Size() int64
-	}
-
-	var bodystr string
-	switch v := req.Body.(type) {
-	case fmt.Stringer:
-		bodystr = v.String()
-
-	case SizeSeeker:
-		_, _ = v.Seek(0, io.SeekStart)
-		buf := make([]byte, v.Size())
-		_, _ = io.ReadFull(v, buf)
-		bodystr = unsafex.String(buf)
-
-	case io.ReadSeeker:
-		_, _ = v.Seek(0, io.SeekStart)
-		data, _ := io.ReadAll(v)
-		bodystr = unsafex.String(data)
-	}
-
-	if len(bodystr) > 0 && ContentType(req.Header) == MIMEApplicationJSON {
-		if data := unsafex.Bytes(bodystr); jsontext.Value(data).IsValid() {
-			return _JSONBody(bodystr)
-		}
-	}
-
-	return bodystr
-}
-
-var (
-	_ fmt.Stringer   = _JSONBody("")
-	_ json.Marshaler = _JSONBody("")
-)
-
-type _JSONBody string
-
-func (b _JSONBody) String() string {
-	return string(b)
-}
-
-func (b _JSONBody) MarshalJSON() ([]byte, error) {
-	return unsafex.Bytes(string(b)), nil
 }
