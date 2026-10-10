@@ -35,9 +35,7 @@ func TestRegressionMillisPadding(t *testing.T) {
 		return time.Date(2026, 9, 6, 1, 2, 3, 5e6, time.UTC)
 	})
 
-	defer timex.SetNowFunc(func() time.Time {
-		return time.Now().In(timex.Location())
-	})
+	defer timex.SetNowFunc(time.Now)
 
 	s := DateTimeMilliRandGenerator().Generate(18)
 	if !strings.HasPrefix(s, "20260906010203005") {

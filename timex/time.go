@@ -22,30 +22,18 @@ const (
 	Week = Day * 7
 )
 
-var location = time.UTC
+var _now = time.Now
 
-// SetLocation resets the time location.
+// SetNowFunc replaces the clock used by [Now] and functions that call it,
+// such as [Today]. Its main purpose is to provide predictable times in tests.
+// Callers that do not need a replaceable clock should use [time.Now] directly.
 //
-// Default: [time.UTC]
-func SetLocation(loc *time.Location) {
-	if loc == nil {
-		panic("timex.SetLocation: location is nil")
-	}
-	location = loc
-}
-
-// Location returns the current time location.
+// The default clock is [time.Now]. Call SetNowFunc(time.Now) to restore it.
+// SetNowFunc panics if now is nil.
 //
-// Default: [time.UTC]
-func Location() *time.Location {
-	return location
-}
-
-var _now func() time.Time
-
-// SetNowFunc sets the now function.
-//
-// Default: [time.Now], converted to [Location] using [time.Time.In].
+// SetNowFunc must not be called concurrently with [Now] or functions that call
+// it. The supplied clock must be safe for concurrent use if [Now] is called
+// concurrently.
 func SetNowFunc(now func() time.Time) {
 	if now == nil {
 		panic("timex.SetNowFunc: now function is nil")
@@ -53,20 +41,16 @@ func SetNowFunc(now func() time.Time) {
 	_now = now
 }
 
-// Now returns the now time by use the now function set by [SetNowFunc].
+// Now returns the time from the clock set by [SetNowFunc], which defaults to
+// [time.Now]. It returns the clock's result without converting its location.
+//
+// Now is intended for code that needs a replaceable clock for predictable tests.
+// Otherwise, use [time.Now] directly.
 func Now() time.Time {
 	return _now()
 }
 
-func init()             { SetNowFunc(nowloc) }
-func nowloc() time.Time { return time.Now().In(Location()) }
-
-// Unix is the same as [time.Unix], but sets the location returned by [Location].
-func Unix(sec, nsec int64) time.Time {
-	return time.Unix(sec, nsec).In(location)
-}
-
-// Today returns the today local time at 00:00:00.
+// Today returns midnight on the date returned by [Now], in that time's location.
 func Today() time.Time {
 	return ToToday(Now())
 }

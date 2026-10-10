@@ -88,8 +88,11 @@ allowing replacements with different concrete types without a read lock.
 A previously retrieved generator
 keeps its original implementation after replacement. Custom generators and
 callbacks must provide their own concurrency guarantees, and callers must
-synchronize access to shared buffers. The time presets use `timex.Now`; configure
-`timex` before concurrent generation and supply a concurrency-safe clock function.
+synchronize access to shared buffers. The time presets use `timex.Now`, which
+defaults to `time.Now` and uses `time.Local`. Tests can fix their time components
+with `timex.SetNowFunc`; random suffixes remain random. Restore the default clock
+with `timex.SetNowFunc(time.Now)` after the test. Replace the clock before
+concurrent generation and supply a concurrency-safe clock function.
 
 ## Migration
 

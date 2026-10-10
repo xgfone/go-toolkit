@@ -108,11 +108,19 @@ func TestSetCommit_Panics_AfterRun(t *testing.T) {
 }
 
 func TestSetBuildTime(t *testing.T) {
-	now := time.Now().Truncate(time.Second)
+	originalLocal := time.Local
+	t.Cleanup(func() { time.Local = originalLocal })
+	time.Local = time.FixedZone("TestZone", 3600*8)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	app := New()
 	app.SetBuildTime(now)
-	if got := app.BuildTime(); !got.Equal(now) {
+	got := app.BuildTime()
+	if !got.Equal(now) {
 		t.Errorf("expected %v, got %v", now, got)
+	}
+	if got.Location() != time.Local {
+		t.Errorf("expected location %v, got %v", time.Local, got.Location())
 	}
 }
 

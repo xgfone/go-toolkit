@@ -19,43 +19,6 @@ import (
 	"time"
 )
 
-func TestSetLocation(t *testing.T) {
-	// Test normal case
-	original := Location()
-	defer SetLocation(original)
-
-	newLoc := time.FixedZone("TestZone", 3600*8) // UTC+8
-	SetLocation(newLoc)
-	if Location() != newLoc {
-		t.Errorf("expected location %v, got %v", newLoc, Location())
-	}
-
-	// Test panic with nil location
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic for nil location, but got none")
-		}
-	}()
-	SetLocation(nil)
-}
-
-func TestLocation(t *testing.T) {
-	original := Location()
-	defer SetLocation(original)
-
-	// Default should be UTC
-	if Location() != time.UTC {
-		t.Errorf("expected default location UTC, got %v", Location())
-	}
-
-	// Change location and verify
-	newLoc := time.Local
-	SetLocation(newLoc)
-	if Location() != newLoc {
-		t.Errorf("expected location %v, got %v", newLoc, Location())
-	}
-}
-
 func TestSetNowFunc(t *testing.T) {
 	// Save original now function
 	originalNow := _now
@@ -85,45 +48,40 @@ func TestSetNowFunc(t *testing.T) {
 }
 
 func TestNow(t *testing.T) {
-	// Save original location and now function
-	originalLoc := Location()
+	// Save the original local time zone and clock.
+	originalLocal := time.Local
 	originalNow := _now
 	defer func() {
-		SetLocation(originalLoc)
+		time.Local = originalLocal
 		_now = originalNow
 	}()
 
-	// Test with default now function
-	SetLocation(time.UTC)
-	SetNowFunc(nowloc)
-
-	now1 := Now()
-	time.Sleep(time.Millisecond * 10)
-	now2 := Now()
-
-	if now2.Before(now1) {
-		t.Errorf("now2 should be after now1, got now1=%v, now2=%v", now1, now2)
+	// The default clock follows the application's configured local time zone.
+	time.Local = time.FixedZone("TestZone", 3600*8)
+	before := time.Now()
+	now := Now()
+	after := time.Now()
+	if now.Before(before) || now.After(after) {
+		t.Errorf("expected time between %v and %v, got %v", before, after, now)
+	}
+	if now.Location() != time.Local {
+		t.Errorf("expected location %v, got %v", time.Local, now.Location())
 	}
 
-	// Test with custom now function
+	// A custom clock returns a predictable time without converting its location.
 	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	SetNowFunc(func() time.Time {
 		return fixedTime
 	})
 
-	now3 := Now()
-	if !now3.Equal(fixedTime) {
-		t.Errorf("expected %v, got %v", fixedTime, now3)
+	for range 2 {
+		if got := Now(); got != fixedTime {
+			t.Errorf("expected %v, got %v", fixedTime, got)
+		}
 	}
 }
 
 func TestToToday(t *testing.T) {
-	// Save original location
-	originalLoc := Location()
-	defer SetLocation(originalLoc)
-
-	SetLocation(time.UTC)
-
 	testTime := time.Date(2024, 12, 25, 15, 30, 45, 123456789, time.UTC)
 	expected := time.Date(2024, 12, 25, 0, 0, 0, 0, time.UTC)
 
@@ -140,50 +98,19 @@ func TestToToday(t *testing.T) {
 }
 
 func TestToday(t *testing.T) {
-	// Save original location and now function
-	originalLoc := Location()
 	originalNow := _now
 	defer func() {
-		SetLocation(originalLoc)
 		_now = originalNow
 	}()
 
-	SetLocation(time.Local)
-	SetNowFunc(nowloc)
+	loc := time.FixedZone("TestZone", 3600*8)
+	// This is still the previous year in UTC; Today must use the clock's location.
+	now := time.Date(2025, 1, 1, 0, 30, 45, 123456789, loc)
+	SetNowFunc(func() time.Time { return now })
 
-	now := Now()
-	nowdate := now.Format(time.DateOnly)
-
-	today := Today()
-	if date := today.Format(time.DateOnly); date != nowdate {
-		t.Errorf("expect date '%s', but got '%s'", nowdate, date)
-	}
-	if time := today.Format(time.TimeOnly); time != "00:00:00" {
-		t.Errorf("expect time '%s', but got '%s'", "00:00:00", time)
-	}
-	if nsec := today.Nanosecond(); nsec != 0 {
-		t.Errorf("expect nanosecond %d, but got %d", 0, nsec)
-	}
-}
-
-func TestUnix(t *testing.T) {
-	// Save original location
-	originalLoc := Location()
-	defer SetLocation(originalLoc)
-
-	SetLocation(time.UTC)
-
-	expected := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	gottime := Unix(1735689600, 0)
-	if expected != gottime {
-		t.Errorf("expect time '%s', but got '%s'", expected.Format(time.RFC3339), gottime.Format(time.RFC3339))
-	}
-
-	// Test with different location
-	SetLocation(time.FixedZone("TestZone", 3600*8)) // UTC+8
-	gottime2 := Unix(1735689600, 0)
-	if gottime2.Location() != Location() {
-		t.Errorf("expected location %v, got %v", Location(), gottime2.Location())
+	want := time.Date(2025, 1, 1, 0, 0, 0, 0, loc)
+	if got := Today(); got != want {
+		t.Errorf("expected %v, got %v", want, got)
 	}
 }
 

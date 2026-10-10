@@ -29,8 +29,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/xgfone/go-toolkit/timex"
 )
 
 var defaultApp = New()
@@ -144,9 +142,9 @@ func (a *App) Version() string {
 	return a.version.Load().(string)
 }
 
-// BuildTime returns the time when built the app.
+// BuildTime returns the time when built the app, in [time.Local].
 func (a *App) BuildTime() time.Time {
-	return timex.Unix(a.builtat.Load(), 0)
+	return time.Unix(a.builtat.Load(), 0)
 }
 
 // SetName sets app name.

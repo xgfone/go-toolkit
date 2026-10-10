@@ -13,4 +13,10 @@
 // limitations under the License.
 
 // Package timex provides some extra [time] functions.
+//
+// The default clock is [time.Now], which uses [time.Local]. Applications can
+// configure their default local time zone through [time.Local] before concurrent use.
+//
+// [Now] and [SetNowFunc] support replaceable clocks, primarily for predictable tests.
+// Callers that do not need a replaceable clock should use [time.Now] directly.
 package timex

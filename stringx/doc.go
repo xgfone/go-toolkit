@@ -32,6 +32,7 @@
 // and suffix to any generator. [DefaultGenerator] and [SetDefaultGenerator] provide
 // synchronized access to a replaceable default implementation. Callers are
 // responsible for the concurrency safety of their custom implementations.
-// The time presets support concurrent generation while the [timex] configuration
-// is stable and its configured clock function is safe for concurrent use.
+// The time presets use [timex.Now] so tests can fix their time components with
+// [timex.SetNowFunc]. They support concurrent generation while the configured
+// clock is stable and safe for concurrent use.
 package stringx

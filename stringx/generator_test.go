@@ -192,7 +192,7 @@ func TestPredefinedGenerators(t *testing.T) {
 	now := time.Date(2026, 9, 6, 1, 2, 3, 5e6, time.UTC)
 	timex.SetNowFunc(func() time.Time { return now })
 	t.Cleanup(func() {
-		timex.SetNowFunc(func() time.Time { return time.Now().In(timex.Location()) })
+		timex.SetNowFunc(time.Now)
 	})
 	for _, tt := range []struct {
 		name      string
