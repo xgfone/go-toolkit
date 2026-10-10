@@ -19,7 +19,6 @@ package logger
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -42,17 +41,19 @@ type Config struct {
 	// If nil, the "reqid" attribute is omitted.
 	GetRequestId func(*http.Request) string
 
-	// GetRequestBody returns the request body written to the "reqbody"
-	// log attribute.
+	// GetLogAttrs returns log attributes after the next handler returns and
+	// before [Config.PostHandle] runs. It is only called for logged requests.
+	// It may read the final response headers and the request's [httpx.Context].
+	// Returned attributes are appended after the built-in request attributes.
 	//
-	// If nil, the request body is omitted.
-	GetRequestBody func(*http.Request) any
-
-	// GetResponse returns the response status, response body, and error written
-	// to the "code", "resbody", "err", and "sensitive_error" log attributes.
+	// [NewDefaultConfig] supplies the "code", "err", and "sensitive_error"
+	// attributes. Replacing this callback replaces those default attributes;
+	// wrap the original callback to preserve them when adding other fields.
+	// Headers, query parameters, and bodies must be explicitly added here.
 	//
-	// If nil, those response-derived attributes are omitted.
-	GetResponse func(w http.ResponseWriter, r *http.Request) (status int, response any, err error)
+	// If nil, only the built-in request attributes are logged.
+	// Callbacks must be safe for concurrent use.
+	GetLogAttrs func(w http.ResponseWriter, r *http.Request) []slog.Attr
 
 	// PostHandle is called after [Config.PreHandle] and before the handler
 	// returned by [Config.Middleware] ends.
@@ -65,12 +66,11 @@ type Config struct {
 // Middleware returns a new logger middleware with the given priority.
 func (c Config) Middleware(priority int) httpx.Middleware {
 	logger := &logger{
-		enabled:        c.Enabled,
-		preHandle:      c.PreHandle,
-		postHandle:     c.PostHandle,
-		getResponse:    c.GetResponse,
-		getRequestId:   c.GetRequestId,
-		getRequestBody: c.GetRequestBody,
+		enabled:      c.Enabled,
+		preHandle:    c.PreHandle,
+		postHandle:   c.PostHandle,
+		getLogAttrs:  c.GetLogAttrs,
+		getRequestId: c.GetRequestId,
 
 		level: slog.LevelInfo,
 		prio:  priority,
@@ -82,15 +82,18 @@ func (c Config) Middleware(priority int) httpx.Middleware {
 //
 //   - [Config.Enabled]: logs requests by default, except for the root path "/".
 //   - [Config.GetRequestId]: reads the request id from the X-Request-Id header.
-//   - [Config.GetResponse]: reads the response status, body, and error from the
-//     [httpx.Context] or [httpx.ResponseWriter]. If [httpx.Context.BytesWritten]
-//     is greater than 2048, it logs a short replacement message instead of
-//     the response body.
+//   - [Config.GetLogAttrs]: reads the response status and error from the
+//     [httpx.Context] or [httpx.ResponseWriter]. It logs the safe error message
+//     as "err" and the original sensitive error, when present, as "sensitive_error".
+//     Headers, query parameters, and bodies are omitted.
+//
+// Sensitive error messages may contain confidential details. Use this default
+// with access-controlled internal logs, or replace [Config.GetLogAttrs] to filter them.
 func NewDefaultConfig() Config {
 	return Config{
 		Enabled:      enabled,
-		GetResponse:  getResponse,
 		GetRequestId: getRequestId,
+		GetLogAttrs:  getLogAttrs,
 	}
 }
 
@@ -102,13 +105,22 @@ func getRequestId(r *http.Request) string {
 	return r.Header.Get("X-Request-Id")
 }
 
-func getResponse(w http.ResponseWriter, r *http.Request) (status int, response any, err error) {
-	if c := httpx.GetContext(r.Context()); c != nil {
-		if c.BytesWritten > 2048 {
-			response = fmt.Sprintf("[BODY TOO LONG: %d]", c.BytesWritten)
-			return c.StatusCode(), response, c.Error
+func getLogAttrs(w http.ResponseWriter, r *http.Request) []slog.Attr {
+	status, err := getResponse(w, r)
+	attrs := make([]slog.Attr, 0, 3)
+	attrs = append(attrs, slog.Int("code", status))
+	if err != nil {
+		attrs = append(attrs, slog.String("err", err.Error()))
+		if msg, ok := getSensitiveErrorMessage(err); ok {
+			attrs = append(attrs, slog.String("sensitive_error", msg))
 		}
-		return c.StatusCode(), c.ResponseBody, c.Error
+	}
+	return attrs
+}
+
+func getResponse(w http.ResponseWriter, r *http.Request) (status int, err error) {
+	if c := httpx.GetContext(r.Context()); c != nil {
+		return c.StatusCode(), c.Error
 	}
 
 	for range 10 {
@@ -132,12 +144,11 @@ func getResponse(w http.ResponseWriter, r *http.Request) (status int, response a
 }
 
 type logger struct {
-	enabled        func(r *http.Request) bool
-	getRequestId   func(r *http.Request) string
-	getRequestBody func(r *http.Request) any
-	getResponse    func(w http.ResponseWriter, r *http.Request) (int, any, error)
-	postHandle     func(w http.ResponseWriter, r *http.Request)
-	preHandle      func(w http.ResponseWriter, r *http.Request)
+	enabled      func(r *http.Request) bool
+	getRequestId func(r *http.Request) string
+	getLogAttrs  func(w http.ResponseWriter, r *http.Request) []slog.Attr
+	postHandle   func(w http.ResponseWriter, r *http.Request)
+	preHandle    func(w http.ResponseWriter, r *http.Request)
 
 	level slog.Level
 	next  http.Handler
@@ -198,35 +209,11 @@ func (l *logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("method", r.Method),
 		slog.String("host", r.Host),
 		slog.String("path", r.URL.Path),
-		slog.String("query", r.URL.RawQuery),
 		slog.String("cost", cost.String()),
 	)
 
-	var code int
-	var response any
-	var err error
-
-	if l.getResponse != nil {
-		code, response, err = l.getResponse(w, r)
-		attrs.Append(slog.Int("code", code))
-	}
-
-	attrs.Append(
-		slog.Any("reqheader", r.Header),
-		slog.Any("resheader", w.Header()),
-	)
-
-	if l.getRequestBody != nil {
-		attrs.Append(slog.Any("reqbody", l.getRequestBody(r)))
-	}
-	if response != nil {
-		attrs.Append(slog.Any("resbody", response))
-	}
-	if err != nil {
-		attrs.Append(slog.String("err", err.Error()))
-		if errmsg, ok := getSensitiveErrorMessage(err); ok {
-			attrs.Append(slog.String("sensitive_error", errmsg))
-		}
+	if l.getLogAttrs != nil {
+		attrs.Append(l.getLogAttrs(w, r)...)
 	}
 
 	slog.LogAttrs(ctx, l.level, "log http request", attrs.Attrs...)

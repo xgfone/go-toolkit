@@ -17,6 +17,7 @@ package logger
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +34,31 @@ func TestLoggerLogsRequest(t *testing.T) {
 	preHandlerCalled := false
 	postHandlerCalled := false
 	config := NewDefaultConfig()
-	config.GetRequestBody = func(*http.Request) any { return "request-body" }
+	getDefaultAttrs := config.GetLogAttrs
+
+	attrsCalled := 0
+	config.GetLogAttrs = func(w http.ResponseWriter, r *http.Request) []slog.Attr {
+		attrsCalled++
+		if !preHandlerCalled || w.Header().Get("X-Result") != "created" {
+			t.Fatal("GetLogAttrs called before the handler completed")
+		}
+		if postHandlerCalled {
+			t.Fatal("GetLogAttrs called after PostHandle")
+		}
+
+		c := httpx.GetContext(r.Context())
+		if c == nil || c.StatusCode() != http.StatusCreated {
+			t.Fatal("GetLogAttrs cannot read the final HTTP context")
+		}
+
+		return append(getDefaultAttrs(w, r),
+			slog.String("reqbody", "request-body"),
+			slog.Any("resbody", c.ResponseBody),
+			slog.String("query", r.URL.RawQuery),
+			slog.String("result", w.Header().Get("X-Result")),
+		)
+	}
+
 	config.PreHandle = func(http.ResponseWriter, *http.Request) { preHandlerCalled = true }
 	config.PostHandle = func(w http.ResponseWriter, r *http.Request) { postHandlerCalled = true }
 
@@ -45,6 +70,7 @@ func TestLoggerLogsRequest(t *testing.T) {
 		c := httpx.GetContext(r.Context())
 		c.ResponseBody = "response-body"
 		c.AppendError(errorx.Sensitive(raw, "safe"))
+		w.Header().Set("X-Result", "created")
 		w.WriteHeader(http.StatusCreated)
 	})
 	handler := middleware.Context(config.Middleware(10).HTTPHandler(mdHandler))
@@ -56,26 +82,110 @@ func TestLoggerLogsRequest(t *testing.T) {
 	if !postHandlerCalled {
 		t.Fatal("PostHandler was not called")
 	}
+	if attrsCalled != 1 {
+		t.Fatalf("GetLogAttrs called %d times, want 1", attrsCalled)
+	}
 	if len(logs.records) != 1 {
 		t.Fatalf("got %d log records, want 1", len(logs.records))
 	}
 
 	attrs := logs.records[0]
 	for name, want := range map[string]any{
-		"reqid":           "rid-1",
-		"method":          http.MethodPost,
-		"host":            "example.com",
-		"path":            "/items",
-		"query":           "q=1",
-		"code":            int64(http.StatusCreated),
-		"reqbody":         "request-body",
-		"resbody":         "response-body",
-		"err":             "safe",
+		"reqid":   "rid-1",
+		"method":  http.MethodPost,
+		"host":    "example.com",
+		"path":    "/items",
+		"query":   "q=1",
+		"code":    int64(http.StatusCreated),
+		"reqbody": "request-body",
+		"resbody": "response-body",
+		"result":  "created",
+		"err":     "safe",
+
 		"sensitive_error": "secret",
 	} {
 		if got := attrs[name]; got != want {
 			t.Fatalf("attr %q = %#v, want %#v", name, got, want)
 		}
+	}
+}
+
+func TestLoggerDefaultsOmitHTTPDetails(t *testing.T) {
+	logs := captureLogs(t)
+	config := NewDefaultConfig()
+	req := httptest.NewRequest(http.MethodPost, "/items?token=query-secret", nil)
+	req.Header.Set("Authorization", "Bearer request-secret")
+	req.Header.Set("Cookie", "session=cookie-secret")
+	handler := middleware.Context(config.Middleware(1).
+		HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c := httpx.GetContext(r.Context())
+			c.ResponseBody = "response-secret"
+			c.AppendError(errorx.Sensitive(errors.New("underlying-secret"), "safe"))
+			w.Header().Set("Set-Cookie", "session=response-cookie-secret")
+			w.WriteHeader(http.StatusCreated)
+		})))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if len(logs.records) != 1 {
+		t.Fatalf("got %d log records, want 1", len(logs.records))
+	}
+
+	attrs := logs.records[0]
+	if attrs["code"] != int64(http.StatusCreated) || attrs["err"] != "safe" {
+		t.Fatalf("missing status or safe error: %v", attrs)
+	}
+	if attrs["sensitive_error"] != "underlying-secret" {
+		t.Fatalf("missing original sensitive error: %v", attrs)
+	}
+
+	for _, key := range []string{
+		"query",
+		"reqheader",
+		"resheader",
+		"reqbody",
+		"resbody",
+	} {
+		if _, ok := attrs[key]; ok {
+			t.Errorf("default logger included %q", key)
+		}
+	}
+}
+
+func TestLoggerReplacesDefaultLogAttrs(t *testing.T) {
+	for _, useGetter := range []bool{true, false} {
+		t.Run(fmt.Sprintf("getter=%t", useGetter), func(t *testing.T) {
+			logs := captureLogs(t)
+			config := NewDefaultConfig()
+			config.GetLogAttrs = nil
+			if useGetter {
+				config.GetLogAttrs = func(http.ResponseWriter, *http.Request) []slog.Attr {
+					return []slog.Attr{slog.String("custom", "value")}
+				}
+			}
+
+			handler := middleware.Context(config.Middleware(1).
+				HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					httpx.GetContext(r.Context()).AppendError(errorx.Sensitive(errors.New("secret"), "safe"))
+					w.WriteHeader(http.StatusInternalServerError)
+				})))
+			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/items", nil))
+
+			if len(logs.records) != 1 {
+				t.Fatalf("got %d log records, want 1", len(logs.records))
+			}
+			attrs := logs.records[0]
+			if attrs["method"] != http.MethodGet || attrs["path"] != "/items" {
+				t.Fatalf("missing built-in request attributes: %v", attrs)
+			}
+			if useGetter && attrs["custom"] != "value" {
+				t.Fatalf("missing custom attribute: %v", attrs)
+			}
+			for _, key := range []string{"code", "err", "sensitive_error"} {
+				if _, ok := attrs[key]; ok {
+					t.Errorf("replaced logger included default %q", key)
+				}
+			}
+		})
 	}
 }
 
@@ -85,6 +195,10 @@ func TestLoggerSkipsWhenDisabled(t *testing.T) {
 	nextCalled := false
 	handler := Config{
 		Enabled: func(*http.Request) bool { return false },
+		GetLogAttrs: func(http.ResponseWriter, *http.Request) []slog.Attr {
+			t.Error("GetLogAttrs called for a disabled request")
+			return nil
+		},
 	}.Middleware(3).HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		nextCalled = true
 		w.WriteHeader(http.StatusNoContent)
@@ -128,70 +242,77 @@ func TestGetResponseUnwrapsResponseWriter(t *testing.T) {
 	ctx.Error = errBody
 	reqWithContext := req.WithContext(httpx.SetContext(req.Context(), ctx))
 
-	status, response, err := getResponse(rw, reqWithContext)
-	if status != http.StatusPartialContent || response != "small response" || err != errBody {
-		t.Fatalf("getResponse(context) = %d, %#v, %v; want %d, %q, %v",
-			status, response, err, http.StatusPartialContent, "small response", errBody)
+	status, err := getResponse(rw, reqWithContext)
+	if status != http.StatusPartialContent || err != errBody {
+		t.Fatalf("getResponse(context) = %d, %v; want %d, %v",
+			status, err, http.StatusPartialContent, errBody)
 	}
 
-	ctx.BytesWritten = 2049
-	status, response, err = getResponse(rw, reqWithContext)
-	if status != http.StatusPartialContent || response != "[BODY TOO LONG: 2049]" || err != errBody {
-		t.Fatalf("getResponse(long context) = %d, %#v, %v; want %d, %q, %v",
-			status, response, err, http.StatusPartialContent, "[BODY TOO LONG: 2049]", errBody)
+	status, err = getResponse(unwrapWriter{unwrapWriter{ResponseWriter: rw}}, req)
+	if status != http.StatusAccepted || err != nil {
+		t.Fatalf("getResponse() = %d, %v; want %d, nil",
+			status, err, http.StatusAccepted)
 	}
 
-	status, response, err = getResponse(unwrapWriter{unwrapWriter{ResponseWriter: rw}}, req)
-	if status != http.StatusAccepted || response != nil || err != nil {
-		t.Fatalf("getResponse() = %d, %#v, %v; want %d, nil, nil",
-			status, response, err, http.StatusAccepted)
-	}
-
-	status, _, _ = getResponse(&cycleWriter{}, req)
+	status, _ = getResponse(&cycleWriter{}, req)
 	if status != 0 {
 		t.Fatalf("getResponse(cycleWriter) status = %d, want 0", status)
 	}
 
-	status, _, _ = getResponse(unwrapWriter{}, req)
+	status, _ = getResponse(unwrapWriter{}, req)
 	if status != 0 {
 		t.Fatalf("getResponse(nil unwrap) status = %d, want 0", status)
 	}
 
-	status, _, _ = getResponse(httptest.NewRecorder(), req)
+	status, _ = getResponse(httptest.NewRecorder(), req)
 	if status != 0 {
 		t.Fatalf("getResponse(default writer) status = %d, want 0", status)
 	}
 }
 
+func TestGetLogAttrs(t *testing.T) {
+	rw := &statusWriter{code: http.StatusAccepted}
+	req := httptest.NewRequest(http.MethodGet, "/items", nil)
+	attrs := getLogAttrs(unwrapWriter{ResponseWriter: rw}, req)
+	if len(attrs) != 1 || !attrs[0].Equal(slog.Int("code", http.StatusAccepted)) {
+		t.Fatalf("getLogAttrs without context = %v; want code=%d", attrs, http.StatusAccepted)
+	}
+
+	ctx := httpx.AcquireContext()
+	defer httpx.ReleaseContext(ctx)
+	ctx.ResponseCode = http.StatusInternalServerError
+	ctx.Error = errors.New("response error")
+	attrs = getLogAttrs(rw, req.WithContext(httpx.SetContext(req.Context(), ctx)))
+	if len(attrs) != 2 || !attrs[0].Equal(slog.Int("code", http.StatusInternalServerError)) ||
+		!attrs[1].Equal(slog.String("err", "response error")) {
+		t.Fatalf("getLogAttrs with ordinary error = %v; want code and err only", attrs)
+	}
+}
+
 func TestGetSensitiveErrorMessage(t *testing.T) {
-	msg, ok := getSensitiveErrorMessage(errorx.Sensitive(errors.New("secret"), "safe"))
-	if !ok || msg != "secret" {
-		t.Fatalf("getSensitiveErrorMessage(errorx.Sensitive(...)) = %q, %v; want %q, true",
-			msg, ok, "secret")
-	}
-
 	var nilSensitive *errorx.SensitiveError
-	msg, ok = getSensitiveErrorMessage(nilSensitive)
-	if !ok || msg != "<nil>" {
-		t.Fatalf("getSensitiveErrorMessage((*errorx.SensitiveError)(nil)) = %q, %v; want %q, true",
-			msg, ok, "<nil>")
-	}
-
-	msg, ok = getSensitiveErrorMessage(customSensitiveError{raw: errors.New("custom-secret")})
-	if !ok || msg != "custom-secret" {
-		t.Fatalf("getSensitiveErrorMessage(customSensitiveError) = %q, %v; want %q, true",
-			msg, ok, "custom-secret")
-	}
-
-	msg, ok = getSensitiveErrorMessage(customSensitiveError{})
-	if !ok || msg != "<nil>" {
-		t.Fatalf("getSensitiveErrorMessage(customSensitiveError{}) = %q, %v; want %q, true",
-			msg, ok, "<nil>")
-	}
-
-	msg, ok = getSensitiveErrorMessage(errors.New("plain"))
-	if ok || msg != "" {
-		t.Fatalf("getSensitiveErrorMessage(plain) = %q, %v; want empty, false", msg, ok)
+	for _, tt := range []struct {
+		name string
+		err  error
+		msg  string
+		ok   bool
+	}{
+		{name: "nil"},
+		{name: "ordinary", err: errors.New("ordinary")},
+		{name: "sensitive", err: errorx.Sensitive(errors.New("secret"), "safe"), msg: "secret", ok: true},
+		{name: "nil sensitive", err: nilSensitive, msg: "<nil>", ok: true},
+		{name: "wrapped", err: fmt.Errorf("service: %w", errorx.Sensitive(errors.New("wrapped-secret"), "safe")), msg: "wrapped-secret", ok: true},
+		{name: "joined", err: errors.Join(errors.New("first"), errorx.Sensitive(errors.New("joined-secret"), "safe")), msg: "joined-secret", ok: true},
+		{name: "custom", err: customSensitiveError{raw: errors.New("custom-secret")}, msg: "custom-secret", ok: true},
+		{name: "wrapped custom", err: fmt.Errorf("service: %w", customSensitiveError{raw: errors.New("custom-secret")}), msg: "custom-secret", ok: true},
+		{name: "nil custom cause", err: customSensitiveError{}, msg: "<nil>", ok: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, ok := getSensitiveErrorMessage(tt.err)
+			if msg != tt.msg || ok != tt.ok {
+				t.Fatalf("getSensitiveErrorMessage() = %q, %t; want %q, %t", msg, ok, tt.msg, tt.ok)
+			}
+		})
 	}
 }
 
