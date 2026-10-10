@@ -28,8 +28,11 @@ var (
 )
 
 // ExitContext returns a context that will be cancelled when [Exit] is called.
-// This can be used to signal cleanup operations that should complete before
-// the program terminates.
+// Cancellation happens before the configured exit function runs. It notifies
+// background work, but does not wait for cleanup to finish. Use [SetExitFunc]
+// to coordinate cleanup or delay termination when needed.
+//
+// It does not observe OS signals or an application's independent lifecycle.
 func ExitContext() context.Context {
 	return _exitcontext
 }
