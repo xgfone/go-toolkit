@@ -6,7 +6,7 @@ This guide compares v0.30.2 with v1.0.0. Examples omit imports and declarations 
 
 - `To2`: transform two-value iterators; `Keys` / `Values`: project either value.
 - `FilterTo` / `FilterTo2`: transform and filter in a single callback.
-- `Find`, `Take`, `Drop`, `Concat`, `Reduce`: search, limit, skip, concatenate, and fold.
+- `Find`, `Take`, `Skip`, `Concat`, `Reduce`: search, limit, skip, concatenate, and fold.
 - `SumFunc` / `CountFunc`: replace the callback forms of `Sum` / `Count`; see section 3.
 
 ## 2. Removals

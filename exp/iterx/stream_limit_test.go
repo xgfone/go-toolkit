@@ -58,8 +58,8 @@ func TestStream2Limits(t *testing.T) {
 		{"SkipPastEnd", func(s iterx.Stream2[int, int]) iterx.Stream2[int, int] {
 			return s.Skip(6)
 		}, nil, 4, 4},
-		{"Drop", func(s iterx.Stream2[int, int]) iterx.Stream2[int, int] {
-			return s.Drop(3)
+		{"SkipThree", func(s iterx.Stream2[int, int]) iterx.Stream2[int, int] {
+			return s.Skip(3)
 		}, [][2]int{{40, 4}}, 4, 4},
 		{"SkipThenTake", func(s iterx.Stream2[int, int]) iterx.Stream2[int, int] {
 			return s.Skip(1).Take(2)
@@ -105,7 +105,7 @@ func TestStream2Limits(t *testing.T) {
 }
 
 func TestStream2LimitsNegative(t *testing.T) {
-	for _, method := range []string{"Take", "Skip", "Drop"} {
+	for _, method := range []string{"Take", "Skip"} {
 		t.Run(method, func(t *testing.T) {
 			s := new(visits)
 			stream := iterx.FromSeq2(pairs(tracked(s)))
@@ -123,8 +123,6 @@ func TestStream2LimitsNegative(t *testing.T) {
 				stream.Take(-1)
 			case "Skip":
 				stream.Skip(-1)
-			case "Drop":
-				stream.Drop(-1)
 			}
 		})
 	}

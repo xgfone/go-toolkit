@@ -121,15 +121,9 @@ func (s Stream2[K, V]) Take(n int) Stream2[K, V] {
 	})
 }
 
-// Drop is an alias for [Stream.Skip].
-func (s Stream[V]) Drop(n int) Stream[V] { return s.Skip(n) }
-
-// Drop is an alias for [Stream2.Skip].
-func (s Stream2[K, V]) Drop(n int) Stream2[K, V] { return s.Skip(n) }
-
-// Skip skips the first n values. Like [iterx.Drop], it panics if n is negative.
+// Skip skips the first n values. Like [iterx.Skip], it panics if n is negative.
 func (s Stream[V]) Skip(n int) Stream[V] {
-	return FromSeq(iterx.Drop(s.seq, n))
+	return FromSeq(iterx.Skip(s.seq, n))
 }
 
 // Skip skips the first n pairs, preserving the remaining keys and values.

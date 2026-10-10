@@ -140,8 +140,8 @@ func TestAdapters(t *testing.T) {
 			[]int{1, 2}, 1, 0, 2, 0,
 		},
 		{
-			"Drop", func(seq iter.Seq[int], _ *visits) iter.Seq[int] {
-				return iterx.Drop(seq, 2)
+			"Skip", func(seq iter.Seq[int], _ *visits) iter.Seq[int] {
+				return iterx.Skip(seq, 2)
 			},
 			[]int{3, 4}, 3, 0, 4, 0,
 		},
@@ -300,7 +300,7 @@ func TestFind(t *testing.T) {
 	}
 }
 
-func TestTakeDropLimits(t *testing.T) {
+func TestTakeSkipLimits(t *testing.T) {
 	for _, n := range []int{0, 1, 4, 5} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			s := new(visits)
@@ -314,16 +314,16 @@ func TestTakeDropLimits(t *testing.T) {
 				t.Fatalf("Take = %v; %+v", got, s)
 			}
 
-			got = slices.Collect(iterx.Drop(slices.Values([]int{1, 2, 3, 4}), n))
+			got = slices.Collect(iterx.Skip(slices.Values([]int{1, 2, 3, 4}), n))
 			if !slices.Equal(got, []int{1, 2, 3, 4}[min(n, 4):]) {
-				t.Fatalf("Drop = %v", got)
+				t.Fatalf("Skip = %v", got)
 			}
 		})
 	}
 
 	for name, fn := range map[string]func(iter.Seq[int], int) iter.Seq[int]{
 		"Take": iterx.Take[int],
-		"Drop": iterx.Drop[int],
+		"Skip": iterx.Skip[int],
 	} {
 		t.Run(name+"/negative", func(t *testing.T) {
 			s := new(visits)

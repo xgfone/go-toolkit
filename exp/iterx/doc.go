@@ -29,7 +29,6 @@
 //
 // [Stream.To2] converts each value into a pair; [Stream2.To] converts each pair into
 // one value. [Stream2.Keys] and [Stream2.Values] project either side of each pair.
-// [Stream.Drop] and [Stream2.Drop] are aliases for [Stream.Skip] and [Stream2.Skip].
 //
 // Call [Stream.Seq] or [Stream2.Seq2] to use range, standard library collectors,
 // or terminal operations from [github.com/xgfone/go-toolkit/iterx]. Streams do

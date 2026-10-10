@@ -135,11 +135,11 @@ func Take[V any](seq iter.Seq[V], n int) iter.Seq[V] {
 	}
 }
 
-// Drop returns a sequence that skips the first n elements of seq.
+// Skip returns a sequence that skips the first n elements of seq.
 // It panics if n is negative.
-func Drop[V any](seq iter.Seq[V], n int) iter.Seq[V] {
+func Skip[V any](seq iter.Seq[V], n int) iter.Seq[V] {
 	if n < 0 {
-		panic("iterx.Drop: negative count")
+		panic("iterx.Skip: negative count")
 	}
 
 	return func(yield func(V) bool) {

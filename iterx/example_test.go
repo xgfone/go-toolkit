@@ -95,8 +95,8 @@ func ExampleTake() {
 	// Output: [1 2]
 }
 
-func ExampleDrop() {
-	fmt.Println(slices.Collect(iterx.Drop(slices.Values([]int{1, 2, 3}), 2)))
+func ExampleSkip() {
+	fmt.Println(slices.Collect(iterx.Skip(slices.Values([]int{1, 2, 3}), 2)))
 	// Output: [3]
 }
 

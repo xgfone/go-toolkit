@@ -207,9 +207,8 @@ func pairs(seq iter.Seq[int]) iter.Seq2[int, int] {
 }
 
 func ExampleStream_FilterMap() {
-	// Drop is an alias for Skip.
 	stream := iterx.FromSeq(slices.Values([]string{"skip", "bad", "2", "3"})).
-		Drop(1).
+		Skip(1).
 		FilterMap(func(s string) (int, bool) {
 			n, err := strconv.Atoi(s)
 			return n, err == nil
