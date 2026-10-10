@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package redact provides small interfaces and helpers for producing
+// Package redact provides experimental interfaces and helpers for producing
 // redacted representations of values.
+// It has no compatibility guarantees: APIs may change, be removed, or move
+// outside exp at any time, including in v1 releases.
 //
 // The package is intentionally minimal:
 //

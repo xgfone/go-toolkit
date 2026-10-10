@@ -8,3 +8,4 @@ These packages belong to the main `github.com/xgfone/go-toolkit` module; they do
 have separate module versions.
 
 - [`exp/iterx`](iterx): lazy, chainable `Stream` and `Stream2` wrappers for Go iterators.
+- [`exp/redact`](redact): interfaces and exposure levels for redacted value representations.
