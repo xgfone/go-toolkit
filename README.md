@@ -82,12 +82,63 @@ mkdir -p "$HOME/.agents/skills"
 cp -R "$TOOLKIT_SOURCE/.agents/skills/go-toolkit" "$HOME/.agents/skills/"
 ```
 
-Copy the whole skill directory, including `references/`, when installing or
-updating. The installed skill locates source and documentation with
+For a copied installation, copy the whole skill directory, including
+`references/`, when installing or updating. The installed skill locates source
+and documentation with
 `go list -m -json github.com/xgfone/go-toolkit`, including local replacements.
-It does not depend on the original installation checkout remaining at that path.
-If documents are missing locally, the agent needs access to the matching
-repository revision.
+The copied files do not depend on the original installation checkout remaining
+at that path. If documents are missing locally, the agent needs access to the
+matching repository revision.
+
+### Install from a local checkout with a symlink
+
+For personal use, Codex also supports a directory symlink in `~/.agents/skills`.
+This links the whole skill directory, including `references/`, to a local
+checkout so updates need no copying. Use an absolute source path and keep that
+checkout at a stable location:
+
+```shell
+TOOLKIT_SOURCE=/absolute/path/to/go-toolkit
+mkdir -p "$HOME/.agents/skills"
+test -f "$TOOLKIT_SOURCE/.agents/skills/go-toolkit/SKILL.md" &&
+    test ! -e "$HOME/.agents/skills/go-toolkit" &&
+    test ! -L "$HOME/.agents/skills/go-toolkit" &&
+    ln -s "$TOOLKIT_SOURCE/.agents/skills/go-toolkit" "$HOME/.agents/skills/go-toolkit"
+```
+
+The checks require a valid source and refuse any existing destination, including
+a broken symlink. To convert an existing copied directory, first move it to a
+backup outside the scanned skills directory, then run the installation above:
+
+```shell
+test -d "$HOME/.agents/skills/go-toolkit" &&
+    test ! -L "$HOME/.agents/skills/go-toolkit" &&
+    mkdir -p "$HOME/.agents/skill-backups" &&
+    TOOLKIT_SKILL_BACKUP=$(mktemp -d "$HOME/.agents/skill-backups/go-toolkit.XXXXXX") &&
+    mv "$HOME/.agents/skills/go-toolkit" "$TOOLKIT_SKILL_BACKUP/go-toolkit" &&
+    printf 'Backup: %s\n' "$TOOLKIT_SKILL_BACKUP"
+```
+
+The conversion keeps the original files and leaves existing symlinks alone.
+Keep project-scoped copies in version control for team sharing; an absolute
+symlink to your personal checkout is specific to your machine.
+
+### Keep the skill up to date
+
+A copied installation needs a new copy of the entire skill directory from the
+chosen source revision. A symlink reads the linked checkout directly: updates to
+`SKILL.md` and files under `references/` are immediately visible through the
+user-level entry, with no reinstallation. It does not fetch Git changes
+automatically; update the source checkout to the desired branch, tag, or commit
+yourself. Branch switches and uncommitted skill edits are also visible through
+the link. Moving the checkout or selecting a revision without the skill directory
+makes the link unusable.
+
+Update the repository's `SKILL.md` and migration references when APIs or upgrade
+guidance change; linking files does not generate new guidance from code changes.
+The consuming project's actual dependency version still determines which API
+documentation to use. If an update is not reflected in Codex, restart it so the
+skill can be discovered again.
 
 ### Use the skill
 
