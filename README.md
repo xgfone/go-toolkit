@@ -17,21 +17,21 @@ Use documentation from the release tag or commit selected by your application.
 
 ## Packages
 
-| Task | Packages |
-| --- | --- |
-| Application lifecycle, modules, and build version command | [`app`](app), [`app/module`](app/module), [`app/cmd/version`](app/cmd/version) |
-| HTTP clients, request binding, context handlers, and responses | [`httpx`](httpx) |
-| Routing, middleware, CORS, and request logs | [`httpx/router`](httpx/router), [`httpx/middleware`](httpx/middleware), [`httpx/cors`](httpx/cors), [`httpx/logger`](httpx/logger) |
-| Lazy iterator transforms and aggregation | [`iterx`](iterx) |
-| Slice conversion, grouping, and deduplication; map conversion | [`slicex`](slicex), [`mapx`](mapx) |
-| String helpers, masks, and generators | [`stringx`](stringx/README.md) |
-| Struct binding, defaults, and validation | [`structx`](structx), [`validation`](validation) |
-| Error codes, wrapped errors, and result responses | [`codeint`](codeint), [`errorx`](errorx), [`result`](result) |
-| Clocks, cancellable waits, random values, and integer-list parsing | [`timex`](timex), [`random`](random), [`strconvx`](strconvx) |
-| Networking and address conversion | [`netx`](netx), [`netx/netipx`](netx/netipx) |
-| Comment stripping, I/O adapters, reflection, and runtime helpers | [`bytex`](bytex), [`iox`](iox), [`reflectx`](reflectx), [`runtimex`](runtimex) |
-| Zero-copy string/byte conversions | [`unsafex`](unsafex) |
-| Experimental streams and redaction | [`exp/iterx`](exp/iterx), [`exp/redact`](exp/redact); see [experimental policy](exp/README.md) |
+| Task                                                               | Packages                                                                                                                           |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Application lifecycle, modules, and build version command          | [`app`](app), [`app/module`](app/module), [`app/cmd/version`](app/cmd/version)                                                     |
+| HTTP clients, request binding, context handlers, and responses     | [`httpx`](httpx)                                                                                                                   |
+| Routing, middleware, CORS, and request logs                        | [`httpx/router`](httpx/router), [`httpx/middleware`](httpx/middleware), [`httpx/cors`](httpx/cors), [`httpx/logger`](httpx/logger) |
+| Lazy iterator transforms and aggregation                           | [`iterx`](iterx)                                                                                                                   |
+| Slice conversion, grouping, and deduplication; map conversion      | [`slicex`](slicex), [`mapx`](mapx)                                                                                                 |
+| String helpers, masks, and generators                              | [`stringx`](stringx/README.md)                                                                                                     |
+| Struct binding, defaults, and validation                           | [`structx`](structx), [`validation`](validation)                                                                                   |
+| Error codes, wrapped errors, and result responses                  | [`codeint`](codeint), [`errorx`](errorx), [`result`](result)                                                                       |
+| Clocks, cancellable waits, random values, and integer-list parsing | [`timex`](timex), [`random`](random), [`strconvx`](strconvx)                                                                       |
+| Networking and address conversion                                  | [`netx`](netx), [`netx/netipx`](netx/netipx)                                                                                       |
+| Comment stripping, I/O adapters, reflection, and runtime helpers   | [`bytex`](bytex), [`iox`](iox), [`reflectx`](reflectx), [`runtimex`](runtimex)                                                     |
+| Zero-copy string/byte conversions                                  | [`unsafex`](unsafex)                                                                                                               |
+| Experimental streams and redaction                                 | [`exp/iterx`](exp/iterx), [`exp/redact`](exp/redact); see [experimental policy](exp/README.md)                                     |
 
 Package comments and example tests document usage and behavior. For upgrades
 from v0.30.2, read the target revision's [iterator migration guide](iterx/MIGRATION.md),

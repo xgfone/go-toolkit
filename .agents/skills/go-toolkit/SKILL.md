@@ -42,19 +42,19 @@ the packages needed for the task.
 
 ## Select the package
 
-| Task | Packages and documentation |
-| --- | --- |
-| Lazy iterator transforms and aggregation | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go` |
-| Slice conversion, grouping, deduplication, or map conversion | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented |
-| String masking, email masking, or string generation | `stringx/README.md`, `stringx/doc.go` |
-| HTTP clients, request binding, context handlers, headers, or JSON/XML responses | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go` |
-| Routes, middleware, CORS, or HTTP logging | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go` |
-| Application lifecycle, modules, background tasks, or build version command | `app/app.go`, `app/app_hook.go`, `app/app_goroutine.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go` |
-| Struct binding, defaults, or validation | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go` |
-| Error codes, wrapped errors, or result responses | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go` |
-| Clocks, cancellable waits, random values, or integer-list parsing | `timex/time.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go` |
-| Networking, comments, I/O, reflection, runtime, or zero-copy conversions | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/` |
-| Experimental streams or redaction | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1 |
+| Task                                                                            | Packages and documentation                                                                                                                           |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lazy iterator transforms and aggregation                                        | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go`                                                                       |
+| Slice conversion, grouping, deduplication, or map conversion                    | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented                                                      |
+| String masking, email masking, or string generation                             | `stringx/README.md`, `stringx/doc.go`                                                                                                                |
+| HTTP clients, request binding, context handlers, headers, or JSON/XML responses | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go`      |
+| Routes, middleware, CORS, or HTTP logging                                       | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go` |
+| Application lifecycle, modules, background tasks, or build version command      | `app/app.go`, `app/app_hook.go`, `app/app_goroutine.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go`               |
+| Struct binding, defaults, or validation                                         | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go`                                                           |
+| Error codes, wrapped errors, or result responses                                | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go`                   |
+| Clocks, cancellable waits, random values, or integer-list parsing               | `timex/time.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go`                                                          |
+| Networking, comments, I/O, reflection, runtime, or zero-copy conversions        | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/`                                       |
+| Experimental streams or redaction                                               | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1                                 |
 
 ## Apply the relevant usage contracts
 

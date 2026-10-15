@@ -25,11 +25,11 @@ discovery, return to the skill's `SKILL.md`.
 
 ## Existing package migration guides
 
-| Package | Target module document | Important checks |
-| --- | --- | --- |
-| `iterx` | `iterx/MIGRATION.md` | `Map` becomes `To`; callback forms become `SumFunc`/`CountFunc`. `Sum`/`Count` now consume values directly. Replace removed `All`, `Any`, `Seq`, `Seq2`, and numeric constraints as documented. Preserve laziness and early termination. |
-| `slicex` | `slicex/MIGRATION.md` | `Convert` becomes `To` and conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, nil versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements. |
-| `mapx` | `mapx/MIGRATION.md` | `Convert` becomes `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/Pair helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed. |
+| Package   | Target module document        | Important checks                                                                                                                                                                                                                                                                              |
+| --------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `iterx`   | `iterx/MIGRATION.md`          | `Map` becomes `To`; callback forms become `SumFunc`/`CountFunc`. `Sum`/`Count` now consume values directly. Replace removed `All`, `Any`, `Seq`, `Seq2`, and numeric constraints as documented. Preserve laziness and early termination.                                                      |
+| `slicex`  | `slicex/MIGRATION.md`         | `Convert` becomes `To` and conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, nil versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements.                                                     |
+| `mapx`    | `mapx/MIGRATION.md`           | `Convert` becomes `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/Pair helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed.                                                       |
 | `stringx` | `stringx/README.md#migration` | Concrete `Desensitizer` becomes `MaskDesensitizer`; `Desensitizer` is now an interface. Presets become getters/setters. `Builder` becomes `AffixGenerator`; string-producing `Generate(n)` and buffer-appending `Append(dst,n)` replace the old API. Update custom generator implementations. |
 
 Do not copy a module guide from an older installed dependency and assume it
@@ -39,41 +39,41 @@ check changes after that beta. For example, the current iterator adapters use
 
 ## Other API removals and renames
 
-| Previous API or import | Replacement in the checked source |
-| --- | --- |
-| `app.DefaultApp` | `app.Default()`; configure the returned instance or use an application-owned `app.New()`. |
-| `router.DefaultRouter` | `router.Default()`; use `router.New()` for an independent router. |
-| `logger.Config.Logger(priority)` | `logger.Config.Middleware(priority)`. |
-| `cors.Config.CORS(priority)` | `cors.Config.Middleware(priority)`. |
-| `logger.Config.GetRequestBody` and `GetResponse` | `GetLogAttrs(w,r) []slog.Attr`; choose named attributes and wrap the default callback to preserve its fields. |
+| Previous API or import                                                   | Replacement in the checked source                                                                                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `app.DefaultApp`                                                         | `app.Default()`; configure the returned instance or use an application-owned `app.New()`.                                             |
+| `router.DefaultRouter`                                                   | `router.Default()`; use `router.New()` for an independent router.                                                                     |
+| `logger.Config.Logger(priority)`                                         | `logger.Config.Middleware(priority)`.                                                                                                 |
+| `cors.Config.CORS(priority)`                                             | `cors.Config.Middleware(priority)`.                                                                                                   |
+| `logger.Config.GetRequestBody` and `GetResponse`                         | `GetLogAttrs(w,r) []slog.Attr`; choose named attributes and wrap the default callback to preserve its fields.                         |
 | Assigning `httpx.Handler200`, `Handler404`, or other predefined handlers | These are immutable constants implementing `http.Handler`. Store custom handlers locally and configure the router/handler using them. |
-| `random.DefaultCharset` variable | `random.DefaultCharset()` and `random.SetDefaultCharset(charset)`; the setter rejects empty charsets. |
-| `bytex.CommentHash` / `CommentSlashes` | Pass application-owned `[]byte("#")` / `[]byte("//")` to `RemoveLineComments`. |
-| `netx.IPIsOn` | `netx.IsLocalIP`. |
-| `runtimex.TrimPkgFile` | `runtimex.TrimSourcePath`. |
-| `codeint.Error.TryError(err)` | `codeint.Error.Wrap(err)`. |
-| `iox.Uploader` / `UploaderFunc` | Define the required upload interface/adapter in the application; these abstractions were removed. |
-| `github.com/xgfone/go-toolkit/redact` | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee. |
+| `random.DefaultCharset` variable                                         | `random.DefaultCharset()` and `random.SetDefaultCharset(charset)`; the setter rejects empty charsets.                                 |
+| `bytex.CommentHash` / `CommentSlashes`                                   | Pass application-owned `[]byte("#")` / `[]byte("//")` to `RemoveLineComments`.                                                        |
+| `netx.IPIsOn`                                                            | `netx.IsLocalIP`.                                                                                                                     |
+| `runtimex.TrimPkgFile`                                                   | `runtimex.TrimSourcePath`.                                                                                                            |
+| `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                            |
+| `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                     |
+| `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                       |
 
 ### JSON codecs
 
 The `jsonx` package and its global marshal/unmarshal hooks were removed.
 Current HTTP and result helpers use `encoding/json/v2`.
 
-| Previous call | Replacement |
-| --- | --- |
-| `jsonx.Marshal` / `MarshalBytes` | `json.Marshal(value)`. |
-| `jsonx.Unmarshal` / `UnmarshalBytes` | `json.Unmarshal(data, dst)`. |
-| `jsonx.MarshalWriter(writer, value)` | `json.MarshalWrite(writer, value)`. |
-| `jsonx.UnmarshalReader(dst, reader)` | `json.UnmarshalRead(reader, dst)`; note the argument order. |
-| `MarshalString` / `MarshalStringWithCap` | Marshal to bytes and convert to a string, or use an application-owned writer/buffer. |
-| `UnmarshalString` | `json.Unmarshal([]byte(text), dst)` or `json.UnmarshalRead(strings.NewReader(text), dst)`. |
+| Previous call                            | Replacement                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `jsonx.Marshal` / `MarshalBytes`         | `json.Marshal(value)`.                                                                     |
+| `jsonx.Unmarshal` / `UnmarshalBytes`     | `json.Unmarshal(data, dst)`.                                                               |
+| `jsonx.MarshalWriter(writer, value)`     | `json.MarshalWrite(writer, value)`.                                                        |
+| `jsonx.UnmarshalReader(dst, reader)`     | `json.UnmarshalRead(reader, dst)`; note the argument order.                                |
+| `MarshalString` / `MarshalStringWithCap` | Marshal to bytes and convert to a string, or use an application-owned writer/buffer.       |
+| `UnmarshalString`                        | `json.Unmarshal([]byte(text), dst)` or `json.UnmarshalRead(strings.NewReader(text), dst)`. |
 
 Rework custom `SetMarshalWriterFunc`/`SetUnmarshalReaderFunc` integrations
 explicitly; there is no replacement global hook. Audit JSON tags, custom
-marshalers, nil versus empty values, trailing input, and options using the target
-standard-library API. Do not assume the previous adapter's serialization policy
-is preserved.
+marshalers, nil versus empty values, trailing input, and options using the
+target standard-library API. Do not assume the previous adapter's serialization
+policy is preserved.
 
 ### Time policy
 
