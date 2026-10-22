@@ -21,10 +21,10 @@ import (
 	"os"
 )
 
-// SetConfigLoader replaces the default config loader.
+// SetConfigLoader replaces the config loader.
 //
 // It must be called before [App.Run].
-func (a *App) SetConfigLoader(loader Hook) {
+func (a *App) SetConfigLoader(loader func(ctx context.Context) error) {
 	if loader == nil {
 		panic("app: nil config loader")
 	}
@@ -33,22 +33,22 @@ func (a *App) SetConfigLoader(loader Hook) {
 	defer a.mu.Unlock()
 
 	a.mustBeNewLocked("SetConfigLoader")
-	a.configLoader = loader
+	a.callbacks[phaseConfig] = nil
+	a.registerCallbackLocked(phaseConfig, "", loader)
 }
 
-func defaultFlagConfigLoader(ctx context.Context, app *App) (err error) {
+func (a *App) defaultFlagConfigLoader(context.Context) error {
 	if flag.CommandLine.Parsed() {
-		return
+		return nil
 	}
 
-	flag.CommandLine.Init(app.Name(), flag.ContinueOnError)
-	if err = flag.CommandLine.Parse(os.Args[1:]); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			osexit(0)
-		}
+	flag.CommandLine.Init(a.Name(), flag.ContinueOnError)
+	err := flag.CommandLine.Parse(os.Args[1:])
+	if errors.Is(err, flag.ErrHelp) {
+		osexit(0)
 	}
 
-	return
+	return err
 }
 
 var osexit = os.Exit

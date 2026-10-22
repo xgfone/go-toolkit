@@ -1,8 +1,8 @@
 # Migration index: v0.30.2 to v1 development
 
-This index was checked against tag `v0.30.2` and source commit
-`a3df9f89e02c9996b6b6b5d4340ca5a61a3c0e45`. It covers the APIs and behavior
-in that v1 development snapshot, not a promise about a final `v1.0.0` release
+This index was initially checked against tag `v0.30.2` and source commit
+`a3df9f89e02c9996b6b6b5d4340ca5a61a3c0e45`, and includes the current application
+lifecycle API described below. It is not a promise about a final `v1.0.0` release
 or every beta. Check the exact target source before applying a replacement;
 later commits and individual prereleases can differ.
 
@@ -16,7 +16,7 @@ discovery, return to the skill's `SKILL.md`.
   target's requirement, currently Go 1.27. The module path remains
   `github.com/xgfone/go-toolkit`.
 - Inventory application imports and used symbols, including custom interfaces,
-  codecs, generators, middleware, and lifecycle hooks. Migrate only the packages
+  codecs, generators, middleware, and lifecycle callbacks. Migrate only the packages
   actually used; do not introduce unrelated services or experimental APIs.
 - Read the target version's package-local guides. There is no root-level
   `MIGRATION.md` in the checked snapshot. For packages without a guide, compare
@@ -54,6 +54,39 @@ check changes after that beta. For example, the current iterator adapters use
 | `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                            |
 | `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                     |
 | `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                       |
+
+### Application lifecycle
+
+Current lifecycle callbacks have the signature `func(ctx context.Context) error`.
+Capture the owning `*app.App` in a closure when it is needed. The callback context
+is supplied at execution time; do not capture a startup context for shutdown work.
+
+| Purpose                                | Current interface                                                       |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| Register a callback on an App          | `a.On(stage, name, callback)`                                           |
+| Register a callback on the default App | `stage.On(name, callback)` or `app.Default().On(stage, name, callback)` |
+| Start a managed task                   | `a.Go(name, callback)` or `app.Go(name, callback)`                      |
+| Set the configuration loader           | `a.SetConfigLoader(func(ctx context.Context) error)`                    |
+| Register a simple resource closer      | `a.Cleanup(func() error)`                                               |
+| Observe cancellation                   | `a.Context().Done()`                                                    |
+| Wait for shutdown to finish            | `a.Done()`, `a.Wait()`, or `a.WaitContext(ctx)`                         |
+
+Names may be empty. Module methods retain their `context.Context, *app.App` parameters.
+Callbacks may register future stages during execution, but registering the current
+or an earlier stage panics. Configuration setters and module registration must
+finish before `Run` starts.
+
+Startup runs configuration, Init callbacks, Module.Init, Start callbacks,
+Module.Start, then Ready callbacks. Required request data must be initialized in
+Init or Start: servers may already accept requests during Ready.
+
+Shutdown cancels the run and lifecycle contexts, runs Stopping callbacks, stops
+successfully initialized modules in reverse order, waits for managed tasks, then
+runs Cleanup callbacks in reverse registration order and Exited callbacks.
+Shutdown callbacks share an independent timeout context. Remaining shutdown
+callbacks still run after errors or timeout; timeout can leave managed tasks
+running when Done closes. Resources needed by those tasks should stay open until
+Cleanup, or a Stopping callback should explicitly join the tasks before Module.Stop.
 
 ### JSON codecs
 

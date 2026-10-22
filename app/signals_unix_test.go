@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"syscall"
 	"testing"
@@ -29,7 +30,7 @@ func TestRegressionNoSignals(t *testing.T) {
 	a.SetSignals()
 
 	ready := make(chan struct{})
-	a.On(StageReady, func(context.Context, *App) error { close(ready); return nil })
+	a.On(StageReady, "", func(context.Context) error { close(ready); return nil })
 
 	done := make(chan error, 1)
 	go func() { done <- a.Run(context.Background()) }()
@@ -56,9 +57,12 @@ func TestRegressionSignalCancelsStartup(t *testing.T) {
 	a.SetSignals(syscall.SIGUSR1)
 
 	started := make(chan struct{})
-	a.On(StageInit, func(ctx context.Context, _ *App) error {
+	a.On(StageInit, "wait-for-signal", func(ctx context.Context) error {
 		close(started)
-		<-ctx.Done()
+		<-a.Context().Done()
+		if ctx.Err() == nil {
+			t.Error("signal canceled the lifecycle before the run context")
+		}
 		return ctx.Err()
 	})
 
@@ -72,10 +76,18 @@ func TestRegressionSignalCancelsStartup(t *testing.T) {
 	}
 
 	select {
-	case <-done:
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("signal startup error = %v, want context.Canceled", err)
+		}
+		select {
+		case <-a.Done():
+		default:
+			t.Fatal("Done stayed open after signal shutdown")
+		}
 	case <-time.After(2 * time.Second):
 		a.Stop()
 		<-done
-		t.Fatal("SIGUSR1 does not cancel the startup hook context")
+		t.Fatal("SIGUSR1 does not cancel the startup callback context")
 	}
 }

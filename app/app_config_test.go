@@ -16,99 +16,74 @@ package app
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
+	"slices"
 	"testing"
-	"time"
 )
 
-func TestSetConfigLoader_Panics_Nil(t *testing.T) {
-	defer func() { _ = recover() }()
-	New().SetConfigLoader(nil)
-	t.Error("expected panic")
-}
+func TestSetConfigLoaderReplacesPreviousLoader(t *testing.T) {
+	a := newTestRunApp()
+	var events []string
+	a.SetConfigLoader(func(context.Context) error {
+		t.Error("replaced loader must not run")
+		return nil
+	})
+	a.SetConfigLoader(func(_ context.Context) error {
+		events = append(events, "config")
+		// Configuration may register even the first public stage.
+		a.On(StageInit, "", func(context.Context) error {
+			events = append(events, "init")
+			return nil
+		})
+		return nil
+	})
 
-func TestSetConfigLoader_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
-
-	defer func() { _ = recover() }()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	t.Error("expected panic")
+	a.On(StageReady, "", func(_ context.Context) error { a.Stop(); return nil })
+	if err := a.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"config", "init"}; !slices.Equal(events, want) {
+		t.Fatalf("startup = %v, want %v", events, want)
+	}
 }
 
 func TestDefaultFlagConfigLoader(t *testing.T) {
-	origCL := flag.CommandLine
-	origArgs := os.Args
-	t.Cleanup(func() {
-		flag.CommandLine = origCL
-		os.Args = origArgs
-	})
-
-	flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
-	os.Args = []string{"test"}
-
-	app := New()
-	// Don't call SetConfigLoader — exercise the default.
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
+	for _, tc := range []struct {
+		name     string
+		args     []string
+		parsed   bool
+		wantErr  error
+		wantExit []int
+	}{
+		{name: "parse"},
+		{name: "already parsed", parsed: true, args: []string{"--ignored"}},
+		{name: "help", args: []string{"-h"}, wantErr: flag.ErrHelp, wantExit: []int{0}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFlags, originalArgs, originalExit := flag.CommandLine, os.Args, osexit
+			t.Cleanup(func() {
+				flag.CommandLine, os.Args, osexit = originalFlags, originalArgs, originalExit
+			})
+			flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
+			if tc.parsed {
+				if err := flag.CommandLine.Parse(nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			os.Args = append([]string{"test"}, tc.args...)
+			var exitCodes []int
+			osexit = func(code int) { exitCodes = append(exitCodes, code) }
+			a := New()
+			a.SetSignals()
+			a.On(StageReady, "stop", func(context.Context) error { a.Stop(); return nil })
+			if err := a.Run(context.Background()); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Run error = %v, want %v", err, tc.wantErr)
+			}
+			if !flag.CommandLine.Parsed() || !slices.Equal(exitCodes, tc.wantExit) {
+				t.Fatalf("parsed=%v, exit codes=%v, want %v", flag.CommandLine.Parsed(), exitCodes, tc.wantExit)
+			}
+		})
 	}
-}
-
-func TestDefaultFlagConfigLoader_AlreadyParsed(t *testing.T) {
-	origCL := flag.CommandLine
-	t.Cleanup(func() { flag.CommandLine = origCL })
-
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	_ = fs.Parse(nil)
-	flag.CommandLine = fs
-
-	app := New()
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestDefaultFlagConfigLoader_Help(t *testing.T) {
-	origCL := flag.CommandLine
-	origArgs := os.Args
-	origExit := osexit
-	t.Cleanup(func() {
-		flag.CommandLine = origCL
-		os.Args = origArgs
-		osexit = origExit
-	})
-
-	// Trigger flag.ErrHelp by passing -h.
-	flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
-	os.Args = []string{"test", "-h"}
-
-	var exitCode int
-	osexit = func(code int) { exitCode = code }
-
-	app := New()
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	err := app.Run(ctx)
-	// On help, os.Exit(0) is called; the loader returns nil, so Run proceeds.
-	// But osexit does os.Exit normally — our mock records the code.
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", exitCode)
-	}
-	_ = err
 }

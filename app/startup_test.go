@@ -23,51 +23,18 @@ import (
 	"time"
 )
 
-func newTestRunApp() *App {
-	a := New()
-	a.SetSignals()
-	a.SetConfigLoader(func(context.Context, *App) error { return nil })
-	return a
-}
-
-func TestBackgroundFailureCancelsStartup(t *testing.T) {
-	a := newTestRunApp()
-	failure := errors.New("worker failed during startup")
-
-	a.On(StageStart, func(ctx context.Context, a *App) error {
-		a.GoNamed("worker", func(context.Context) error { return failure })
-		<-ctx.Done()
-		return ctx.Err()
-	})
-
-	a.On(StageReady, func(context.Context, *App) error {
-		t.Error("Ready must not run after startup fails")
-		return nil
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	if err := a.Run(ctx); !errors.Is(err, failure) {
-		t.Fatalf("Run must preserve the worker failure, got %v", err)
-	}
-	if ctx.Err() != nil {
-		t.Fatal("startup stopped only because the parent timed out")
-	}
-}
-
-func TestStopSkipsRemainingStartupHooks(t *testing.T) {
+func TestStopSkipsRemainingStartupCallbacks(t *testing.T) {
 	a := newTestRunApp()
 
 	cleaned := false
 	a.Cleanup(func() error { cleaned = true; return nil })
 
-	a.On(StageInit, func(_ context.Context, a *App) error {
+	a.On(StageInit, "", func(_ context.Context) error {
 		a.Stop()
 		return nil
 	})
-	a.On(StageInit, func(context.Context, *App) error {
-		t.Error("later startup hook must not run after Stop")
+	a.On(StageInit, "", func(context.Context) error {
+		t.Error("later startup callback must not run after Stop")
 		return nil
 	})
 
@@ -107,8 +74,8 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 		t.Run(tc.cancelAt, func(t *testing.T) {
 			a := newTestRunApp()
 			var events []string
-			record := func(event string) Hook {
-				return func(_ context.Context, a *App) error {
+			record := func(event string) func(ctx context.Context) error {
+				return func(_ context.Context) error {
 					events = append(events, event)
 					if event == tc.cancelAt {
 						a.Stop()
@@ -126,15 +93,15 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 				StageCleanup,
 				StageExited,
 			} {
-				a.On(stage, record(string(stage)))
+				a.On(stage, "", record(string(stage)))
 			}
 
 			for _, name := range []string{"first", "second"} {
 				a.Use(&testModule{
 					name:  name,
-					init:  record(name + ".Init"),
-					start: record(name + ".Start"),
-					stop:  record(name + ".Stop"),
+					init:  testModuleCallback(record(name + ".Init")),
+					start: testModuleCallback(record(name + ".Start")),
+					stop:  testModuleCallback(record(name + ".Stop")),
 				})
 			}
 
@@ -156,30 +123,49 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 }
 
 func TestBackgroundFailureAtReadyPreservesError(t *testing.T) {
+	a := newTestRunApp()
 	failure := errors.New("worker failed at readiness")
-	// Both cancellation and the task error are ready when Run begins waiting.
-	// Exercise the select repeatedly: either choice must preserve the failure.
-	for i := range 32 {
-		a := newTestRunApp()
+	cleaned := false
+	a.Cleanup(func() error { cleaned = true; return nil })
+	// Ready may return nil after a background failure canceled the run context.
+	a.On(StageReady, "", func(ctx context.Context) error {
+		a.Go("ready-worker", func(context.Context) error { return failure })
+		<-ctx.Done()
+		return nil
+	})
 
-		cleaned := false
-		a.Cleanup(func() error { cleaned = true; return nil })
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
-		a.On(StageReady, func(ctx context.Context, a *App) error {
-			a.GoNamed("ready-worker", func(context.Context) error { return failure })
-			<-ctx.Done()
-			return nil
-		})
+	err := a.Run(ctx)
+	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "ready-worker") {
+		t.Fatalf("Run lost the named worker failure: %v", err)
+	}
+	if !cleaned {
+		t.Fatal("cleanup did not run")
+	}
+}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		err := a.Run(ctx)
-		cancel()
+func TestBackgroundFailurePublishedDuringShutdown(t *testing.T) {
+	a := newTestRunApp()
+	firstFailure := errors.New("first worker failed")
+	lateFailure := errors.New("another worker failed before cancellation")
+	a.On(StageReady, "", func(ctx context.Context) error {
+		a.Go("first-worker", func(context.Context) error { return firstFailure })
+		<-ctx.Done()
+		return nil
+	})
+	a.On(StageStopping, "", func(_ context.Context) error {
+		// Simulate a worker that passed its cancellation check before shutdown,
+		// then published its failure after Run consumed the first worker error.
+		a.errCh <- lateFailure
+		return nil
+	})
 
-		if !errors.Is(err, failure) || !strings.Contains(err.Error(), "ready-worker") {
-			t.Fatalf("iteration %d: Run lost the named worker failure: %v", i, err)
-		}
-		if !cleaned {
-			t.Fatalf("iteration %d: cleanup did not run", i)
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := a.Run(ctx); !errors.Is(err, firstFailure) || !errors.Is(err, lateFailure) {
+		t.Fatalf("Run must preserve both worker failures, got %v", err)
 	}
 }

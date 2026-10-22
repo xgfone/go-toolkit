@@ -52,7 +52,7 @@ func TestRegressionServeErrorStopsApp(t *testing.T) {
 
 	a := app.New()
 	a.SetSignals()
-	a.SetConfigLoader(func(context.Context, *app.App) error { return nil })
+	a.SetConfigLoader(func(context.Context) error { return nil })
 	a.Use(s)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

@@ -144,11 +144,11 @@ func testHttpServerLifecycle(t *testing.T, m *HttpServer) {
 
 	a := app.New()
 	a.SetSignals()
-	a.SetConfigLoader(func(context.Context, *app.App) error { return nil })
+	a.SetConfigLoader(func(context.Context) error { return nil })
 	a.Use(m)
 
 	ready := false
-	a.On(app.StageReady, func(ctx context.Context, a *app.App) error {
+	a.On(app.StageReady, "", func(ctx context.Context) error {
 		ready = true
 		if !m.IsValid() {
 			t.Error("server should be valid after Init")

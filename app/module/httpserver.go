@@ -127,7 +127,7 @@ func (s *HttpServer) Start(_ context.Context, a *app.App) (err error) {
 	}
 
 	slog.Info("start the http server", "modname", s.name, "addr", s.addr)
-	a.GoNamed(s.name, func(context.Context) error {
+	a.Go(s.name, func(context.Context) error {
 		err := s.server.Serve(s.listen)
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil

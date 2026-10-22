@@ -19,31 +19,22 @@ import (
 	"fmt"
 )
 
-// Go is a convenience function that calls [App.Go] on [Default].
-func Go(fn func(ctx context.Context) error) {
-	GoNamed("", fn)
+// Go starts a lifecycle-managed background task on [Default]. See [App.Go].
+func Go(name string, callback func(ctx context.Context) error) {
+	defaultApp.Go(name, callback)
 }
 
-// GoNamed is a convenience function that calls [App.GoNamed] on [Default].
-func GoNamed(name string, fn func(ctx context.Context) error) {
-	defaultApp.GoNamed(name, fn)
-}
-
-// Go calls [App.GoNamed] with an empty name and fn.
-func (a *App) Go(fn func(ctx context.Context) error) {
-	a.goNamed("", fn)
-}
-
-// GoNamed starts a lifecycle-managed background task with the optional name.
+// Go starts a lifecycle-managed background task. The name may be empty but is
+// useful for error messages.
 //
-// It can only be called after [App.Run] starts, usually inside [Module.Start] or hooks.
-// If fn returns a non-nil error while [App] is still running, [App] will start shutdown.
-func (a *App) GoNamed(name string, fn func(ctx context.Context) error) {
-	a.goNamed(name, fn)
-}
-
-func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
-	if fn == nil {
+// It can only be called after [App.Run] starts, usually inside [Module.Start]
+// or callbacks. If callback returns a non-nil error while [App] is still running,
+// [App] will start shutdown. The task must observe context cancellation so
+// shutdown can finish. The app waits for managed tasks after [Module.Stop] and
+// before [StageCleanup], subject to its shutdown timeout. Goroutines started
+// directly with go are not managed or waited for.
+func (a *App) Go(name string, callback func(ctx context.Context) error) {
+	if callback == nil {
 		panic("app: nil background task func")
 	}
 
@@ -67,7 +58,7 @@ func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
 	go func() {
 		defer a.wg.Done()
 
-		if err := saferun(runCtx, fn); err != nil {
+		if err := saferun(runCtx, callback); err != nil {
 			// If the app is already shutting down, the task error is usually
 			// a consequence of cancellation and should not trigger another shutdown.
 			if runCtx.Err() != nil {
@@ -85,7 +76,7 @@ func (a *App) goNamed(name string, fn func(ctx context.Context) error) {
 	}()
 }
 
-func saferun(ctx context.Context, fn func(context.Context) error) (err error) {
+func saferun(ctx context.Context, callback func(ctx context.Context) error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
@@ -95,5 +86,5 @@ func saferun(ctx context.Context, fn func(context.Context) error) (err error) {
 			}
 		}
 	}()
-	return fn(ctx)
+	return callback(ctx)
 }

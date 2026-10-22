@@ -15,7 +15,9 @@
 package app
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/xgfone/go-toolkit/internal/priority"
@@ -23,8 +25,16 @@ import (
 
 // Module represents a lifecycle-managed component.
 //
-// [Module.Init] and [Module.Start] are executed in registration order.
-// [Module.Stop] is executed in reverse registration order.
+// Modules are ordered by descending Priority() int, if implemented,
+// with a default priority of 1. Equal priorities retain registration order.
+// [Module.Init] and [Module.Start] follow that order; [Module.Stop] reverses it.
+// Only modules whose Init returned nil are stopped, even if Start was not called
+// or returned an error. A failed Init must arrange to release partially acquired
+// resources.
+//
+// Stop is called before waiting for managed background tasks. A resource needed
+// by those tasks can instead be released through [App.On] at [StageCleanup]
+// after successful initialization. Such a module's Stop must leave that resource open.
 type Module interface {
 	Name() string
 	Init(ctx context.Context, app *App) error
@@ -63,6 +73,34 @@ func (a *App) Use(mods ...Module) {
 
 func sortModules(mods []Module) {
 	slices.SortStableFunc(mods, func(a, b Module) int {
-		return priority.Get(b) - priority.Get(a)
+		return cmp.Compare(priority.Get(b), priority.Get(a))
 	})
+}
+
+func (a *App) registerModuleLocked(m Module) {
+	initialized := false
+	for _, entry := range []struct {
+		phase    lifecyclePhase
+		method   string
+		callback func(context.Context, *App) error
+	}{
+		{phaseModuleInit, "init", m.Init},
+		{phaseModuleStart, "start", m.Start},
+		{phaseModuleStop, "stop", m.Stop},
+	} {
+		a.registerCallbackLocked(entry.phase, "", func(ctx context.Context) error {
+			if entry.phase == phaseModuleStop && !initialized {
+				return nil
+			}
+
+			err := entry.callback(ctx, a)
+			if entry.phase == phaseModuleInit {
+				initialized = err == nil
+			}
+			if err != nil {
+				return fmt.Errorf("app: %s module %q: %w", entry.method, m.Name(), err)
+			}
+			return nil
+		})
+	}
 }

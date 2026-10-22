@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package app provides the management of the application information.
+// Package app manages application metadata, lifecycle callbacks, modules, and
+// background tasks. Use [Stage.On] or [App.On] for callbacks, and [Use] or
+// [App.Use] to register modules. See [App.Run] for their execution order.
 package app
 
 import (
@@ -47,7 +49,7 @@ func init() {
 func setCommitFromBuildSettings(a *App, settings []debug.BuildSetting) {
 	for _, setting := range settings {
 		if setting.Key == "vcs.revision" {
-			a.SetCommit(setting.Value[:7])
+			a.SetCommit(setting.Value[:min(7, len(setting.Value))])
 			return
 		}
 	}
@@ -71,17 +73,18 @@ type App struct {
 	version atomic.Value
 	builtat atomic.Int64
 
-	configLoader    Hook
 	shutdownTimeout time.Duration
 	signals         []os.Signal
 
-	modules []Module
-	hooks   map[Stage][]namedHook
-	stage   Stage
-	state   state
+	modules   []Module
+	callbacks [phaseCount][]namedCallback
+	stage     lifecyclePhase // Last public stage; phaseConfig before StageInit.
+	state     state
 
-	runCtx    context.Context
-	cancelRun context.CancelFunc
+	ctx           context.Context
+	cancelContext context.CancelFunc
+	runCtx        context.Context
+	cancelRun     context.CancelFunc
 
 	wg    sync.WaitGroup
 	errCh chan error
@@ -98,13 +101,15 @@ type App struct {
 //   - uses 30 seconds as shutdown timeout
 //   - listens to [syscall.SIGINT], [syscall.SIGTERM]
 func New() *App {
+	ctx, cancel := context.WithCancel(context.Background())
 	app := &App{
-		state: stateNew,
-		hooks: make(map[Stage][]namedHook),
-		done:  make(chan struct{}),
+		state:         stateNew,
+		done:          make(chan struct{}),
+		ctx:           ctx,
+		cancelContext: cancel,
 	}
 	app.SetName(strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"))
-	app.SetConfigLoader(defaultFlagConfigLoader)
+	app.SetConfigLoader(app.defaultFlagConfigLoader)
 	app.SetShutdownTimeout(30 * time.Second)
 	app.SetSignals(os.Interrupt, syscall.SIGTERM)
 	app.SetVersion("0.0.0")
@@ -146,6 +151,23 @@ func (a *App) Version() string {
 func (a *App) BuildTime() time.Time {
 	return time.Unix(a.builtat.Load(), 0)
 }
+
+// Context returns the app's lifecycle cancellation context. It is created by
+// [New] and remains the same before, during, and after [App.Run]. It is canceled
+// when shutdown is requested, before [StageStopping], including on startup failure.
+// Use [App.Done] or [App.WaitContext] to wait for shutdown to finish.
+//
+// This context carries no values or deadline from the parent passed to [App.Run];
+// callbacks and managed background tasks receive that parent's derived run
+// context instead. Shutdown callbacks receive a separate shutdown context.
+func (a *App) Context() context.Context { return a.ctx }
+
+// Done returns a channel that closes after [StageCleanup] and [StageExited]
+// callbacks finish, immediately before [App.Run] returns. The same channel is
+// available from [New] onward. It stays open if Run has never been called.
+// If waiting for managed tasks times out, some tasks may still be running
+// when Done closes.
+func (a *App) Done() <-chan struct{} { return a.done }
 
 // SetName sets app name.
 //
@@ -197,6 +219,11 @@ func (a *App) SetBuildTime(builtat time.Time) {
 
 // SetShutdownTimeout sets graceful shutdown timeout.
 //
+// The timeout is shared by stopping callbacks, module Stop methods, waiting
+// for managed background tasks, cleanup callbacks, and exited callbacks. It
+// is cooperative: callbacks must observe their context or otherwise return
+// promptly. All shutdown callbacks are attempted even after the deadline.
+//
 // It must be called before [App.Run].
 func (a *App) SetShutdownTimeout(timeout time.Duration) {
 	if timeout <= 0 {
@@ -212,8 +239,8 @@ func (a *App) SetShutdownTimeout(timeout time.Duration) {
 
 // SetSignals sets signals that trigger graceful shutdown.
 //
-// Passing no signals means [App] will not listen to OS signals and will only stop
-// when parent ctx is canceled or a background task returns error.
+// Passing no signals means [App] will not listen to OS signals and will only
+// stop on [App.Stop], parent context cancellation, or a managed task failure.
 //
 // It must be called before [App.Run].
 func (a *App) SetSignals(signals ...os.Signal) {
@@ -233,142 +260,72 @@ func (a *App) SetSignals(signals ...os.Signal) {
 // Run starts the app lifecycle and blocks until shutdown,
 // which can only be called once.
 //
+// Startup loads configuration, runs [StageInit], initializes modules, runs
+// [StageStart], starts modules, then runs [StageReady]. Shutdown cancels the
+// run context, runs [StageStopping], stops initialized modules in reverse order,
+// waits for managed background tasks, then runs [StageCleanup] and [StageExited].
+// The same shutdown sequence is used if startup fails.
+//
 // If [App.Run] returns a non-nil error, caller may print it and call [os.Exit]
 // with status 1.
 func (a *App) Run(ctx context.Context) (err error) {
-	runCtx, cancelRun := context.WithCancel(ctx)
-	defer cancelRun()
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cancelRun := func() {
+		cancel()
+		a.cancelContext()
+	}
 
-	modules, loader, signals := a.startRun(runCtx, cancelRun)
+	signals := a.startRun(runCtx, cancelRun)
+	defer cancelRun()
+	// A parent can cancel while a startup callback is still blocked. Forward
+	// cancellation without waiting for that callback to return.
+	stopContextCancel := context.AfterFunc(runCtx, a.cancelContext)
+	defer stopContextCancel()
 	errCh := a.errCh
 
 	if len(signals) > 0 {
 		signalCtx, stopSignal := signal.NotifyContext(runCtx, signals...)
 		defer stopSignal()
 
-		// Cancel the context used by startup hooks and modules as soon as a
-		// signal arrives, even if startup is still waiting on a dependency.
+		// Cancel the context used by startup callbacks and modules as soon as
+		// a signal arrives, even if startup is still waiting on a dependency.
 		stopCancel := context.AfterFunc(signalCtx, cancelRun)
 		defer stopCancel()
 	}
 
-	initialized := make([]Module, 0, len(modules))
-	shutdownDone := false
-
-	doShutdown := func() error {
-		if shutdownDone {
-			return nil
-		}
-
-		shutdownDone = true
-
-		a.markStopping()
-		cancelRun()
-
-		shutdownCtx, cancelShutdown := a.newShutdownContext()
-		defer cancelShutdown()
-
-		var shutdownErr error
-
-		if e := a.runHooks(shutdownCtx, StageStopping); e != nil {
-			shutdownErr = errors.Join(shutdownErr, e)
-		}
-
-		if e := a.shutdown(shutdownCtx, initialized); e != nil {
-			shutdownErr = errors.Join(shutdownErr, e)
-		}
-
-		if e := a.runHooks(context.Background(), StageCleanup); e != nil {
-			shutdownErr = errors.Join(shutdownErr, e)
-		}
-
-		if e := a.runHooks(context.Background(), StageExited); e != nil {
-			shutdownErr = errors.Join(shutdownErr, e)
-		}
-
-		a.markExited()
-
-		return shutdownErr
-	}
-
-	defer func() {
-		if err != nil {
-			// A background failure may have canceled a startup hook. Preserve
-			// that failure rather than returning only context.Canceled.
-			select {
-			case backgroundErr := <-errCh:
-				err = errors.Join(err, backgroundErr)
-
-			default:
-			}
-			err = errors.Join(err, doShutdown())
-		}
-	}()
-
-	// 1. Config
-	if err = runCtx.Err(); err != nil {
-		return err
-	}
-	if err = loader(runCtx, a); err != nil {
-		return err
-	}
-
-	// 2. Init hooks
-	if err = a.runHooks(runCtx, StageInit); err != nil {
-		return err
-	}
-
-	// 3. Module Init
-	for _, m := range modules {
-		if err = runCtx.Err(); err != nil {
-			return err
-		}
-		if e := m.Init(runCtx, a); e != nil {
-			err = fmt.Errorf("app: init module %q: %w", m.Name(), e)
-			return err
-		}
-
-		initialized = append(initialized, m)
-	}
-
-	// 4. Start hooks
-	if err = a.runHooks(runCtx, StageStart); err != nil {
-		return err
-	}
-
-	// 5. Module Start
-	for _, m := range initialized {
-		if err = runCtx.Err(); err != nil {
-			return err
-		}
-		if e := m.Start(runCtx, a); e != nil {
-			err = fmt.Errorf("app: start module %q: %w", m.Name(), e)
-			return err
+	for phase := phaseConfig; phase <= phaseReady; phase++ {
+		if err = a.runPhase(runCtx, phase); err != nil {
+			break
 		}
 	}
 
-	// 6. Ready hooks
-	if err = a.runHooks(runCtx, StageReady); err != nil {
-		return err
+	if err == nil {
+		<-runCtx.Done()
 	}
 
-	// 7. Running
+	// A task publishes its error before canceling runCtx. Cancellation may
+	// have interrupted startup; preserve the original failure.
 	select {
-	case <-runCtx.Done():
-		// A task publishes its error before canceling runCtx. Both cases can
-		// be ready, so also inspect the error channel on the cancellation path.
-		select {
-		case e := <-errCh:
-			err = errors.Join(err, e)
-		default:
-		}
-
-	case e := <-errCh:
-		err = errors.Join(err, e)
+	case backgroundErr := <-errCh:
+		err = errors.Join(err, backgroundErr)
+	default:
 	}
 
-	// 8. Shutdown
-	err = errors.Join(err, doShutdown())
+	a.markStopping()
+	cancelRun()
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), a.shutdownTimeout)
+	defer cancelShutdown()
+
+	err = errors.Join(err, a.shutdown(shutdownCtx))
+	// A task may have passed its cancellation check before shutdown and only
+	// published its error while shutdown was waiting for it to finish.
+	select {
+	case backgroundErr := <-errCh:
+		err = errors.Join(err, backgroundErr)
+	default:
+	}
+	a.markExited()
 	return err
 }
 
@@ -388,8 +345,8 @@ func (a *App) Stop() {
 
 // Wait blocks until [App.Run] returns.
 //
-// If [App.Run] is still running, [App.Wait] blocks until the shutdown lifecycle finishes.
-// If [App.Run] has already returned, [App.Wait] returns immediately.
+// If [App.Run] is still running, [App.Wait] blocks until the shutdown lifecycle
+// finishes. If [App.Run] has already returned, [App.Wait] returns immediately.
 func (a *App) Wait() {
 	_ = a.WaitContext(context.Background())
 }
@@ -408,7 +365,7 @@ func (a *App) WaitContext(ctx context.Context) error {
 	}
 }
 
-func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module, Hook, []os.Signal) {
+func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) []os.Signal {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -421,30 +378,23 @@ func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]Module
 	a.cancelRun = cancel
 	a.errCh = make(chan error, 1)
 
-	loader := a.configLoader
-	signals := slices.Clone(a.signals)
-	modules := slices.Clone(a.modules)
-	sortModules(modules)
+	sortModules(a.modules)
+	for _, m := range a.modules {
+		a.registerModuleLocked(m)
+	}
+	a.registerCallbackLocked(phaseWaitBackground, "", a.waitBackground)
 
-	return modules, loader, signals
+	// Configuration is frozen once Run starts; these slices cannot change.
+	return a.signals
 }
 
-func (a *App) shutdown(ctx context.Context, initialized []Module) error {
+func (a *App) shutdown(ctx context.Context) error {
 	var errs []error
-
-	// Stop modules in reverse order.
-	for i := len(initialized) - 1; i >= 0; i-- {
-		m := initialized[i]
-
-		if err := m.Stop(ctx, a); err != nil {
-			errs = append(errs, fmt.Errorf("app: stop module %q: %w", m.Name(), err))
+	for phase := phaseStopping; phase < phaseCount; phase++ {
+		if err := a.runPhase(ctx, phase); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	if err := a.waitBackground(ctx); err != nil {
-		errs = append(errs, err)
-	}
-
 	return errors.Join(errs...)
 }
 
@@ -465,21 +415,11 @@ func (a *App) waitBackground(ctx context.Context) error {
 	}
 }
 
-func (a *App) newShutdownContext() (context.Context, context.CancelFunc) {
-	a.mu.Lock()
-	timeout := a.shutdownTimeout
-	a.mu.Unlock()
-
-	return context.WithTimeout(context.Background(), timeout)
-}
-
 func (a *App) markStopping() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if a.state == stateRunning {
-		a.state = stateStopping
-	}
+	a.state = stateStopping
 }
 
 func (a *App) markExited() {

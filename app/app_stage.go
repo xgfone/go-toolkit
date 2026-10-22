@@ -14,98 +14,59 @@
 
 package app
 
-// Stage is a lifecycle hook stage.
+import "context"
+
+// Stage is a lifecycle callback stage.
 type Stage string
 
 const (
-	StageInit  Stage = "init"
+	// StageInit runs after configuration is loaded and before [Module.Init].
+	// Use it for setup that does not depend on initialized modules.
+	StageInit Stage = "init"
+
+	// StageStart runs after all [Module.Init] calls and before [Module.Start].
+	// Use it to prepare business data that must be available before services start.
 	StageStart Stage = "start"
+
+	// StageReady runs after all [Module.Start] calls. Services such as HTTP servers
+	// may already be handling requests, so required request data belongs in
+	// [StageInit] or [StageStart].
 	StageReady Stage = "ready"
 
-	// If a [StageStopping] hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
+	// StageStopping runs after the run context is canceled and before [Module.Stop].
+	//
+	// If a [StageStopping] callback returns an error, the error is collected,
+	// but the remaining shutdown callbacks will continue to run.
 	StageStopping Stage = "stopping"
 
-	// StageCleanup is triggered after [StageStopping] and before [StageExited].
+	// StageCleanup runs after [Module.Stop] and waiting for managed background
+	// tasks, and before [StageExited]. If waiting times out, tasks may still
+	// be running.
 	//
-	// Hooks registered for [StageCleanup] are executed in reverse registration
+	// Callbacks registered for [StageCleanup] are executed in reverse registration
 	// order, making it suitable for releasing resources that were initialized
 	// earlier in the app lifecycle.
 	//
-	// If a [StageCleanup] hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
+	// If a [StageCleanup] callback returns an error, the error is collected,
+	// but the remaining shutdown callbacks will continue to run.
 	StageCleanup Stage = "cleanup"
 
 	// StageExited is the final lifecycle stage.
 	//
-	// It is triggered after [StageCleanup] has completed and before [App.Run] returns.
-	// Hooks registered for [StageExited] are intended for fast final notification
-	// logic, such as logging, metrics, or status reporting.
+	// It is triggered after [StageCleanup] has completed and before [App.Run]
+	// returns.  Callbacks registered for [StageExited] are intended for fast
+	// final notification logic, such as logging, metrics, or status reporting.
 	//
-	// [StageExited] does not mean the process has already exited. It means the [App]
-	// has reached its final lifecycle stage.
+	// [StageExited] does not mean the process has already exited. It means the
+	// [App] has reached its final lifecycle stage.
 	//
-	// If a [StageExited] hook returns an error, the error is collected, but the
-	// remaining cleanup hooks will continue to run.
+	// If a [StageExited] callback returns an error, the error is collected,
+	// but the remaining shutdown callbacks will continue to run.
 	StageExited Stage = "exited"
 )
 
-// On registers a hook function into the default app to be executed at the given stage.
-func (s Stage) On(hook Hook) {
-	defaultApp.On(s, hook)
-}
-
-// OnNamed registers a named hook function into the default app to be executed at the given stage.
-func (s Stage) OnNamed(name string, hook Hook) {
-	defaultApp.OnNamed(s, name, hook)
-}
-
-// OnCleanup registers a hook for [StageCleanup],
-// which is a convenience wrapper around [App.On].
-func (a *App) OnCleanup(hook Hook) {
-	a.On(StageCleanup, hook)
-}
-
-func (a *App) canRegisterHookLocked(stage Stage) bool {
-	if a.state == stateNew {
-		return true
-	}
-
-	if a.state == stateExited {
-		return false
-	}
-
-	return stageOrder(stage) > stageOrder(a.stage)
-}
-
-func validStage(stage Stage) bool {
-	return stageOrder(stage) > 0
-}
-
-func stageOrder(stage Stage) int {
-	switch stage {
-	case "":
-		return 0
-
-	case StageInit:
-		return 10
-
-	case StageStart:
-		return 20
-
-	case StageReady:
-		return 30
-
-	case StageStopping:
-		return 40
-
-	case StageCleanup:
-		return 50
-
-	case StageExited:
-		return 60
-
-	default:
-		return -1
-	}
+// On registers a context-only callback on the default app at this stage.
+// See [App.On].
+func (s Stage) On(name string, callback func(ctx context.Context) error) {
+	defaultApp.On(s, name, callback)
 }

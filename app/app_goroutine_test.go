@@ -17,83 +17,95 @@ package app
 import (
 	"context"
 	"errors"
-	"sync/atomic"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestGo_Panics_NilFunc(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	var panicked bool
-	app.On(StageStart, func(ctx context.Context, app *App) error {
-		func() {
-			defer func() {
-				if recover() != nil {
-					panicked = true
-				}
-			}()
-			app.Go(nil)
-		}()
-		return nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
-	if !panicked {
-		t.Error("expected panic")
-	}
+func TestGoValidation(t *testing.T) {
+	assertPanics(t, func() { New().Go("", nil) })
+	assertPanics(t, func() { New().Go("", func(context.Context) error { return nil }) })
 }
 
-func TestGo_Panics_BeforeRun(t *testing.T) {
-	defer func() { _ = recover() }()
-	New().Go(func(ctx context.Context) error { return nil })
-	t.Error("expected panic")
-}
-
-func TestGo_Success(t *testing.T) {
-	var done atomic.Bool
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go(func(ctx context.Context) error {
-			<-ctx.Done()
-			done.Store(true)
-			return nil
+func TestGoCompletionAfterCancellation(t *testing.T) {
+	for _, result := range []error{nil, errors.New("late task error")} {
+		name := "success"
+		if result != nil {
+			name = "late error ignored"
+		}
+		t.Run(name, func(t *testing.T) {
+			a := newTestRunApp()
+			completed := false
+			a.On(StageStart, "worker", func(ctx context.Context) error {
+				a.Go("worker", func(taskCtx context.Context) error {
+					if taskCtx != ctx {
+						t.Error("managed task did not receive the run context")
+					}
+					<-taskCtx.Done()
+					completed = true
+					return result
+				})
+				return nil
+			})
+			a.On(StageReady, "stop", func(context.Context) error { a.Stop(); return nil })
+			if err := a.Run(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if !completed {
+				t.Fatal("Run returned before the managed task finished")
+			}
 		})
-		return nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if !done.Load() {
-		t.Error("background task should have finished")
 	}
 }
 
-func TestGo_Error_TriggersShutdown(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go(func(ctx context.Context) error {
-			return errors.New("task failure")
+func TestGoFailureStopsStartup(t *testing.T) {
+	failure, panicFailure := errors.New("task failure"), errors.New("panic failure")
+	original := defaultApp
+	t.Cleanup(func() { defaultApp = original })
+	for _, tc := range []struct {
+		name, taskName string
+		packageGo      bool
+		callback       func(context.Context) error
+		wantErr        error
+		message        string
+	}{
+		{name: "unnamed", callback: func(context.Context) error { return failure }, wantErr: failure, message: "task failure"},
+		{name: "named", taskName: "worker", callback: func(context.Context) error { return failure }, wantErr: failure, message: "task failure"},
+		{name: "package", taskName: "worker", packageGo: true, callback: func(context.Context) error { return failure }, wantErr: failure, message: "task failure"},
+		{name: "panic error", taskName: "worker", callback: func(context.Context) error { panic(panicFailure) }, wantErr: panicFailure, message: "panic: panic failure"},
+		{name: "panic value", callback: func(context.Context) error { panic("panic failure") }, message: "panic: panic failure"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestRunApp()
+			start := a.Go
+			if tc.packageGo {
+				defaultApp = a
+				start = Go
+			}
+			a.On(StageStart, "start-worker", func(ctx context.Context) error {
+				start(tc.taskName, tc.callback)
+				<-ctx.Done()
+				return ctx.Err()
+			})
+			a.On(StageReady, "unexpected", func(context.Context) error {
+				t.Error("Ready ran after the managed task failed")
+				return nil
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			err := a.Run(ctx)
+			label := fmt.Sprintf("background task %q: %s", tc.taskName, tc.message)
+			if err == nil || !strings.Contains(err.Error(), label) {
+				t.Fatalf("Run error = %v, want %s", err, label)
+			}
+			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Run error = %v, want wrapped %v", err, tc.wantErr)
+			}
+			if ctx.Err() != nil {
+				t.Fatal("task failure stopped the app only after the parent timed out")
+			}
 		})
-		return nil
-	})
-
-	err := app.Run(context.Background())
-	if err == nil {
-		t.Fatal("expected error from background task")
 	}
 }
 
@@ -111,7 +123,7 @@ func TestGo_Error_FullErrorChannel(t *testing.T) {
 	app.errCh <- queuedErr
 
 	// Keep the channel full until the task exits so the send must select default.
-	app.GoNamed("worker", func(context.Context) error {
+	app.Go("worker", func(context.Context) error {
 		return errors.New("task failure")
 	})
 
@@ -133,32 +145,5 @@ func TestGo_Error_FullErrorChannel(t *testing.T) {
 
 	default:
 		t.Fatal("background task removed the queued error")
-	}
-}
-
-func TestGo_Convenience(t *testing.T) {
-	orig := defaultApp
-	defer func() { defaultApp = orig }()
-	defaultApp = New()
-	defaultApp.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	defaultApp.SetSignals()
-
-	var called atomic.Bool
-	defaultApp.On(StageStart, func(ctx context.Context, app *App) error {
-		Go(func(ctx context.Context) error {
-			<-ctx.Done()
-			called.Store(true)
-			return nil
-		})
-		return nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	if err := defaultApp.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if !called.Load() {
-		t.Error("convenience Go not called")
 	}
 }

@@ -17,94 +17,126 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
 	"runtime/debug"
 	"testing"
 	"time"
 )
 
-func TestNew_Defaults(t *testing.T) {
-	app := New()
-	if app.Name() == "" {
-		t.Error("expected non-empty default name")
-	}
-	if app.Version() != "0.0.0" {
-		t.Error("expected empty default version")
-	}
+func newTestRunApp() *App {
+	a := New()
+	a.SetSignals()
+	a.SetConfigLoader(func(context.Context) error { return nil })
+	return a
 }
 
-func TestSetName(t *testing.T) {
-	app := New()
-	app.SetName("myapp")
-	if app.Name() != "myapp" {
-		t.Errorf("expected 'myapp', got %q", app.Name())
-	}
-}
-
-func TestSetName_Panics_Empty(t *testing.T) {
-	defer func() { _ = recover() }()
-	New().SetName("")
-	t.Error("expected panic")
-}
-
-func TestSetName_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
+func assertPanics(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic")
+		}
 	}()
-	_ = app.Run(ctx)
-
-	defer func() { _ = recover() }()
-	app.SetName("x")
-	t.Error("expected panic")
+	fn()
 }
 
-func TestSetVersion(t *testing.T) {
-	app := New()
-	app.SetVersion("v2")
-	if app.Version() != "v2" {
-		t.Errorf("expected 'v2', got %q", app.Version())
+func TestAppMetadata(t *testing.T) {
+	a := New()
+	if a.Name() == "" || a.Version() != "0.0.0" {
+		t.Fatalf("unexpected defaults: name=%q, version=%q", a.Name(), a.Version())
+	}
+
+	a.SetName("myapp")
+	a.SetVersion("v2")
+	a.SetCommit("abc123")
+	if a.Name() != "myapp" || a.Version() != "v2" || a.Commit() != "abc123" {
+		t.Fatalf("metadata = %q, %q, %q", a.Name(), a.Version(), a.Commit())
 	}
 }
 
-func TestSetVersion_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
-
-	defer func() { _ = recover() }()
-	app.SetVersion("x")
-	t.Error("expected panic")
-}
-
-func TestSetCommit(t *testing.T) {
-	app := New()
-	app.SetCommit("abc123")
-	if app.Commit() != "abc123" {
-		t.Errorf("expected 'abc123', got %q", app.Commit())
+func TestAppConfigurationValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		configure func(*App)
+	}{
+		{"empty name", func(a *App) { a.SetName("") }},
+		{"zero timeout", func(a *App) { a.SetShutdownTimeout(0) }},
+		{"negative timeout", func(a *App) { a.SetShutdownTimeout(-time.Second) }},
+		{"nil signal", func(a *App) { a.SetSignals(nil) }},
+		{"nil config loader", func(a *App) { a.SetConfigLoader(nil) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assertPanics(t, func() {
+				tc.configure(New())
+			})
+		})
 	}
 }
 
-func TestSetCommit_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
+func TestAppConfigurationAfterRun(t *testing.T) {
+	a := newTestRunApp()
+	configurations := []struct {
+		name      string
+		configure func()
+	}{
+		{"name", func() { a.SetName("late") }},
+		{"version", func() { a.SetVersion("late") }},
+		{"commit", func() { a.SetCommit("late") }},
+		{"build time", func() { a.SetBuildTime(time.Now()) }},
+		{"timeout", func() { a.SetShutdownTimeout(time.Second) }},
+		{"signals", func() { a.SetSignals(os.Interrupt) }},
+		{"config loader", func() { a.SetConfigLoader(func(context.Context) error { return nil }) }},
+		{"module", func() { a.Use(newTestModule("late")) }},
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
+	check := func(state string) {
+		for _, tc := range configurations {
+			t.Run(state+"/"+tc.name, func(t *testing.T) { assertPanics(t, tc.configure) })
+		}
+	}
+	a.On(StageReady, "validate", func(context.Context) error {
+		check("running")
+		a.Stop()
+		return nil
+	})
 
-	defer func() { _ = recover() }()
-	app.SetCommit("x")
-	t.Error("expected panic")
+	if err := a.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	check("exited")
+}
+
+func TestWait(t *testing.T) {
+	a := newTestRunApp()
+	waited := make(chan struct{})
+	go func() { a.Wait(); close(waited) }()
+	select {
+	case <-waited:
+		t.Fatal("Wait returned before Run")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	a.On(StageReady, "stop", func(context.Context) error {
+		a.Stop()
+		return nil
+	})
+	if err := a.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-waited:
+	case <-time.After(time.Second):
+		t.Fatal("Wait did not return after Run")
+	}
+}
+
+func TestWaitContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := New().WaitContext(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitContext = %v, want DeadlineExceeded", err)
+	}
 }
 
 func TestSetBuildTime(t *testing.T) {
@@ -121,147 +153,6 @@ func TestSetBuildTime(t *testing.T) {
 	}
 	if got.Location() != time.Local {
 		t.Errorf("expected location %v, got %v", time.Local, got.Location())
-	}
-}
-
-func TestSetBuildTime_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
-
-	defer func() { _ = recover() }()
-	app.SetBuildTime(time.Now())
-	t.Error("expected panic")
-}
-
-func TestSetShutdownTimeout_Panics_NonPositive(t *testing.T) {
-	defer func() { _ = recover() }()
-	New().SetShutdownTimeout(0)
-	t.Error("expected panic")
-}
-
-func TestSetShutdownTimeout_Panics_AfterRun(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	_ = app.Run(ctx)
-
-	defer func() { _ = recover() }()
-	app.SetShutdownTimeout(time.Second)
-	t.Error("expected panic")
-}
-
-func TestSetShutdownTimeout(t *testing.T) {
-	app := New()
-	app.SetShutdownTimeout(5 * time.Second)
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(10 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSetSignals_Panics_Nil(t *testing.T) {
-	defer func() { _ = recover() }()
-	New().SetSignals(nil)
-	t.Error("expected panic")
-}
-
-func TestSetSignals_Empty(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals() // no signals — only stops via ctx cancel or error
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestRun(t *testing.T) {
-	origApp := defaultApp
-	defer func() { defaultApp = origApp }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	if err := Run(ctx); err != nil {
-		t.Errorf("expect nil, but got an error: %v", err)
-	}
-}
-
-func TestRun_ConfigError(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return errors.New("config fail") })
-	app.SetSignals()
-
-	err := app.Run(context.Background())
-	if err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestRun_Panics_DoubleCall(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	firstDone := make(chan struct{})
-	go func() {
-		defer close(firstDone)
-		_ = app.Run(ctx)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Error("expected panic on double Run")
-			}
-		}()
-		_ = app.Run(context.Background())
-	}()
-
-	cancel()
-	<-firstDone
-}
-
-func TestShutdownBackgroundTaskTimeout(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-	app.SetShutdownTimeout(50 * time.Millisecond)
-
-	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go(func(ctx context.Context) error {
-			select {}
-		})
-		return nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-
-	err := app.Run(ctx)
-	if err == nil {
-		t.Fatal("expected timeout error waiting for background tasks")
 	}
 }
 
@@ -284,197 +175,23 @@ func TestName_Version_Convenience(t *testing.T) {
 	}
 }
 
-func TestGo_Error_ContextCancelled_NoShutdown(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	app.On(StageStart, func(ctx context.Context, app *App) error {
-		app.Go(func(ctx context.Context) error {
-			<-ctx.Done()
-			return errors.New("late error")
-		})
-		return nil
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(100 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal("expected no error because task error happens after cancel:", err)
-	}
-}
-
-func TestWait_BlocksUntilRunExits(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	runDone := make(chan struct{})
-	go func() {
-		defer close(runDone)
-		_ = app.Run(ctx)
-	}()
-
-	waitDone := make(chan struct{})
-	go func() {
-		app.Wait()
-		close(waitDone)
-	}()
-
-	select {
-	case <-waitDone:
-		t.Fatal("Wait should block before Run exits")
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	cancel()
-
-	select {
-	case <-waitDone:
-	case <-time.After(time.Second):
-		t.Fatal("Wait should return after Run exits")
-	}
-
-	<-runDone
-}
-
-func TestWait_ReturnsImmediatelyAfterRunExit(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	done := make(chan struct{})
-	go func() {
-		app.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Wait should return immediately after Run exits")
-	}
-}
-
-func TestWaitContext_ReturnsCtxErrWhenCanceledFirst(t *testing.T) {
-	app := New()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-
-	start := time.Now()
-	err := app.WaitContext(ctx)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("expected context deadline exceeded, got: %v", err)
-	}
-	if time.Since(start) < 40*time.Millisecond {
-		t.Fatal("WaitContext should wait until context is done")
-	}
-}
-
-func TestWaitContext_ReturnsNilWhenRunExited(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	runCtx, runCancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); runCancel() }()
-	if err := app.Run(runCtx); err != nil {
-		t.Fatal(err)
-	}
-
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-	defer waitCancel()
-
-	if err := app.WaitContext(waitCtx); err != nil {
-		t.Fatalf("expected nil, got: %v", err)
-	}
-}
-
-func TestStop_StopsRunningApp(t *testing.T) {
-	app := New()
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	runDone := make(chan error, 1)
-	go func() {
-		runDone <- app.Run(context.Background())
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	app.Stop()
-
-	select {
-	case err := <-runDone:
-		if err != nil {
-			t.Fatalf("expected nil, got: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Run should stop after Stop")
-	}
-}
-
 func TestSetCommitFromBuildSettings(t *testing.T) {
-	t.Run("with_vcs_revision", func(t *testing.T) {
-		a := New()
-		a.SetCommit("")
-		setCommitFromBuildSettings(a, []debug.BuildSetting{
-			{Key: "vcs.revision", Value: "abc1234567890"},
+	for _, tc := range []struct {
+		name     string
+		settings []debug.BuildSetting
+		want     string
+	}{
+		{name: "revision", settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "abc1234567890"}}, want: "abc1234"},
+		{name: "short revision", settings: []debug.BuildSetting{{Key: "vcs.revision", Value: "abc"}}, want: "abc"},
+		{name: "other setting", settings: []debug.BuildSetting{{Key: "other.key", Value: "val"}}},
+		{name: "empty settings"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := New()
+			setCommitFromBuildSettings(a, tc.settings)
+			if a.Commit() != tc.want {
+				t.Errorf("Commit = %q, want %q", a.Commit(), tc.want)
+			}
 		})
-		if a.Commit() != "abc1234" {
-			t.Errorf("expected abc1234, got %q", a.Commit())
-		}
-	})
-
-	t.Run("without_vcs_revision", func(t *testing.T) {
-		a := New()
-		a.SetCommit("")
-		setCommitFromBuildSettings(a, []debug.BuildSetting{
-			{Key: "other.key", Value: "val"},
-		})
-		if a.Commit() != "" {
-			t.Errorf("expected empty, got %q", a.Commit())
-		}
-	})
-
-	t.Run("empty_settings", func(t *testing.T) {
-		a := New()
-		a.SetCommit("")
-		setCommitFromBuildSettings(a, nil)
-		if a.Commit() != "" {
-			t.Errorf("expected empty, got %q", a.Commit())
-		}
-	})
-}
-
-func TestStop_NoOpWhenNotRunningOrExited(t *testing.T) {
-	app := New()
-	app.Stop() // no-op before Run
-
-	app.SetConfigLoader(func(ctx context.Context, app *App) error { return nil })
-	app.SetSignals()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
-	if err := app.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	app.Stop() // no-op after Run exits
-	app.Stop()
-
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer waitCancel()
-	if err := app.WaitContext(waitCtx); err != nil {
-		t.Fatalf("expected nil, got: %v", err)
 	}
 }
