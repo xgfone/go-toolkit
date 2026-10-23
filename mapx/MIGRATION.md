@@ -1,4 +1,4 @@
-# mapx: v0.30.2 to v1
+# `mapx`: v0.30.2 to v1
 
 This guide compares tag `v0.30.2` with the v1 implementation in this source tree.
 Use the guide from your selected v1 tag or revision. Examples omit imports and
@@ -13,15 +13,15 @@ None.
 | Previous API                          | Replacement                                                                     |
 | ------------------------------------- | ------------------------------------------------------------------------------- |
 | `Convert(m, f)`                       | `mapx.To(m, f)`                                                                 |
-| `Empty(m)`                            | `if m == nil { m = M{} }`, where M is the original map type.                    |
+| `Empty(m)`                            | `if m == nil { m = M{} }`, where `M` is the original map type.                  |
 | `NewSMap[T](capacity)`                | `make(mapx.SMap[T], capacity)`                                                  |
 | `Collect(capacity, seq)`              | `make` followed by `maps.Insert`; see below.                                    |
 | `Keys(m)` / `Values(m)`               | Collect `maps.Keys(m)` / `maps.Values(m)` into a preallocated slice; see below. |
 | `KeysFunc(m, f)` / `ValuesFunc(m, f)` | Add an `iterx.To` transformation before collecting; see below.                  |
-| `All(m)` / `Pair`                     | Use `for k, v := range maps.All(m)`; to retain the Pair iterator, see below.    |
+| `All(m)` / `Pair`                     | Use `for k, v := range maps.All(m)`; to retain the `Pair` iterator, see below.  |
 | `Filter(m, convert)`                  | `iterx.FilterTo2` with preallocated collection; see below.                      |
 
-**Collecting an iterator:** preserve the capacity hint, non-nil results for empty input,
+**Collecting an iterator:** preserve the capacity hint, non-`nil` results for empty input,
 and later values overwriting earlier entries with the same key.
 
 ```go
@@ -29,7 +29,7 @@ out := make(map[K]V, max(0, capacity))
 maps.Insert(out, seq)
 ```
 
-**Collecting keys and values:** preserve preallocation and non-nil slices for empty input.
+**Collecting keys and values:** preserve preallocation and non-`nil` slices for empty input.
 Order remains unspecified.
 
 ```go
@@ -52,10 +52,11 @@ if m != nil {
 ```
 
 This preserves support for NaN keys and overwriting duplicate converted keys.
-For a local implementation, check for nil, preallocate, then iterate over m and
-write the converted key/value only when the callback returns true.
+For a local implementation, check for `nil`, preallocate, then iterate over `m`
+and write the converted key/value only when the callback returns `true`.
 
-**Retaining the Pair iterator:** if callers require `iter.Seq[Pair]`, define it locally:
+**Retaining the `Pair` iterator:** if callers require `iter.Seq[Pair]`,
+define it locally:
 
 ```go
 type Pair[K comparable, V any] struct {

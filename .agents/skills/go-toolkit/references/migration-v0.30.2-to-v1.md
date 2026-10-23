@@ -25,10 +25,10 @@ discovery, return to the skill's `SKILL.md`.
 
 | Package   | Target module document        | Important checks                                                                                                                                                                                                                                                                              |
 | --------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`     | `app/MIGRATION.md`            | Replace Hook/OnNamed/GoNamed callbacks and the old Module contract; adopt dependency batches, module task groups, explicit joins and resource release, and independent shutdown budgets.                                                                                                      |
+| `app`     | `app/MIGRATION.md`            | Replace `Hook`/`OnNamed`/`GoNamed` callbacks and the old `Module` contract; adopt dependency batches, module task groups, explicit joins and resource release, and independent shutdown budgets.                                                                                              |
 | `iterx`   | `iterx/MIGRATION.md`          | `Map` becomes `To`; callback forms become `SumFunc`/`CountFunc`. `Sum`/`Count` now consume values directly. Replace removed `All`, `Any`, `Seq`, `Seq2`, and numeric constraints as documented. Preserve laziness and early termination.                                                      |
-| `slicex`  | `slicex/MIGRATION.md`         | Remove the deprecated `Convert` alias in favor of the existing `To`; conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, nil versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements.           |
-| `mapx`    | `mapx/MIGRATION.md`           | Remove the deprecated `Convert` alias in favor of the existing `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/Pair helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed.          |
+| `slicex`  | `slicex/MIGRATION.md`         | Remove the deprecated `Convert` alias in favor of the existing `To`; conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, `nil` versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements.         |
+| `mapx`    | `mapx/MIGRATION.md`           | Remove the deprecated `Convert` alias in favor of the existing `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/`Pair` helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed.        |
 | `stringx` | `stringx/README.md#migration` | Concrete `Desensitizer` becomes `MaskDesensitizer`; `Desensitizer` is now an interface. Presets become getters/setters. `Builder` becomes `AffixGenerator`; string-producing `Generate(n)` and buffer-appending `Append(dst,n)` replace the old API. Update custom generator implementations. |
 
 Read the package guides from the selected v1 source rather than copying them
@@ -55,9 +55,9 @@ for every package.
 
 ### Application lifecycle
 
-In v0.30.2, `app.Hook` took `context.Context, *app.App`. v1 removes Hook;
+In v0.30.2, `app.Hook` took `context.Context, *app.App`. v1 removes `Hook`;
 lifecycle callbacks and configuration loaders take only `context.Context` and
-return an error. Capture the owning App in a closure when it is needed. Task
+return an error. Capture the owning `App` in a closure when it is needed. Task
 callbacks already took only context in v0.30.2 and keep that signature. The
 callback context is supplied at execution time; do not capture a startup context
 for shutdown work.
@@ -65,93 +65,94 @@ for shutdown work.
 | v0.30.2 API                                          | v1 replacement                                                                                          |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `a.On(stage, hook)` / `a.OnNamed(stage, name, hook)` | `a.On(stage, name, callback)`; use `""` for an unnamed callback.                                        |
-| `stage.On(hook)` / `stage.OnNamed(name, hook)`       | `stage.On(name, callback)` on the default App.                                                          |
+| `stage.On(hook)` / `stage.OnNamed(name, hook)`       | `stage.On(name, callback)` on the default `App`.                                                        |
 | `a.Go(fn)` / `a.GoNamed(name, fn)`                   | `a.Go(name, fn)`; the same change applies to package-level `app.Go` / `app.GoNamed`.                    |
 | `a.SetConfigLoader(hook)`                            | `a.SetConfigLoader(func(context.Context) error)`.                                                       |
 | `a.OnCleanup(hook)` / `app.CloserFuncHook(fn)`       | `a.Cleanup(fn)` for a simple closer, or `a.On(app.StageCleanup, name, callback)`.                       |
 | `a.AtExit(fn)`                                       | `a.On(app.StageExited, name, callback)` for notifications; `a.Finalize(name, callback)` for the logger. |
-| `a.Wait()` / `a.WaitContext(ctx)`                    | `a.Wait(ctx) error`, returning Run's final result.                                                      |
+| `a.Wait()` / `a.WaitContext(ctx)`                    | `a.Wait(ctx) error`, returning `Run`'s final result.                                                    |
 
-`a.Cleanup(func() error)` remains available. App.Context, App.Done, TaskGroup,
-ReportError, and Finalize are additions; use Context to observe cancellation,
-and Done or Wait to observe completion.
+`a.Cleanup(func() error)` remains available. `App.Context`, `App.Done`, `TaskGroup`,
+`ReportError`, and `Finalize` are additions; use `Context` to observe cancellation,
+and `Done` or `Wait` to observe completion.
 
-Names may be empty. Module methods retain their `context.Context, *app.App` parameters.
+Names may be empty. `Module` methods retain their `context.Context, *app.App` parameters.
 Callbacks may register future stages during execution, but registering the current
 or an earlier stage panics. Configuration setters and module registration must
 finish before `Run` starts.
 
-Startup runs configuration, Init callbacks, Module.Init, Module.Prepare, Start
-callbacks, Module.Start, then Ready callbacks. All Init calls finish before any
-Prepare; all Prepare calls finish before any Start. Prepare loads critical cache
-snapshots and business data before servers can accept requests.
+Startup runs configuration, `Init` callbacks, `Module.Init`, `Module.Prepare`,
+`Start` callbacks, `Module.Start`, then `Ready` callbacks. All `Init` calls
+finish before any `Prepare`; all `Prepare` calls finish before any `Start`.
+`Prepare` loads critical cache snapshots and business data before servers
+can accept requests.
 
-Module now requires Init/Prepare/Start/Stop/Wait/Close (plus Name). Stop initiates
-business shutdown promptly. Wait joins additional business activity outside the
-module's TaskGroup, including required final writes, and may return nil when there
-is no such activity. The app separately stops and joins registered group tasks;
-both joins must succeed before providers stop or Close releases resources.
-Replace the old Stop resource closer with Close. Pure database/Redis modules can
-leave Prepare/Start/Stop/Wait empty; driver-internal maintenance belongs to the
-pool's Close.
+`Module` now requires `Init`/`Prepare`/`Start`/`Stop`/`Wait`/`Close` (plus `Name`).
+`Stop` initiates business shutdown promptly. `Wait` joins additional business
+activity outside the module's `TaskGroup`, including required final writes, and
+may return `nil` when there is no such activity. The app separately stops and
+joins registered group tasks; both joins must succeed before providers stop or
+`Close` releases resources. Replace the old `Stop` resource closer with `Close`.
+Pure database/Redis modules can leave `Prepare`/`Start`/`Stop`/`Wait` empty;
+driver-internal maintenance belongs to the pool's `Close`.
 
-Optional Dependencies() []string names required registered modules. Use
-app.WithDependencies(module, names...) to add dependencies without a custom wrapper;
-it copies the supplied names and preserves existing dependencies and priority.
-Repeated wrapping appends names; repeated names still fail validation. The app
-validates unique names and missing/repeated/self/cyclic dependencies before startup.
-Explicit dependencies override Priority; priority and registration order break
-ties within dependency batches. Startup visits providers first. Shutdown visits
-users first: each batch calls every Stop, cancels its TaskGroups, then joins
-every Wait and group before stopping the provider batch.
+Optional `Dependencies() []string` names required registered modules. Use
+`app.WithDependencies(module, names...)` to add dependencies without a custom
+wrapper; it copies the supplied names and preserves existing dependencies and
+priority. Repeated wrapping appends names; repeated names still fail validation.
+The app validates unique names and missing/repeated/self/cyclic dependencies
+before startup. Explicit dependencies override `Priority`; priority and registration
+order break ties within dependency batches. Startup visits providers first. Shutdown
+visits users first: each batch calls every `Stop`, cancels its `TaskGroup` instances,
+then joins every `Wait` and group before stopping the provider batch.
 
-TaskGroup use is optional: resource-only modules may leave their groups unused.
-Use a.TaskGroup(moduleName).Go(name, callback) for module-owned workers, servers,
-and refreshers. App handles group Stop/Wait automatically; modules implement the
-business stop protocol and any additional join without repeating these calls.
-HTTP Serve belongs to the group; HTTP Wait joins graceful shutdown and handlers.
-Group contexts preserve Run values without inheriting its cancellation/deadline;
+`TaskGroup` use is optional: resource-only modules may leave their groups unused.
+Use `a.TaskGroup(moduleName).Go(name, callback)` for module-owned workers, servers,
+and refreshers. `App` handles group `Stop`/`Wait` automatically; modules implement
+the business stop protocol and any additional join without repeating these calls.
+HTTP `Serve` belongs to the group; HTTP `Wait` joins graceful shutdown and handlers.
+Group contexts preserve `Run` values without inheriting its cancellation/deadline;
 each group is canceled only in its shutdown batch, so a draining HTTP request can
-submit its final job downstream. Admission racing Stop is either counted and joined
-or rejected. TaskGroup lookup remains available after Run returns, so a still-live
-user can find retained dependencies for its final work; stopped groups reject new
-tasks. App.Go uses the run context and joins the outermost batch; it has no module
-dependency ordering. Track child work explicitly. Logger writer tasks belong to
-finalization, outside business groups.
+submit its final job downstream. Admission racing `Stop` is either counted and
+joined or rejected. `TaskGroup` lookup remains available after `Run` returns,
+so a still-live user can find retained dependencies for its final work; stopped
+groups reject new tasks. `App.Go` uses the run context and joins the outermost
+batch; it has no module dependency ordering. Track child work explicitly.
+Logger writer tasks belong to finalization, outside business groups.
 
-Replace v0.30.2 App.Wait() and App.WaitContext(ctx) with App.Wait(ctx) error.
-It returns the same final result as Run, supports concurrent/repeated waiters,
+Replace v0.30.2 `App.Wait()` and `App.WaitContext(ctx)` with `App.Wait(ctx) error`.
+It returns the same final result as `Run`, supports concurrent/repeated waiters,
 and prefers a completed result over a canceled wait context. Canceling a wait
-does not stop the app. Use context.Background() for unbounded waiting.
+does not stop the app. Use `context.Background()` for unbounded waiting.
 
-After successful business joins, module Close precedes Cleanup (reverse order),
-Exited, and a.Finalize("logger", callback). Initialize logging in StageInit and
-close it only in the finalizer. Write-back caches must persist pending data
+After successful business joins, module `Close` precedes `Cleanup` (reverse order),
+`Exited`, and `a.Finalize("logger", callback)`. Initialize logging in `StageInit`
+and close it only in the finalizer. Write-back caches must persist pending data
 before databases close; closing clients must not delete shared Redis data.
 
-In v0.30.2, module Stop and the app-level task join shared SetShutdownTimeout;
-Cleanup and Exited used unbounded background contexts. In v1, SetShutdownTimeout
-controls all drain batches. Cleanup, Exited, and the logger finalizer have
-separate SetCleanupTimeout, SetExitedTimeout, and SetFinalizerTimeout budgets.
-Run cancellation triggers stopping; shutdown contexts retain values without the
+In v0.30.2, module `Stop` and the app-level task join shared `SetShutdownTimeout`;
+`Cleanup` and `Exited` used unbounded background contexts. In v1, `SetShutdownTimeout`
+controls all drain batches. `Cleanup`, `Exited`, and the logger finalizer have
+separate `SetCleanupTimeout`, `SetExitedTimeout`, and `SetFinalizerTimeout` budgets.
+`Run` cancellation triggers stopping; shutdown contexts retain values without the
 running cancellation/deadline. Deadlines are cooperative, not forced goroutine
 termination.
 
-If joining fails, Run and Wait return app.ErrShutdownIncomplete. A failed
+If joining fails, `Run` and `Wait` return `app.ErrShutdownIncomplete`. A failed
 module's transitive providers keep running while independent branches still stop;
 if app-level tasks cannot join, all remaining provider batches are kept. Resource
-release, Cleanup, Exited, and finalization are skipped. Done means the attempt
+release, `Cleanup`, `Exited`, and finalization are skipped. `Done` means the attempt
 returned, not that users ended. There is no automatic cleanup/retry; arrange
 eventual termination and release retained resources only after their users exit.
 Task failures and panics are collected, including non-cancellation failures during
-draining. The final result does not change after Run returns. Panics in Run-time
-metadata, config, module methods, callbacks, and the finalizer become errors and
-follow rollback; Wait panics retain dependencies. HTTP Wait cancellation only
-ends the observer wait; Stop's context controls its grace budget. Failed HTTP
-Init closes its raw listener even when wrapping returns nil or panics. See
-app/MIGRATION.md for the full v0.30.2-to-v1 lifecycle migration. Regenerate files
-from app/cmd/version so generated initializers use app.Default() instead of
-app.DefaultApp; the v1 command also parses its flags and adds a commit-count
+draining. The final result does not change after `Run` returns. Panics during `Run`
+in metadata, config, module methods, callbacks, and the finalizer become errors and
+follow rollback; `Wait` panics retain dependencies. HTTP `Wait` cancellation only
+ends the observer wait; `Stop`'s context controls its grace budget. Failed HTTP
+`Init` closes its raw listener even when wrapping returns `nil` or panics. See
+`app/MIGRATION.md` for the full v0.30.2-to-v1 lifecycle migration. Regenerate files
+from `app/cmd/version` so generated initializers use `app.Default()` instead of
+`app.DefaultApp`; the v1 command also parses its flags and adds a commit-count
 suffix when HEAD is beyond its selected version tag.
 
 ### JSON codecs
@@ -174,18 +175,18 @@ disabled HTML escaping, and only its writer form appended a newline. v1 writer
 operations no longer append that newline, including HTTP responses and requests.
 
 The v1 defaults are case-sensitive for struct fields, reject duplicate names and
-invalid UTF-8, and require a single complete JSON value through EOF. Nil maps and
-ordinary slices encode as empty collections, map member order is unspecified,
+invalid UTF-8, and require a single complete JSON value through EOF. `nil` maps
+and ordinary slices encode as empty collections, map member order is unspecified,
 byte arrays encode as base64 strings, and ordinary array decoding requires the
-exact length. JSON null now resets existing scalar values. A lower-case `code`
-member no longer fills codeint.Error.Code and may be ignored without an error.
+exact length. JSON `null` now resets existing scalar values. A lower-case `code`
+member no longer fills `codeint.Error.Code` and may be ignored without an error.
 Review custom pointer-receiver serializers and the numeric-only `,string` tag
 option.
 
 The new `omitempty` meaning can add zero numeric fields or remove empty values
 behind interfaces: `codeint.Error{}` now encodes as `{"Code":0}`, while
-`result.Ok("")` encodes as `{}`. Plain errors such as errors.New contain no
-exported fields and can fail JSON encoding; time.Duration also has no default
+`result.Ok("")` encodes as `{}`. Plain errors such as `errors.New` contain no
+exported fields and can fail JSON encoding; `time.Duration` also has no default
 representation in the current codec. Use explicit wire DTOs or application-owned
 codecs when preserving an old contract. Some convenience responders discard
 rendering errors, so check payload serialization or own the responder. Root
@@ -203,8 +204,8 @@ and explicit `In(location)` when a specific location is required.
 converting to the old UTC default. `Today` uses the returned time's location.
 Code requiring UTC should request it explicitly; a custom `SetNowFunc`
 can return UTC for toolkit clock consumers, including string time generators.
-App.BuildTime now returns the stored instant in time.Local instead of the
-v0.30.2 timex.Location policy (UTC by default). Convert explicitly when a
+`App.BuildTime` now returns the stored instant in `time.Local` instead of the
+v0.30.2 `timex.Location` policy (UTC by default). Convert explicitly when a
 particular location is required. Restore `time.Now` after tests and do not
 replace the clock concurrently with its consumers. `timex.Sleep` is a new
 cancellation-aware helper.
@@ -212,19 +213,20 @@ cancellation-aware helper.
 ## Behavioral changes to verify
 
 - **HTTP clients:** automatic JSON decoding writes directly into the caller's
-  destination; pass a non-nil pointer. Automatic handling accepts status 200,
+  destination; pass a non-`nil` pointer. Automatic handling accepts status 200,
   while a response callback owns status/format handling. Debug logging now
   includes method, host, path, and status rather than bodies and headers.
 - **HTTP binding and responses:** `BindPath` reads populated path wildcards
   and then applies defaults/validation. Test wrapped errors and response status
   selection; invalid explicit `codeint.Error` HTTP statuses normalize to 500.
   Informational response headers no longer prevent a later final response;
-  101 remains final. The Context writer rejects statuses outside [100, 999].
+  101 remains final. The `Context` writer rejects statuses outside [100, 999].
 - **HTTP headers:** MIME types are normalized and charset parameters are
-  unquoted. Accept/AcceptEncoding/AcceptLanguage read all header values, honor
-  quoted commas and q parameters, and reject invalid weights. WebSocket checks
-  accept comma-separated Connection and Upgrade tokens. See root MIGRATION.md
-  for examples; these changes can affect content-type binding and negotiation.
+  unquoted. `Accept`/`AcceptEncoding`/`AcceptLanguage` read all header values,
+  honor quoted commas and `q` parameters, and reject invalid weights. WebSocket
+  checks accept comma-separated `Connection` and `Upgrade` tokens. See root
+  `MIGRATION.md` for examples; these changes can affect content-type binding
+  and negotiation.
 - **Routing:** the default backend sends unmatched paths and methods to the
   fallback, and leaves handler-generated 404 responses alone. An explicit
   catch-all takes precedence. Route inspection returns snapshots; changing an
@@ -238,19 +240,19 @@ cancellation-aware helper.
   retained and can stop the app. `module.HttpServer.Start` requires a running
   app and participates in rollback/shutdown; integrate it through `app.Module`.
 - **Utilities:** comment stripping respects double-quoted text and escapes.
-  Network address conversion rejects nil/malformed values and preserves IPv6
-  zones. Nil values with an `IsZero` method count as zero without invoking that
-  method; `EqualZero` uses ordinary equality instead. Stacks now includes its
-  final frame. Text binding copies string inputs passed to UnmarshalText instead
+  Network address conversion rejects `nil`/malformed values and preserves IPv6
+  zones. `nil` values with an `IsZero` method count as zero without invoking that
+  method; `EqualZero` uses ordinary equality instead. `Stacks` now includes its
+  final frame. Text binding copies string inputs passed to `UnmarshalText` instead
   of exposing an unsafe string alias. Cryptographic integer generation no longer
   falls back to weaker randomness after a crypto-source failure. Generated
   millisecond time components are padded to three digits; string generators
   now validate minimum and exact output lengths.
 
-New APIs without v0.30.2 predecessors also include strconvx.ParseInt64Slice and
-ParseUint64Slice, timex.Sleep, runtimex.EqualZero, stringx email masking and
-DesensitizerFunc, and the optional experimental exp/iterx streams. Read their
-contracts in root MIGRATION.md and the target package source.
+New APIs without v0.30.2 predecessors also include `strconvx.ParseInt64Slice` and
+`ParseUint64Slice`, `timex.Sleep`, `runtimex.EqualZero`, `stringx` email masking
+and `DesensitizerFunc`, and the optional experimental `exp/iterx` streams. Read
+their contracts in root `MIGRATION.md` and the target package source.
 
 Run tests for the used packages and their application integration after updating
 call sites. Verify behavior and output compatibility in addition to compilation,

@@ -34,7 +34,7 @@ Use documentation from the release tag or commit selected by your application.
 | Experimental streams and redaction                                 | [`exp/iterx`](exp/iterx), [`exp/redact`](exp/redact); see [experimental policy](exp/README.md)                                     |
 
 Package comments and example tests document usage and behavior.
-For migration from v0.30.2 to v1, see [MIGRATION.md](MIGRATION.md).
+For migration from v0.30.2 to v1, see [`MIGRATION.md`](MIGRATION.md).
 
 ## AI Agent skill
 

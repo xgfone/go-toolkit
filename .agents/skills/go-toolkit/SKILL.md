@@ -61,7 +61,7 @@ the packages needed for the task.
 
 - Iterator adapters are lazy, preserve input order, stop when the consumer stops,
   and do not cache values or add concurrency. Repeatability depends on the input.
-  A nil iterator is not an empty sequence. Distinguish a transform's callback
+  A `nil` iterator is not an empty sequence. Distinguish a transform's callback
   (`To`) from transform-and-filter (`FilterTo`), and one-value from two-value
   iterators. Use standard collectors when appropriate; inspect nilness, capacity,
   duplicate-key, and slice-sharing requirements before substituting a collector.
@@ -69,9 +69,9 @@ the packages needed for the task.
   preserves order inside each group. Map iteration order is unspecified.
   `mapx.SMap[T]` is a map type with helpers, not a synchronized map.
 - Toolkit JSON helpers use `encoding/json/v2`. Read the source root's
-  `MIGRATION.md` before preserving existing payloads: omission tags, nil
+  `MIGRATION.md` before preserving existing payloads: omission tags, `nil`
   collections, field-name matching, duplicate/trailing values, and writer
-  newlines differ from v0.30.2. Plain errors and time.Duration can fail
+  newlines differ from v0.30.2. Plain errors and `time.Duration` can fail
   encoding; use serializable wire DTOs and check render errors.
 - HTTP request binders accept destination struct pointers, bind the requested
   source, then apply defaults and validation. Use `path`, `query`, `header`, or
@@ -89,7 +89,7 @@ the packages needed for the task.
   destination pointer. Automatic handling requires status 200; a
   `func(*http.Response) error` callback handles other statuses or formats.
   `DoRequest` closes the response body after the callback. Non-reader request
-  bodies are JSON encoded, and a non-nil request body sets JSON content type.
+  bodies are JSON encoded, and a non-`nil` request body sets JSON content type.
 - Use `logger.Config.Middleware` and `cors.Config.Middleware`. Logger
   `GetLogAttrs` replaces the default attribute callback; wrap it to retain
   default fields when adding custom ones. The default callback includes original
@@ -98,27 +98,27 @@ the packages needed for the task.
 - Configure an `app.App` before `Run`; it runs only once. Register callbacks
   with `App.On(stage, name, callback)`, or `Stage.On(name, callback)` for the
   default app, and modules with `App.Use` or package-level `Use`. Callbacks take
-  only `context.Context` and return an error; capture the owning App in a closure.
-  Modules implement Init/Prepare/Start/Stop/Wait/Close; declare required module
-  names with `Dependencies() []string` or `app.WithDependencies`. Providers start
-  first and stop after their users join. Use `a.TaskGroup(moduleName).Go` for
-  module-owned work; its context preserves Run's values and is canceled in the
+  only `context.Context` and return an error; capture the owning `App` in a closure.
+  Modules implement `Init`/`Prepare`/`Start`/`Stop`/`Wait`/`Close`; declare required
+  module names with `Dependencies() []string` or `app.WithDependencies`. Providers
+  start first and stop after their users join. Use `a.TaskGroup(moduleName).Go` for
+  module-owned work; its context preserves `Run`'s values and is canceled in the
   module's shutdown batch. `App.Go` and package-level `Go` use the run context
   for app-level tasks without dependency ordering; task names may be empty.
-  `App.Context()` signals cancellation. `App.Wait(ctx)` returns Run's final
-  result; canceling the wait does not stop the app. `Done()` signals Run's
+  `App.Context()` signals cancellation. `App.Wait(ctx)` returns `Run`'s final
+  result; canceling the wait does not stop the app. `Done()` signals `Run`'s
   completion, including `ErrShutdownIncomplete`, which retains dependencies
-  and skips Close, Cleanup, Exited, and finalization when work cannot be joined.
-  Prepare required request data in Module.Prepare or StageStart, before services
-  start handling requests. Close module resources in Close and the logger in
-  `App.Finalize`, after Exited; drain, cleanup, exit, and finalization have
-  independent timeout budgets. See `app/MIGRATION.md` for the full contract.
-  `SetSignals()` disables OS-signal handling. `module.HttpServer` belongs to a
-  running application's lifecycle; a nil handler captures `http.DefaultServeMux`
-  during Init. Configure or replace the default mux before `App.Run`; do not
-  reassign `http.DefaultServeMux` while the app is running. `runtimex.ExitContext`
-  is separate: `Exit` cancels it before the exit function but does not wait for
-  cleanup.
+  and skips `Close`, `Cleanup`, `Exited`, and finalization when work cannot be
+  joined. Prepare required request data in `Module.Prepare` or `StageStart`,
+  before services start handling requests. Close module resources in `Close`
+  and the logger in `App.Finalize`, after `Exited`; drain, cleanup, exit, and
+  finalization have independent timeout budgets. See `app/MIGRATION.md` for the
+  full contract. `SetSignals()` disables OS-signal handling. `module.HttpServer`
+  belongs to a running application's lifecycle; a `nil` handler captures
+  `http.DefaultServeMux` during `Init`. Configure or replace the default mux
+  before `App.Run`; do not reassign `http.DefaultServeMux` while the app is
+  running. `runtimex.ExitContext` is separate: `Exit` cancels it before the
+  exit function but does not wait for cleanup.
 - String masks count runes; generators count bytes including affixes.
   `WithXxx` mask/affix configuration returns independent values. Preset getters
   and replacement setters are synchronized, but custom implementations and shared
@@ -127,7 +127,7 @@ the packages needed for the task.
   `time.Now` unless a replaceable clock is needed. Change `SetNowFunc` before
   concurrent use and restore `time.Now` after tests. `timex.Sleep` observes
   cancellation, including already-cancelled contexts with a non-positive duration.
-- `strconvx.ParseInt64Slice`/`ParseUint64Slice` return nil for empty input and
+- `strconvx.ParseInt64Slice`/`ParseUint64Slice` return `nil` for empty input and
   fail without partial results for invalid elements. `random.IntN`/`Int64N`
   require a positive bound; string helpers take an explicit charset.
   `unsafex.String` and `unsafex.Bytes` share memory: do not mutate the backing
@@ -155,7 +155,7 @@ package comments and example tests instead of inventing analogies from this API.
 
 For migration from v0.30.2 to v1, read the selected source root's
 `MIGRATION.md` for shared JSON, HTTP, and utility changes, together with
-[references/migration-v0.30.2-to-v1.md](references/migration-v0.30.2-to-v1.md)
+[`references/migration-v0.30.2-to-v1.md`](references/migration-v0.30.2-to-v1.md)
 relative to this **skill directory**, then the target module's relevant migration
 guides and source. The bundled index compares the v0.30.2 baseline with the v1
 source tree containing it; use the copy matching the application's exact target.

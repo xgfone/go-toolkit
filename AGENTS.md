@@ -1,14 +1,27 @@
-# 仓库开发规范
+# Repository Development Guidelines
 
-## Go 变量声明与赋值
+## Go Variable Declarations and Assignments
 
-- 新增或修改 Go 代码时，默认逐个定义、逐个赋值，避免 `a, b := x, y`、`var a, b T`、`a, b = x, y` 等多变量定义或赋值。
-- 普通多变量定义或赋值完整地位于同一行，且该行总长度不超过 **60 个字符**时，允许保留。长度按格式化后的整行字符数计算，包含缩进、不含换行。
-- 普通多变量定义或赋值超过长度限制时，应拆成单个变量逐个定义或赋值；不要仅通过折行或先声明后赋值规避此限制。
-- 拆分赋值时，保留原来的求值顺序和同时赋值语义。变量交换、交叉引用或存在副作用时，先用临时变量保存原值或计算结果，再逐个赋值。
-- **函数多返回值接收例外**：`a, b := f()` 和 `a, b = f()` 不受上述多变量规范及 60 字符限制，不必先逐个声明变量。
-  如果 `f()` 调用本身过长，应将参数提取为局部变量，保持调用清晰，禁止重复调用函数。`_` 不算具名变量。
-- 拆分循环变量时，保留每轮迭代独立的变量作用域。
+- When adding or modifying Go code, declare and assign variables individually by
+  default. Avoid declarations or assignments involving multiple variables, such
+  as `a, b := x, y`, `var a, b T`, and `a, b = x, y`.
+- An ordinary declaration or assignment involving multiple variables may remain
+  if it fits entirely on one formatted line of at most **60 characters**.
+  Count the complete line, including indentation but excluding the newline.
+- When such a statement exceeds the limit, split it into individual declarations
+  or assignments. Do not bypass the rule by merely wrapping lines or declaring
+  variables separately before assigning them together.
+- Preserve evaluation order and simultaneous assignment semantics when splitting
+  assignments. For swaps, cross-references, or side effects, first save the
+  original values or computed results in temporary variables, then assign each
+  variable individually.
+- **Exception for multiple return values:** `a, b := f()` and `a, b = f()` are
+  exempt from the multiple-variable rule and the 60-character limit. Variables
+  need not be declared individually beforehand. If the `f()` call itself is too
+  long, extract its arguments into local variables to keep the call clear. Do
+  not call the function repeatedly. `_` does not count as a named variable.
+- When splitting loop variables, preserve their separate scope for each
+  iteration.
 
 ```go
 first := make(chan struct{})
@@ -17,15 +30,48 @@ second := make(chan struct{})
 ctx, cancel := context.WithCancel(parent)
 ```
 
-## 迁移文档（Migration）维护
+## Code Identifiers in Markdown
 
-- 所有迁移文档统一描述 **v0.30.2 → v1** 的 API 和行为差异。起点固定为 Git 标签 `v0.30.2`，
-  目标为文档所在源码树的 v1 实现；不得改为 v1.0.0-beta 之间或其他 v1 中间版本之间的迁移说明。
-- 迁移对照中的旧 API、签名和行为必须根据 `v0.30.2` 标签源码核对，新 API 和行为根据目标 v1
-  源码核对。不得将仅在 v1 开发过程中存在的中间接口当作 v0.30.2 的旧接口。
-- 后续修改 v1 的公共 API、行为、生命周期或工具链要求等影响迁移的内容时，必须同步更新相关迁移文档，
-  保持从 v0.30.2 直接迁移到目标 v1 的完整方案；不要追加 beta 之间的改名历史作为迁移步骤。
-- 维护范围包括根目录及各子包的 `MIGRATION.md`、`stringx/README.md` 的 Migration 章节，
-  以及`.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md`。同时核对
-  README 和技能说明中的迁移范围、索引及链接，保持一致。
-- 修改迁移文档时，应说明实际影响及替换方式，核对示例中的新旧 API，并验证相关文档链接。
+- When adding or modifying any Markdown document, including READMEs, migration
+  guides, and skill documentation, use backticks for Go identifiers in prose,
+  headings, lists, and tables. This includes package names, types, interfaces,
+  methods, functions, fields, constants, variables, and type parameters, such as
+  `context.Context`, `Module`, `App.Wait(ctx)`, `StageInit`, and `moduleName`.
+- Keep a complete qualified name, call, or signature within one inline code
+  span, such as `app.WithDependencies` or `Dependencies() []string`; do not split
+  it across multiple spans. Also use inline code for predeclared identifiers such
+  as `nil`, `true`, and `false`, and for keywords, type expressions, and struct
+  tags when referring to them as code.
+- Distinguish code names from natural language. Do not mechanically format
+  ordinary verbs or the Go language name as code. Do not add inline backticks
+  inside code blocks, and preserve the syntax of metadata such as YAML front
+  matter.
+- Use inline code when link text names a code identifier, such as [`app`](app),
+  while keeping the link destination unchanged. After editing, check code
+  blocks, inline code, links, and heading anchors to ensure correct Markdown
+  rendering.
+
+## Migration Documentation Maintenance
+
+- All migration documents must describe API and behavior differences from
+  **v0.30.2 to v1**. The baseline is always Git tag `v0.30.2`, and the target is
+  the v1 implementation in the source tree containing the document. Do not turn
+  these guides into migrations between v1.0.0-beta releases or other
+  intermediate v1 versions.
+- Verify old APIs, signatures, and behavior against the source at tag
+  `v0.30.2`, and verify new APIs and behavior against the target v1 source.
+  Do not present intermediate APIs that existed only during v1 development
+  as v0.30.2 APIs.
+- When changing v1 public APIs, behavior, lifecycle, toolchain requirements,
+  or anything else affecting migration, update the relevant migration documents
+  at the same time. Maintain a complete migration path directly from v0.30.2 to
+  the target v1 implementation; do not append rename histories between beta
+  releases as migration steps.
+- Maintain the root and package-level `MIGRATION.md` files, the Migration
+  section of `stringx/README.md`, and
+  `.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md`. Also check
+  migration scope, indexes, and links in `README.md` and skill documentation to
+  keep them consistent.
+- When editing migration documentation, explain the actual impact and
+  replacements, verify the old and new APIs in examples, and validate related
+  documentation links.

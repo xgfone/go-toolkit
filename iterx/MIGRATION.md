@@ -1,4 +1,4 @@
-# iterx: v0.30.2 to v1
+# `iterx`: v0.30.2 to v1
 
 This guide compares tag `v0.30.2` with the v1 implementation in this source tree.
 Use the guide from your selected v1 tag or revision. Examples omit imports and
@@ -13,15 +13,15 @@ declarations of existing variables.
 
 ## 2. Removals
 
-| Previous API         | Replacement                                                                                                      |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `All(seq, p)`        | Find the first element that fails p; return true if none is found. See below.                                    |
-| `Any(seq, p)`        | `_, ok := iterx.Find(seq, p)`; ok is the result.                                                                 |
-| `Seq(seq2, f)`       | Use `Keys` / `Values` for one side, or the composition below when both values are needed.                        |
-| `Seq2(seq, f)`       | For containers, use `slices.All` / `maps.All` with `iterx.To2`; for arbitrary Seq inputs, use the adapter below. |
-| `Integer` / `Number` | Define the constraints locally if needed; see below.                                                             |
+| Previous API         | Replacement                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `All(seq, p)`        | Find the first element that fails `p`; return `true` if none is found. See below.                                  |
+| `Any(seq, p)`        | `_, ok := iterx.Find(seq, p)`; `ok` is the result.                                                                 |
+| `Seq(seq2, f)`       | Use `Keys` / `Values` for one side, or the composition below when both values are needed.                          |
+| `Seq2(seq, f)`       | For containers, use `slices.All` / `maps.All` with `iterx.To2`; for arbitrary `Seq` inputs, use the adapter below. |
+| `Integer` / `Number` | Define the constraints locally if needed; see below.                                                               |
 
-Replace `All`, preserving short-circuiting and true for empty input:
+Replace `All`, preserving short-circuiting and `true` for empty input:
 
 ```go
 _, failed := iterx.Find(seq, func(v T) bool { return !predicate(v) })
@@ -36,7 +36,8 @@ out := iterx.Values(iterx.To2(seq2, func(k K, v V) (K, R) {
 }))
 ```
 
-There is no direct replacement for arbitrary Seq-to-Seq2 conversion. Define this adapter locally:
+There is no direct replacement for arbitrary `Seq`-to-`Seq2` conversion.
+Define this adapter locally:
 
 ```go
 func seq2[T, K, V any](seq iter.Seq[T], convert func(T) (K, V)) iter.Seq2[K, V] {

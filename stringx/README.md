@@ -1,4 +1,4 @@
-# stringx
+# `stringx`
 
 ## Desensitizers
 
@@ -21,12 +21,12 @@ value follows this empty-replacement behavior.
 
 `SetPhoneDesensitizer`, `SetEmailDesensitizer`, `SetShortDesensitizer`,
 `SetDefaultDesensitizer`, and `SetPasswordDesensitizer` accept custom `Desensitizer`
-implementations. The initial
-implementations are shared pointers; getters return the stored interface without
-creating a new instance. Getters and setters are safe to call concurrently, and
-replacing a preset does not change previously retrieved instances. Custom
-implementations must provide their own concurrency guarantees. Nil interfaces
-and typed nils are rejected before replacing the current implementation.
+implementations. The initial implementations are shared pointers; getters return
+the stored interface without creating a new instance. Getters and setters are safe
+to call concurrently, and replacing a preset does not change previously retrieved
+instances. Custom implementations must provide their own concurrency guarantees.
+`nil` interfaces and typed `nil` values are rejected before replacing the current
+implementation.
 
 The default email implementation preserves the first rune of the local part and
 the complete domain, replacing the rest of the local part with `"****"`. A
@@ -37,12 +37,12 @@ are discarded. Unicode local parts are masked by rune, and address lists are
 not supported. Use `SetEmailDesensitizer` to replace this policy.
 
 `NewEmailDesensitizer(prefix, suffix)` accepts a required local-part
-`Desensitizer` and an optional domain `Desensitizer`. A nil `prefix` (including a
-typed nil) panics; a nil `suffix` preserves the domain, while a typed nil panics.
-Both arguments support custom functions through `DesensitizerFunc`. Concurrent
-use requires both supplied implementations to be safe for concurrent use.
-A zero-value `MaskDesensitizer` hides the entire corresponding part. Empty input
-and invalid-input handling are independent of both desensitizers.
+`Desensitizer` and an optional domain `Desensitizer`. A `nil` `prefix` (including
+a typed `nil`) panics; a `nil` `suffix` preserves the domain, while a typed `nil`
+panics. Both arguments support custom functions through `DesensitizerFunc`.
+Concurrent use requires both supplied implementations to be safe for concurrent
+use. A zero-value `MaskDesensitizer` hides the entire corresponding part. Empty
+input and invalid-input handling are independent of both desensitizers.
 
 ```go
 d := stringx.NewEmailDesensitizer(
@@ -104,7 +104,7 @@ toolchain from Go 1.24 to Go 1.27 before updating the module.
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Concrete `Desensitizer`                        | `MaskDesensitizer`; `Desensitizer` is now an interface                                       |
 | `d.Left`, `d.Right`, `d.Chars`                 | `d.Left()`, `d.Right()`, `d.Chars()`; configure with `WithXxx`                               |
-| Desensitizer preset variables                  | Same names as getter functions, plus corresponding setters such as `SetPhoneDesensitizer(d)` |
+| `Desensitizer` preset variables                | Same names as getter functions, plus corresponding setters such as `SetPhoneDesensitizer(d)` |
 | `Builder`, `NewBuilder(g)`                     | `AffixGenerator`, `NewAffixGenerator(g)`                                                     |
 | `b.Build(n)`                                   | `g.Generate(n)`                                                                              |
 | `g.Generate(dst, n)`                           | `g.Append(dst, n)`                                                                           |
@@ -120,30 +120,30 @@ the behavior interface without configuration methods.
 
 ### Behavior changes from v0.30.2
 
-- Negative retained rune counts were accepted by the old concrete Desensitizer;
-  NewDesensitizer, WithLeft, and WithRight now reject them with a panic. Counts
-  are checked without overflowing their sum. Rune-based masking and the
+- Negative retained rune counts were accepted by the old concrete `Desensitizer`;
+  `NewDesensitizer`, `WithLeft`, and `WithRight` now reject them with a panic.
+  Counts are checked without overflowing their sum. Rune-based masking and the
   empty-replacement fallback are otherwise retained.
-- NewGenerator now rejects a negative minimum or nil callback at construction.
-  Direct FuncGenerator use now enforces minimum lengths and the exact number of
-  appended bytes; the old function adapter passed lengths straight through.
-  AffixGenerator also checks the underlying output length and minimum-length
+- `NewGenerator` now rejects a negative minimum or `nil` callback at construction.
+  Direct `FuncGenerator` use now enforces minimum lengths and the exact number
+  of appended bytes; the old function adapter passed lengths straight through.
+  `AffixGenerator` also checks the underlying output length and minimum-length
   overflow. Update custom callbacks that returned too many or too few bytes.
-  NewAffixGenerator and WithGenerator also reject typed nil generators that
-  passed the old Builder's nil-interface check.
-- Generate returns a string copied from the callback's bytes; the old
-  Builder.Build used an unsafe string view. Append still returns a caller-owned
+  `NewAffixGenerator` and `WithGenerator` also reject typed `nil` generators
+  that passed the old `Builder`'s `nil`-interface check.
+- `Generate` returns a string copied from the callback's bytes; the old
+  `Builder.Build` used an unsafe string view. `Append` still returns a caller-owned
   buffer, and custom implementations must preserve its existing contents.
-- Desensitizer presets use concurrency-safe getters/setters. To replace a
-  configured mask, construct a MaskDesensitizer and pass it to the corresponding
-  setter; getter results expose only Desensitize. Time generator presets are
-  getters without individual setters: keep a custom Generator locally, or
-  replace the global default through SetDefaultGenerator.
-- DateTimeMilliRandGenerator now pads milliseconds to exactly three digits;
+- `Desensitizer` presets use concurrency-safe getters/setters. To replace a
+  configured mask, construct a `MaskDesensitizer` and pass it to the corresponding
+  setter; getter results expose only `Desensitize`. Time generator presets are
+  getters without individual setters: keep a custom `Generator` locally, or
+  replace the global default through `SetDefaultGenerator`.
+- `DateTimeMilliRandGenerator` now pads milliseconds to exactly three digits;
   the old implementation emitted fewer digits and filled the remaining length
-  with random digits. Time generators also follow timex.Now's new default local
-  timezone instead of the old UTC policy. Check identifiers that encode dates.
-- DesensitizerFunc, NewEmailDesensitizer, and EmailDesensitizer are additions,
+  with random digits. Time generators also follow `timex.Now`'s new default
+  local timezone instead of the old UTC policy. Check identifiers that encode dates.
+- `DesensitizerFunc`, `NewEmailDesensitizer`, and `EmailDesensitizer` are additions,
   rather than replacements for v0.30.2 email APIs.
 
 For serialization of generated values or related DTOs, see the
