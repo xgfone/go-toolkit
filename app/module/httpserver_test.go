@@ -93,6 +93,33 @@ func TestHttpServerWrapListener(t *testing.T) {
 	}
 }
 
+func TestHttpServerWaitRejectsIncompleteInit(t *testing.T) {
+	s := NewHttpServer("http", getAddrFunc("127.0.0.1:0"), http.NotFoundHandler())
+	wrapped := false
+	s.WrapListener(func(listener net.Listener) net.Listener {
+		wrapped = true
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		// The listener exists, but Init has not set up shutdown tracking yet.
+		// A reentrant Wait must fail promptly without disrupting startup.
+		err := s.Wait(ctx, nil)
+		if err == nil || err.Error() != "http server: Wait requires Stop" {
+			t.Errorf("Wait during Init = %v, want a lifecycle error", err)
+		}
+		if ctx.Err() != nil {
+			t.Error("Wait blocked on incomplete initialization")
+		}
+
+		return listener
+	})
+
+	testHttpServerLifecycle(t, s)
+	if !wrapped {
+		t.Fatal("WrapListener was not called")
+	}
+}
+
 func TestHttpServerCapturesHandlerDuringInit(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		name := "default handler"

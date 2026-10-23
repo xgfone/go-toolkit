@@ -114,9 +114,6 @@ func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 			if listener != nil {
 				_ = listener.Close()
 			}
-			if s.cancelRequests != nil {
-				s.cancelRequests()
-			}
 
 			s.addr = ""
 			s.listen = nil
@@ -157,12 +154,17 @@ func (s *HttpServer) Init(ctx context.Context, a *app.App) (err error) {
 	s.listen = &onceCloseListener{Listener: s.listen}
 	s.shutdownDone = make(chan struct{})
 	s.requests = &requestGroup{done: make(chan struct{})}
-	requestCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
-	s.cancelRequests = cancelRequests
 	handler := s.handler
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
+
+	// All setup that can return an error or invoke user callbacks is complete.
+	// The remaining server and log-bridge construction assumes a valid default
+	// slog logger; under that assumption, no rollback cancellation is needed.
+	// If fallible work is added below, cancel this context on failure.
+	requestCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
+	s.cancelRequests = cancelRequests
 
 	s.server = &http.Server{
 		Addr: s.addr,
