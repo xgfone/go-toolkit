@@ -68,6 +68,11 @@ the packages needed for the task.
 - `slicex.Unique` preserves first-occurrence order and nilness; `GroupBy`
   preserves order inside each group. Map iteration order is unspecified.
   `mapx.SMap[T]` is a map type with helpers, not a synchronized map.
+- Toolkit JSON helpers use `encoding/json/v2`. Read the source root's
+  `MIGRATION.md` before preserving existing payloads: omission tags, nil
+  collections, field-name matching, duplicate/trailing values, and writer
+  newlines differ from v0.30.2. Plain errors and time.Duration can fail
+  encoding; use serializable wire DTOs and check render errors.
 - HTTP request binders accept destination struct pointers, bind the requested
   source, then apply defaults and validation. Use `path`, `query`, `header`, or
   `form` tags as appropriate. `BindPath` reads `Request.PathValue`; a router or
@@ -148,7 +153,8 @@ package comments and example tests instead of inventing analogies from this API.
 
 ## Migrate and verify
 
-For migration from v0.30.2 to v1, read
+For migration from v0.30.2 to v1, read the selected source root's
+`MIGRATION.md` for shared JSON, HTTP, and utility changes, together with
 [references/migration-v0.30.2-to-v1.md](references/migration-v0.30.2-to-v1.md)
 relative to this **skill directory**, then the target module's relevant migration
 guides and source. The bundled index compares the v0.30.2 baseline with the v1

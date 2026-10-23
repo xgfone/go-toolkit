@@ -16,10 +16,10 @@ discovery, return to the skill's `SKILL.md`.
 - Inventory application imports and used symbols, including custom interfaces,
   codecs, generators, middleware, and lifecycle callbacks. Migrate only the packages
   actually used; do not introduce unrelated services or experimental APIs.
-- Read the target version's package-local guides. There is no root-level
-  `MIGRATION.md` in this source tree. For packages without a guide, compare
-  signatures, comments, source, and tests between `v0.30.2` and the selected
-  v1 revision. In a checkout, use `git diff v0.30.2 TARGET -- PACKAGE`.
+- Read the selected target's root `MIGRATION.md` for shared JSON, HTTP, and
+  utility changes, then the package-local guides below. For additional details,
+  compare signatures, comments, source, and tests between `v0.30.2` and the
+  selected v1 revision with `git diff v0.30.2 TARGET -- PACKAGE`.
 
 ## Existing package migration guides
 
@@ -37,21 +37,21 @@ for every package.
 
 ## Other API removals and renames
 
-| v0.30.2 API or import                                                    | v1 replacement                                                                                                                        |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `app.DefaultApp`                                                         | `app.Default()`; configure the returned instance or use an application-owned `app.New()`.                                             |
-| `router.DefaultRouter`                                                   | `router.Default()`; use `router.New()` for an independent router.                                                                     |
-| `logger.Config.Logger(priority)`                                         | `logger.Config.Middleware(priority)`.                                                                                                 |
-| `cors.Config.CORS(priority)`                                             | `cors.Config.Middleware(priority)`.                                                                                                   |
-| `logger.Config.GetRequestBody` and `GetResponse`                         | `GetLogAttrs(w,r) []slog.Attr`; choose named attributes and wrap the default callback to preserve its fields.                         |
-| Assigning `httpx.Handler200`, `Handler404`, or other predefined handlers | These are immutable constants implementing `http.Handler`. Store custom handlers locally and configure the router/handler using them. |
-| `random.DefaultCharset` variable                                         | `random.DefaultCharset()` and `random.SetDefaultCharset(charset)`; the setter rejects empty charsets.                                 |
-| `bytex.CommentHash` / `CommentSlashes`                                   | Pass application-owned `[]byte("#")` / `[]byte("//")` to `RemoveLineComments`.                                                        |
-| `netx.IPIsOn`                                                            | `netx.IsLocalIP`.                                                                                                                     |
-| `runtimex.TrimPkgFile`                                                   | `runtimex.TrimSourcePath`.                                                                                                            |
-| `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                            |
-| `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                     |
-| `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                       |
+| v0.30.2 API or import                                                    | v1 replacement                                                                                                                                                        |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app.DefaultApp`                                                         | `app.Default()`; configure the returned instance or use an application-owned `app.New()`.                                                                             |
+| `router.DefaultRouter`                                                   | `router.Default()`; use `router.New()` for an independent router.                                                                                                     |
+| `logger.Config.Logger(priority)`                                         | `logger.Config.Middleware(priority)`.                                                                                                                                 |
+| `cors.Config.CORS(priority)`                                             | `cors.Config.Middleware(priority)`.                                                                                                                                   |
+| `logger.Config.GetRequestBody` and `GetResponse`                         | `GetLogAttrs(w,r) []slog.Attr`; choose named attributes and wrap the default callback to preserve its fields.                                                         |
+| Assigning `httpx.Handler200`, `Handler404`, or other predefined handlers | These are constants implementing `http.Handler`. Use an explicit `http.Handler` type for replaceable local variables; `:=` now infers a concrete status-handler type. |
+| `random.DefaultCharset` variable                                         | `random.DefaultCharset()` and `random.SetDefaultCharset(charset)`; the setter rejects empty charsets.                                                                 |
+| `bytex.CommentHash` / `CommentSlashes`                                   | Pass application-owned `[]byte("#")` / `[]byte("//")` to `RemoveLineComments`.                                                                                        |
+| `netx.IPIsOn`                                                            | `netx.IsLocalIP`.                                                                                                                                                     |
+| `runtimex.TrimPkgFile`                                                   | `runtimex.TrimSourcePath`.                                                                                                                                            |
+| `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                                                            |
+| `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                                                     |
+| `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                                                       |
 
 ### Application lifecycle
 
@@ -134,8 +134,8 @@ Cleanup and Exited used unbounded background contexts. In v1, SetShutdownTimeout
 controls all drain batches. Cleanup, Exited, and the logger finalizer have
 separate SetCleanupTimeout, SetExitedTimeout, and SetFinalizerTimeout budgets.
 Run cancellation triggers stopping; shutdown contexts retain values without the
-running cancellation/deadline. Deadlines
-are cooperative, not forced goroutine termination.
+running cancellation/deadline. Deadlines are cooperative, not forced goroutine
+termination.
 
 If joining fails, Run and Wait return app.ErrShutdownIncomplete. A failed
 module's transitive providers keep running while independent branches still stop;
@@ -169,10 +169,28 @@ Current HTTP and result helpers use `encoding/json/v2`.
 | `UnmarshalString`                        | `json.Unmarshal([]byte(text), dst)` or `json.UnmarshalRead(strings.NewReader(text), dst)`. |
 
 Rework custom `SetMarshalWriterFunc`/`SetUnmarshalReaderFunc` integrations
-explicitly; there is no replacement global hook. Audit JSON tags, custom
-marshalers, nil versus empty values, trailing input, and options using the
-target standard-library API. Do not assume the previous adapter's serialization
-policy is preserved.
+explicitly; there is no replacement global hook. The old default writer already
+disabled HTML escaping, and only its writer form appended a newline. v1 writer
+operations no longer append that newline, including HTTP responses and requests.
+
+The v1 defaults are case-sensitive for struct fields, reject duplicate names and
+invalid UTF-8, and require a single complete JSON value through EOF. Nil maps and
+ordinary slices encode as empty collections, map member order is unspecified,
+byte arrays encode as base64 strings, and ordinary array decoding requires the
+exact length. JSON null now resets existing scalar values. A lower-case `code`
+member no longer fills codeint.Error.Code and may be ignored without an error.
+Review custom pointer-receiver serializers and the numeric-only `,string` tag
+option.
+
+The new `omitempty` meaning can add zero numeric fields or remove empty values
+behind interfaces: `codeint.Error{}` now encodes as `{"Code":0}`, while
+`result.Ok("")` encodes as `{}`. Plain errors such as errors.New contain no
+exported fields and can fail JSON encoding; time.Duration also has no default
+representation in the current codec. Use explicit wire DTOs or application-owned
+codecs when preserving an old contract. Some convenience responders discard
+rendering errors, so check payload serialization or own the responder. Root
+`MIGRATION.md` documents the concrete changes and a writer retaining the old
+newline/HTML policy.
 
 ### Time policy
 
@@ -200,7 +218,13 @@ cancellation-aware helper.
 - **HTTP binding and responses:** `BindPath` reads populated path wildcards
   and then applies defaults/validation. Test wrapped errors and response status
   selection; invalid explicit `codeint.Error` HTTP statuses normalize to 500.
-  Informational response headers no longer prevent a later final response.
+  Informational response headers no longer prevent a later final response;
+  101 remains final. The Context writer rejects statuses outside [100, 999].
+- **HTTP headers:** MIME types are normalized and charset parameters are
+  unquoted. Accept/AcceptEncoding/AcceptLanguage read all header values, honor
+  quoted commas and q parameters, and reject invalid weights. WebSocket checks
+  accept comma-separated Connection and Upgrade tokens. See root MIGRATION.md
+  for examples; these changes can affect content-type binding and negotiation.
 - **Routing:** the default backend sends unmatched paths and methods to the
   fallback, and leaves handler-generated 404 responses alone. An explicit
   catch-all takes precedence. Route inspection returns snapshots; changing an
@@ -216,8 +240,17 @@ cancellation-aware helper.
 - **Utilities:** comment stripping respects double-quoted text and escapes.
   Network address conversion rejects nil/malformed values and preserves IPv6
   zones. Nil values with an `IsZero` method count as zero without invoking that
-  method; `EqualZero` uses ordinary equality instead. Generated millisecond
-  time components are padded to three digits.
+  method; `EqualZero` uses ordinary equality instead. Stacks now includes its
+  final frame. Text binding copies string inputs passed to UnmarshalText instead
+  of exposing an unsafe string alias. Cryptographic integer generation no longer
+  falls back to weaker randomness after a crypto-source failure. Generated
+  millisecond time components are padded to three digits; string generators
+  now validate minimum and exact output lengths.
+
+New APIs without v0.30.2 predecessors also include strconvx.ParseInt64Slice and
+ParseUint64Slice, timex.Sleep, runtimex.EqualZero, stringx email masking and
+DesensitizerFunc, and the optional experimental exp/iterx streams. Read their
+contracts in root MIGRATION.md and the target package source.
 
 Run tests for the used packages and their application integration after updating
 call sites. Verify behavior and output compatibility in addition to compilation,

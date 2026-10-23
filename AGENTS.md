@@ -25,7 +25,7 @@ ctx, cancel := context.WithCancel(parent)
   源码核对。不得将仅在 v1 开发过程中存在的中间接口当作 v0.30.2 的旧接口。
 - 后续修改 v1 的公共 API、行为、生命周期或工具链要求等影响迁移的内容时，必须同步更新相关迁移文档，
   保持从 v0.30.2 直接迁移到目标 v1 的完整方案；不要追加 beta 之间的改名历史作为迁移步骤。
-- 维护范围包括各子包的 `MIGRATION.md`、`stringx/README.md` 的 Migration 章节，以及
-  `.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md`。同时核对
+- 维护范围包括根目录及各子包的 `MIGRATION.md`、`stringx/README.md` 的 Migration 章节，
+  以及`.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md`。同时核对
   README 和技能说明中的迁移范围、索引及链接，保持一致。
 - 修改迁移文档时，应说明实际影响及替换方式，核对示例中的新旧 API，并验证相关文档链接。

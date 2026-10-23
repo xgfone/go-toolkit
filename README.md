@@ -33,23 +33,15 @@ Use documentation from the release tag or commit selected by your application.
 | Zero-copy string/byte conversions                                  | [`unsafex`](unsafex)                                                                                                               |
 | Experimental streams and redaction                                 | [`exp/iterx`](exp/iterx), [`exp/redact`](exp/redact); see [experimental policy](exp/README.md)                                     |
 
-Package comments and example tests document usage and behavior. For upgrades
-from v0.30.2, read the target revision's [iterator migration guide](iterx/MIGRATION.md),
-[slice migration guide](slicex/MIGRATION.md), [map migration guide](mapx/MIGRATION.md),
-the [string migration guide](stringx/README.md#migration), and the
-[application lifecycle migration guide](app/MIGRATION.md) for the packages you use.
-These guides compare v0.30.2 directly with the v1 implementation in their source tree.
-For AI-assisted development and migration, install the [go-toolkit skill](#ai-agent-skill).
+Package comments and example tests document usage and behavior.
+For migration from v0.30.2 to v1, see [MIGRATION.md](MIGRATION.md).
 
 ## AI Agent skill
 
 The [go-toolkit skill](.agents/skills/go-toolkit/SKILL.md) guides agents through
-package selection, version-aware documentation lookup, important usage contracts,
-and migration from v0.30.2 to v1. It includes a
-[migration index](.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md)
-for changes outside the package guides, using the same v0.30.2 baseline. The exact
-target's APIs remain authoritative; use the documentation from the v1 tag or
-revision selected by the application.
+package selection, version-aware documentation lookup, and important usage
+contracts. Use the documentation from the tag or revision selected by the
+application; that revision's APIs remain authoritative.
 
 Adding this Go dependency does **not** install the skill or load this library's
 agent instructions into the consuming project's session. Install the skill
@@ -136,11 +128,11 @@ yourself. Branch switches and uncommitted skill edits are also visible through
 the link. Moving the checkout or selecting a revision without the skill directory
 makes the link unusable.
 
-Update the repository's `SKILL.md` and migration references when APIs or upgrade
-guidance change; linking files does not generate new guidance from code changes.
-The consuming project's actual dependency version still determines which API
-documentation to use. If an update is not reflected in Codex, restart it so the
-skill can be discovered again.
+Update the repository's `SKILL.md` and references when API guidance changes;
+linking files does not generate new guidance from code changes. The consuming
+project's actual dependency version still determines which API documentation
+to use. If an update is not reflected in Codex, restart it so the skill can be
+discovered again.
 
 ### Use the skill
 
@@ -148,20 +140,17 @@ In Codex CLI or the IDE extension, invoke the installed skill explicitly:
 
 ```text
 $go-toolkit Parse valid integers lazily with iterx and collect the first two.
-
-$go-toolkit Migrate this application's used packages from v0.30.2 to the specified v1 tag or commit.
 ```
 
 Codex can also select the skill when the task matches its description. For
 consistent use, add this rule to the consuming project's root `AGENTS.md`:
 
 ```markdown
-When using, fixing, or upgrading github.com/xgfone/go-toolkit, use the go-toolkit skill.
+When using or fixing github.com/xgfone/go-toolkit, use the go-toolkit skill.
 First resolve the effective dependency version and read that version's package docs.
-For upgrades, identify the exact target revision and read its relevant package migration guides.
 Packages under exp/ have no compatibility guarantees, including in v1.
 ```
 
-If the skill does not appear, restart the agent session. Keep the skill and
-migration index updated with library releases and use only guidance that matches
-the application's selected revision.
+If the skill does not appear, restart the agent session. Keep the skill updated
+with library releases and use only guidance that matches the application's
+selected revision.

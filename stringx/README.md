@@ -117,3 +117,34 @@ the new `Generator` interface. Existing custom generator types need the new
 string-returning `Generate` method and the renamed `Append` method. Configure
 custom masks through `NewDesensitizer(...).WithXxx(...)`; preset getters return
 the behavior interface without configuration methods.
+
+### Behavior changes from v0.30.2
+
+- Negative retained rune counts were accepted by the old concrete Desensitizer;
+  NewDesensitizer, WithLeft, and WithRight now reject them with a panic. Counts
+  are checked without overflowing their sum. Rune-based masking and the
+  empty-replacement fallback are otherwise retained.
+- NewGenerator now rejects a negative minimum or nil callback at construction.
+  Direct FuncGenerator use now enforces minimum lengths and the exact number of
+  appended bytes; the old function adapter passed lengths straight through.
+  AffixGenerator also checks the underlying output length and minimum-length
+  overflow. Update custom callbacks that returned too many or too few bytes.
+  NewAffixGenerator and WithGenerator also reject typed nil generators that
+  passed the old Builder's nil-interface check.
+- Generate returns a string copied from the callback's bytes; the old
+  Builder.Build used an unsafe string view. Append still returns a caller-owned
+  buffer, and custom implementations must preserve its existing contents.
+- Desensitizer presets use concurrency-safe getters/setters. To replace a
+  configured mask, construct a MaskDesensitizer and pass it to the corresponding
+  setter; getter results expose only Desensitize. Time generator presets are
+  getters without individual setters: keep a custom Generator locally, or
+  replace the global default through SetDefaultGenerator.
+- DateTimeMilliRandGenerator now pads milliseconds to exactly three digits;
+  the old implementation emitted fewer digits and filled the remaining length
+  with random digits. Time generators also follow timex.Now's new default local
+  timezone instead of the old UTC policy. Check identifiers that encode dates.
+- DesensitizerFunc, NewEmailDesensitizer, and EmailDesensitizer are additions,
+  rather than replacements for v0.30.2 email APIs.
+
+For serialization of generated values or related DTOs, see the
+[shared JSON migration notes](../MIGRATION.md#json-encoding-and-decoding).

@@ -51,6 +51,7 @@ The v0.30.2 startup sequence was configuration -> StageInit -> Module.Init ->
 StageStart -> Module.Start -> StageReady. v1 inserts **all Module.Prepare calls**
 between Module.Init and StageStart. Module priority still defaults to 1 and
 sorts descending; v1 dependency declarations take precedence over priority.
+The module-priority comparison is also overflow-safe for extreme int values.
 
 In v0.30.2, shutdown ran StageStopping, every initialized Module.Stop in reverse
 order, the app-level task join, StageCleanup, and StageExited. A database's old
