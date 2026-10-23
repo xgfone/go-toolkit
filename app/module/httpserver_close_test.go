@@ -29,11 +29,15 @@ type closeCountingListener struct {
 	closed    chan struct{}
 	closes    atomic.Int32
 	closeErr  error
+	acceptErr error
 }
 
 func (l *closeCountingListener) Accept() (net.Conn, error) {
 	close(l.accepting)
 	<-l.closed
+	if l.acceptErr != nil {
+		return nil, l.acceptErr
+	}
 	return nil, net.ErrClosed
 }
 
@@ -50,22 +54,62 @@ func (l *closeCountingListener) Addr() net.Addr {
 	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 8080}
 }
 
+func TestOnceCloseListenerAcceptError(t *testing.T) {
+	for _, failure := range []error{
+		net.ErrClosed,
+		errors.New("wrapped listener closed"),
+	} {
+		for _, closing := range []bool{false, true} {
+			name := "unexpected/" + failure.Error()
+			if closing {
+				name = "closing/" + failure.Error()
+			}
+
+			t.Run(name, func(t *testing.T) {
+				l := &closeCountingListener{
+					accepting: make(chan struct{}),
+					closed:    make(chan struct{}),
+					acceptErr: failure,
+				}
+				listener := &onceCloseListener{Listener: l}
+				var closer net.Listener = l
+				want := failure
+				if closing {
+					closer = listener
+					want = http.ErrServerClosed
+				}
+				if err := closer.Close(); err != nil {
+					t.Fatal(err)
+				}
+
+				conn, err := listener.Accept()
+				if conn != nil || err != want {
+					t.Fatalf("Accept = %v, %v; want nil, %v", conn, err, want)
+				}
+			})
+		}
+	}
+}
+
 func TestHttpServerStopClosesListenerOnce(t *testing.T) {
 	closeErr := errors.New("listener close failed")
 	for _, tc := range []struct {
-		name     string
-		serving  bool
-		closeErr error
+		name      string
+		serving   bool
+		closeErr  error
+		acceptErr error
 	}{
 		{name: "before serve"},
 		{name: "during serve", serving: true},
+		{name: "wrapped close error", serving: true, acceptErr: errors.New("wrapped listener closed")},
 		{name: "before serve with close error", closeErr: closeErr},
 		{name: "during serve with close error", serving: true, closeErr: closeErr},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			l := &closeCountingListener{
 				accepting: make(chan struct{}), closed: make(chan struct{}),
-				closeErr: tc.closeErr,
+				closeErr:  tc.closeErr,
+				acceptErr: tc.acceptErr,
 			}
 			s := &HttpServer{
 				addr: l.Addr().String(), server: &http.Server{},
@@ -91,6 +135,12 @@ func TestHttpServerStopClosesListenerOnce(t *testing.T) {
 				if err := s.Stop(ctx, nil); err != tc.closeErr {
 					t.Fatalf("Stop error = %v, want %v", err, tc.closeErr)
 				}
+				if err := s.Wait(ctx, nil); err != nil && !errors.Is(err, tc.closeErr) {
+					t.Fatalf("Wait error = %v", err)
+				}
+				if err := s.Close(ctx, nil); err != tc.closeErr {
+					t.Fatalf("Close error = %v, want %v", err, tc.closeErr)
+				}
 			}
 
 			if !tc.serving {
@@ -99,7 +149,7 @@ func TestHttpServerStopClosesListenerOnce(t *testing.T) {
 
 			select {
 			case err := <-done:
-				if !errors.Is(err, http.ErrServerClosed) {
+				if !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 					t.Fatalf("Serve error = %v, want ErrServerClosed", err)
 				}
 
@@ -147,7 +197,7 @@ func TestHttpServerConcurrentStopClosesListenerOnce(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, http.ErrServerClosed) {
+		if !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 			t.Fatalf("Serve error = %v, want ErrServerClosed", err)
 		}
 
@@ -155,6 +205,9 @@ func TestHttpServerConcurrentStopClosesListenerOnce(t *testing.T) {
 		t.Fatal("Serve did not exit")
 	}
 
+	if err := s.Wait(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
 	if got := l.closes.Load(); got != 1 {
 		t.Fatalf("listener closed %d times, want 1", got)
 	}

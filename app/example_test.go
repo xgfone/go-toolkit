@@ -84,3 +84,79 @@ func ExampleApp_Go() {
 	// Output:
 	// background task stopped before Run returned
 }
+
+func ExampleApp_Finalize() {
+	a := app.New()
+	a.SetSignals()
+	a.SetConfigLoader(func(context.Context) error { return nil })
+	a.On(app.StageInit, "logger", func(context.Context) error {
+		fmt.Println("logger initialized")
+		// A real logger can flush with ctx, then close its output here.
+		a.Finalize("logger", func(ctx context.Context) error {
+			fmt.Println("logger closed; flush budget active:", ctx.Err() == nil)
+			return nil
+		})
+		return nil
+	})
+	a.On(app.StageExited, "notify", func(context.Context) error {
+		fmt.Println("exit notification while logging is available")
+		return nil
+	})
+	a.On(app.StageReady, "stop", func(context.Context) error {
+		a.Stop()
+		return nil
+	})
+
+	if err := a.Run(context.Background()); err != nil {
+		panic(err)
+	}
+
+	// Output:
+	// logger initialized
+	// exit notification while logging is available
+	// logger closed; flush budget active: true
+}
+
+type exampleWorker struct{}
+
+func (exampleWorker) Name() string                            { return "worker" }
+func (exampleWorker) Init(context.Context, *app.App) error    { return nil }
+func (exampleWorker) Prepare(context.Context, *app.App) error { return nil }
+func (exampleWorker) Start(_ context.Context, a *app.App) error {
+	a.TaskGroup("worker").Go("loop", func(ctx context.Context) error {
+		<-ctx.Done()
+		fmt.Println("worker exited")
+		return nil
+	})
+	return nil
+}
+
+// The app stops and joins the TaskGroup automatically. This worker has no
+// additional stop protocol or external activity for Stop and Wait to handle.
+func (exampleWorker) Stop(context.Context, *app.App) error { return nil }
+func (exampleWorker) Wait(context.Context, *app.App) error { return nil }
+func (exampleWorker) Close(context.Context, *app.App) error {
+	fmt.Println("worker resources closed")
+	return nil
+}
+
+func ExampleApp_TaskGroup() {
+	a := app.New()
+	a.SetSignals()
+	a.SetConfigLoader(func(context.Context) error { return nil })
+	a.Use(exampleWorker{})
+	a.On(app.StageReady, "stop", func(context.Context) error {
+		a.Stop()
+		return nil
+	})
+
+	if err := a.Run(context.Background()); err != nil {
+		panic(err)
+	}
+
+	fmt.Println("wait result:", a.Wait(context.Background()))
+	// Output:
+	// worker exited
+	// worker resources closed
+	// wait result: <nil>
+}

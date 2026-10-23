@@ -121,8 +121,8 @@ func TestAppContextAndDoneBoundaries(t *testing.T) {
 	canceled, cancelWait := context.WithCancel(context.Background())
 	cancelWait()
 
-	if err := a.WaitContext(canceled); err != context.Canceled {
-		t.Fatalf("WaitContext during shutdown = %v, want context.Canceled", err)
+	if err := a.Wait(canceled); err != context.Canceled {
+		t.Fatalf("Wait during shutdown = %v, want context.Canceled", err)
 	}
 
 	releaseExited()
@@ -145,7 +145,7 @@ func TestAppContextAndDoneBoundaries(t *testing.T) {
 		t.Fatal("Done stayed open after Run returned")
 	}
 
-	if err := a.WaitContext(context.Background()); err != nil {
+	if err := a.Wait(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	a.Stop()
@@ -240,57 +240,5 @@ func TestAppContextCancellationSources(t *testing.T) {
 				t.Fatal("Done stayed open after cancellation and shutdown")
 			}
 		})
-	}
-}
-
-func TestAppDoneAfterBackgroundTimeout(t *testing.T) {
-	a := newTestRunApp()
-	a.SetShutdownTimeout(20 * time.Millisecond)
-	release, workerExited := make(chan struct{}), make(chan struct{})
-	releaseWorker := sync.OnceFunc(func() { close(release) })
-	t.Cleanup(releaseWorker)
-	a.On(StageInit, "worker", func(context.Context) error {
-		a.Go("uncooperative-worker", func(context.Context) error {
-			defer close(workerExited)
-			<-release
-			return nil
-		})
-		return nil
-	})
-
-	cleanupRan := false
-	a.On(StageCleanup, "cleanup", func(ctx context.Context) error {
-		cleanupRan = true
-		if ctx.Err() != context.DeadlineExceeded {
-			t.Error("cleanup must share the exhausted task-wait deadline")
-		}
-		return nil
-	})
-
-	a.On(StageReady, "stop", func(context.Context) error { a.Stop(); return nil })
-	if err := a.Run(context.Background()); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run error = %v, want a task-wait timeout", err)
-	}
-	if !cleanupRan {
-		t.Fatal("cleanup was skipped after the task-wait timeout")
-	}
-
-	select {
-	case <-a.Done():
-	default:
-		t.Fatal("Done did not close after the task-wait timeout")
-	}
-
-	select {
-	case <-workerExited:
-		t.Fatal("test worker must remain blocked after shutdown completes")
-	default:
-	}
-
-	releaseWorker()
-	select {
-	case <-workerExited:
-	case <-time.After(time.Second):
-		t.Fatal("worker did not exit after release")
 	}
 }

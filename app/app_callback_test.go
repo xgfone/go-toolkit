@@ -89,7 +89,8 @@ func TestConcurrentCallbackRegistrationDuringShutdown(t *testing.T) {
 	const attempts = 32
 	for iteration := range 100 {
 		a := newTestRunApp()
-		start, firstRegistered := make(chan struct{}), make(chan struct{})
+		start := make(chan struct{})
+		firstRegistered := make(chan struct{})
 		cleanupStarted := make(chan struct{})
 		var registrations sync.WaitGroup
 		var accepted [attempts]bool

@@ -69,24 +69,81 @@ is supplied at execution time; do not capture a startup context for shutdown wor
 | Set the configuration loader           | `a.SetConfigLoader(func(ctx context.Context) error)`                    |
 | Register a simple resource closer      | `a.Cleanup(func() error)`                                               |
 | Observe cancellation                   | `a.Context().Done()`                                                    |
-| Wait for shutdown to finish            | `a.Done()`, `a.Wait()`, or `a.WaitContext(ctx)`                         |
+| Wait for shutdown to finish            | `a.Done()` or `a.Wait(ctx)` (returns Run result)                        |
 
 Names may be empty. Module methods retain their `context.Context, *app.App` parameters.
 Callbacks may register future stages during execution, but registering the current
 or an earlier stage panics. Configuration setters and module registration must
 finish before `Run` starts.
 
-Startup runs configuration, Init callbacks, Module.Init, Start callbacks,
-Module.Start, then Ready callbacks. Required request data must be initialized in
-Init or Start: servers may already accept requests during Ready.
+Startup runs configuration, Init callbacks, Module.Init, Module.Prepare, Start
+callbacks, Module.Start, then Ready callbacks. All Init calls finish before any
+Prepare; all Prepare calls finish before any Start. Prepare loads critical cache
+snapshots and business data before servers can accept requests.
 
-Shutdown cancels the run and lifecycle contexts, runs Stopping callbacks, stops
-successfully initialized modules in reverse order, waits for managed tasks, then
-runs Cleanup callbacks in reverse registration order and Exited callbacks.
-Shutdown callbacks share an independent timeout context. Remaining shutdown
-callbacks still run after errors or timeout; timeout can leave managed tasks
-running when Done closes. Resources needed by those tasks should stay open until
-Cleanup, or a Stopping callback should explicitly join the tasks before Module.Stop.
+Module now requires Init/Prepare/Start/Stop/Wait/Close (plus Name). Stop initiates
+business shutdown promptly. Wait joins additional business activity outside the
+module's TaskGroup, including required final writes, and may return nil when there
+is no such activity. The app separately stops and joins registered group tasks;
+both joins must succeed before providers stop or Close releases resources.
+Replace the old Stop resource closer with Close. Pure database/Redis modules can
+leave Prepare/Start/Stop/Wait empty; driver-internal maintenance belongs to the
+pool's Close. There is no ShutdownModule.
+
+Optional Dependencies() []string names required registered modules. Use
+app.WithDependencies(module, names...) to add dependencies without a custom wrapper;
+it copies the supplied names and preserves existing dependencies and priority.
+Repeated wrapping appends names; repeated names still fail validation. The app
+validates unique names and missing/repeated/self/cyclic dependencies before startup.
+Explicit dependencies override Priority; priority and registration order break
+ties within dependency batches. Startup visits providers first. Shutdown visits
+users first: each batch calls every Stop, cancels its TaskGroups, then joins
+every Wait and group before stopping the provider batch.
+
+TaskGroup use is optional: resource-only modules may leave their groups unused.
+Use a.TaskGroup(moduleName).Go(name, callback) for module-owned workers, servers,
+and refreshers. App handles group Stop/Wait automatically; modules implement the
+business stop protocol and any additional join without repeating these calls.
+HTTP Serve belongs to the group; HTTP Wait joins graceful shutdown and handlers.
+Group contexts preserve Run values without inheriting its cancellation/deadline;
+each group is canceled only in its shutdown batch, so a draining HTTP request can
+submit its final job downstream. Admission racing Stop is either counted and joined
+or rejected. TaskGroup lookup remains available after Run returns, so a still-live
+user can find retained dependencies for its final work; stopped groups reject new
+tasks. App.Go uses the run context and joins the outermost batch; it has no module
+dependency ordering. Track child work explicitly. Logger writer tasks belong to
+finalization, outside business groups.
+
+Replace both App.Wait() and App.WaitContext(ctx) with App.Wait(ctx) error.
+It returns the same final result as Run, supports concurrent/repeated waiters,
+and prefers a completed result over a canceled wait context. Canceling a wait
+does not stop the app. Use context.Background() for unbounded waiting;
+no WaitForever.
+
+After successful business joins, module Close precedes Cleanup (reverse order),
+Exited, and a.Finalize("logger", callback). Initialize logging in StageInit and
+close it only in the finalizer. Write-back caches must persist pending data
+before databases close; closing clients must not delete shared Redis data.
+
+SetShutdownTimeout controls all drain batches. Cleanup, Exited, and the logger
+finalizer have separate SetCleanupTimeout, SetExitedTimeout, and
+SetFinalizerTimeout budgets. Run cancellation triggers stopping; shutdown
+contexts retain values without the running cancellation/deadline. Deadlines
+are cooperative, not forced goroutine termination.
+
+If joining fails, Run and Wait return app.ErrShutdownIncomplete. A failed
+module's transitive providers keep running while independent branches still stop;
+if app-level tasks cannot join, all remaining provider batches are kept. Resource
+release, Cleanup, Exited, and finalization are skipped. Done means the attempt
+returned, not that users ended. There is no automatic cleanup/retry; arrange
+eventual termination and release retained resources only after their users exit.
+Task failures and panics are collected, including non-cancellation failures during
+draining. The final result does not change after Run returns. Panics in Run-time
+metadata, config, module methods, callbacks, and the finalizer become errors and
+follow rollback; Wait panics retain dependencies. HTTP Wait cancellation only
+ends the observer wait; Stop's context controls its grace budget. Failed HTTP
+Init closes its raw listener even when wrapping returns nil or panics. See
+app/MIGRATION.md for the full contract.
 
 ### JSON codecs
 

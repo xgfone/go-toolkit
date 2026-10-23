@@ -42,19 +42,19 @@ the packages needed for the task.
 
 ## Select the package
 
-| Task                                                                            | Packages and documentation                                                                                                                           |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lazy iterator transforms and aggregation                                        | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go`                                                                       |
-| Slice conversion, grouping, deduplication, or map conversion                    | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented                                                      |
-| String masking, email masking, or string generation                             | `stringx/README.md`, `stringx/doc.go`                                                                                                                |
-| HTTP clients, request binding, context handlers, headers, or JSON/XML responses | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go`      |
-| Routes, middleware, CORS, or HTTP logging                                       | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go` |
-| Application lifecycle, modules, background tasks, or build version command      | `app/app.go`, `app/app_callback.go`, `app/app_goroutine.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go`           |
-| Struct binding, defaults, or validation                                         | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go`                                                           |
-| Error codes, wrapped errors, or result responses                                | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go`                   |
-| Clocks, cancellable waits, random values, or integer-list parsing               | `timex/time.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go`                                                          |
-| Networking, comments, I/O, reflection, runtime, or zero-copy conversions        | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/`                                       |
-| Experimental streams or redaction                                               | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1                                 |
+| Task                                                                            | Packages and documentation                                                                                                                                     |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lazy iterator transforms and aggregation                                        | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go`                                                                                 |
+| Slice conversion, grouping, deduplication, or map conversion                    | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented                                                                |
+| String masking, email masking, or string generation                             | `stringx/README.md`, `stringx/doc.go`                                                                                                                          |
+| HTTP clients, request binding, context handlers, headers, or JSON/XML responses | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go`                |
+| Routes, middleware, CORS, or HTTP logging                                       | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go`           |
+| Application lifecycle, modules, background tasks, or build version command      | `app/MIGRATION.md`, `app/app.go`, `app/app_callback.go`, `app/app_taskgroup.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go` |
+| Struct binding, defaults, or validation                                         | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go`                                                                     |
+| Error codes, wrapped errors, or result responses                                | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go`                             |
+| Clocks, cancellable waits, random values, or integer-list parsing               | `timex/time.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go`                                                                    |
+| Networking, comments, I/O, reflection, runtime, or zero-copy conversions        | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/`                                                 |
+| Experimental streams or redaction                                               | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1                                           |
 
 ## Apply the relevant usage contracts
 
@@ -91,15 +91,28 @@ the packages needed for the task.
   audience. Header/query/body logging requires explicit custom attributes.
 - Configure an `app.App` before `Run`; it runs only once. Register callbacks
   with `App.On(stage, name, callback)`, or `Stage.On(name, callback)` for the
-  default app, and modules with `App.Use` or package-level `Use`. Callbacks take only
-  `context.Context` and return an error; capture the owning App in a closure.
-  `App.Go(name, callback)` and package-level `Go(name, callback)` manage background
-  tasks; names may be empty. `App.Context()` signals cancellation, while `Done()`
-  and `WaitContext` wait for shutdown to finish. Prepare required request data in
-  Init or Start, before servers start handling requests. `SetSignals()` disables
-  OS-signal handling. `module.HttpServer` belongs to a running application's
-  lifecycle. `runtimex.ExitContext` is separate: `Exit` cancels it before the exit
-  function but does not wait for cleanup.
+  default app, and modules with `App.Use` or package-level `Use`. Callbacks take
+  only `context.Context` and return an error; capture the owning App in a closure.
+  Modules implement Init/Prepare/Start/Stop/Wait/Close; declare required module
+  names with `Dependencies() []string` or `app.WithDependencies`. Providers start
+  first and stop after their users join. Use `a.TaskGroup(moduleName).Go` for
+  module-owned work; its context preserves Run's values and is canceled in the
+  module's shutdown batch. `App.Go` and package-level `Go` use the run context
+  for app-level tasks without dependency ordering; task names may be empty.
+  `App.Context()` signals cancellation. `App.Wait(ctx)` returns Run's final
+  result; canceling the wait does not stop the app. `Done()` signals Run's
+  completion, including `ErrShutdownIncomplete`, which retains dependencies
+  and skips Close, Cleanup, Exited, and finalization when work cannot be joined.
+  Prepare required request data in Module.Prepare or StageStart, before services
+  start handling requests. Close module resources in Close and the logger in
+  `App.Finalize`, after Exited; drain, cleanup, exit, and finalization have
+  independent timeout budgets. See `app/MIGRATION.md` for the full contract.
+  `SetSignals()` disables OS-signal handling. `module.HttpServer` belongs to a
+  running application's lifecycle; a nil handler captures `http.DefaultServeMux`
+  during Init. Configure or replace the default mux before `App.Run`; do not
+  reassign `http.DefaultServeMux` while the app is running. `runtimex.ExitContext`
+  is separate: `Exit` cancels it before the exit function but does not wait for
+  cleanup.
 - String masks count runes; generators count bytes including affixes.
   `WithXxx` mask/affix configuration returns independent values. Preset getters
   and replacement setters are synchronized, but custom implementations and shared

@@ -24,24 +24,25 @@ const (
 	// Use it for setup that does not depend on initialized modules.
 	StageInit Stage = "init"
 
-	// StageStart runs after all [Module.Init] calls and before [Module.Start].
+	// StageStart runs after all [Module.Prepare] calls and before [Module.Start].
 	// Use it to prepare business data that must be available before services start.
 	StageStart Stage = "start"
 
 	// StageReady runs after all [Module.Start] calls. Services such as HTTP servers
 	// may already be handling requests, so required request data belongs in
-	// [StageInit] or [StageStart].
+	// Module.Prepare, [StageInit], or [StageStart].
 	StageReady Stage = "ready"
 
-	// StageStopping runs after the run context is canceled and before [Module.Stop].
+	// StageStopping runs after the run context is canceled and before
+	// [Module.Stop]. Shared resources must remain open here.
 	//
 	// If a [StageStopping] callback returns an error, the error is collected,
 	// but the remaining shutdown callbacks will continue to run.
 	StageStopping Stage = "stopping"
 
-	// StageCleanup runs after [Module.Stop] and waiting for managed background
-	// tasks, and before [StageExited]. If waiting times out, tasks may still
-	// be running.
+	// StageCleanup runs after all module and task joins succeed and Module.Close
+	// has released module resources, and before StageExited. On an incomplete
+	// drain it is skipped together with Module.Close, Exited, and the finalizer.
 	//
 	// Callbacks registered for [StageCleanup] are executed in reverse registration
 	// order, making it suitable for releasing resources that were initialized
@@ -54,8 +55,9 @@ const (
 	// StageExited is the final lifecycle stage.
 	//
 	// It is triggered after [StageCleanup] has completed and before [App.Run]
-	// returns.  Callbacks registered for [StageExited] are intended for fast
-	// final notification logic, such as logging, metrics, or status reporting.
+	// returns. Callbacks are intended for final notification logic, such as
+	// logging, metrics, or status reporting. Use App.Finalize for closing the
+	// logger after every Exited callback has finished.
 	//
 	// [StageExited] does not mean the process has already exited. It means the
 	// [App] has reached its final lifecycle stage.

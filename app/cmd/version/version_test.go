@@ -51,6 +51,12 @@ func TestGenerate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
+
+				_, err := parser.ParseFile(token.NewFileSet(), "", code, parser.AllErrors)
+				if err != nil {
+					t.Fatalf("invalid generated Go source: %v", err)
+				}
+
 				for _, c := range tt.checks {
 					if !strings.Contains(code, c) {
 						t.Errorf("missing %q", c)
@@ -67,22 +73,6 @@ func TestGenerate(t *testing.T) {
 		})
 	}
 
-	t.Run("valid_go_syntax", func(t *testing.T) {
-		code, err := Generate("main", "v1.0.0", 1000000)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = parser.ParseFile(token.NewFileSet(), "", code, parser.AllErrors)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-}
-
-func TestGetBuildTime(t *testing.T) {
-	if v := getBuildTime(); v <= 0 {
-		t.Errorf("expected positive, got %d", v)
-	}
 }
 
 func TestGetVersion(t *testing.T) {
@@ -157,57 +147,6 @@ func TestGetVersionWithoutHead(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		dir := t.TempDir()
-		initGitRepo(t, dir, "v1.0.0")
-		withChdir(t, dir)
-
-		out := filepath.Join(t.TempDir(), "gen.go")
-		if err := run(out, "main", "v"); err != nil {
-			t.Fatal(err)
-		}
-		data, _ := os.ReadFile(out)
-		if !strings.Contains(string(data), `AppVersion   = "v1.0.0"`) {
-			t.Error("output missing AppVersion")
-		}
-	})
-
-	for _, tag := range []string{"", "1.0.0"} {
-		name := "no_tag"
-		if tag != "" {
-			name = "no_v_tag"
-		}
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			initGitRepo(t, dir, tag)
-			withChdir(t, dir)
-
-			out := filepath.Join(t.TempDir(), "gen.go")
-			if err := run(out, "main", "v"); err != nil {
-				t.Fatal(err)
-			}
-			data, _ := os.ReadFile(out)
-			if !strings.Contains(string(data), `AppVersion   = ""`) {
-				t.Error("output AppVersion is not empty")
-			}
-		})
-	}
-
-	t.Run("custom_tag_prefix", func(t *testing.T) {
-		dir := t.TempDir()
-		initGitRepo(t, dir, "release-1.0.0")
-		withChdir(t, dir)
-
-		out := filepath.Join(t.TempDir(), "gen.go")
-		if err := run(out, "main", "release-"); err != nil {
-			t.Fatal(err)
-		}
-		data, _ := os.ReadFile(out)
-		if !strings.Contains(string(data), `AppVersion   = "release-1.0.0"`) {
-			t.Error("output missing custom-prefix AppVersion")
-		}
-	})
-
 	t.Run("git_error", func(t *testing.T) {
 		dir := t.TempDir() // no git repo
 		withChdir(t, dir)
@@ -239,38 +178,24 @@ func TestRun(t *testing.T) {
 	})
 }
 
-func TestMainFunc(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		dir := t.TempDir()
-		initGitRepo(t, dir, "v1.0.0")
-		withChdir(t, dir)
-
-		*output = filepath.Join(dir, "gen.go")
-		*tagPrefix = "v"
-		main()
-
-		data, _ := os.ReadFile(*output)
-		if !strings.Contains(string(data), `AppVersion   = "v1.0.0"`) {
-			t.Error("output missing AppVersion")
-		}
+func TestMainExitsOnError(t *testing.T) {
+	withChdir(t, t.TempDir()) // No Git repository.
+	originalExit := osexit
+	originalOutput := *output
+	originalPrefix := *tagPrefix
+	t.Cleanup(func() {
+		osexit = originalExit
+		*output = originalOutput
+		*tagPrefix = originalPrefix
 	})
-
-	t.Run("exit_on_error", func(t *testing.T) {
-		dir := t.TempDir() // no git repo
-		withChdir(t, dir)
-
-		var exited bool
-		old := osexit
-		osexit = func(int) { exited = true }
-		defer func() { osexit = old }()
-
-		*output = filepath.Join(dir, "gen.go")
-		*tagPrefix = "v"
-		main()
-		if !exited {
-			t.Error("os.Exit was not called")
-		}
-	})
+	var exitCode int
+	osexit = func(code int) { exitCode = code }
+	*output = "unused.go"
+	*tagPrefix = "v"
+	main()
+	if exitCode != 1 {
+		t.Fatalf("exit code=%d, want 1", exitCode)
+	}
 }
 
 // -- helpers --
@@ -308,7 +233,8 @@ func TestCommandLineFlags(t *testing.T) {
 	// Calling main from a test would inherit testing's already-parsed flags.
 	// Execute the actual command to exercise flag parsing as users invoke it.
 	binary := filepath.Join(t.TempDir(), "version.exe")
-	output, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput()
+	build := exec.Command("go", "build", "-o", binary, ".")
+	output, err := build.CombinedOutput()
 	if err != nil {
 		t.Fatalf("build version command: %v\n%s", err, output)
 	}

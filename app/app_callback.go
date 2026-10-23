@@ -40,10 +40,12 @@ type namedCallback struct {
 // exception is [StageCleanup]: callbacks registered for [StageCleanup] are
 // executed in reverse registration order.
 //
-// Startup callbacks receive the app's run context. Shutdown callbacks share a
-// separate context with the deadline configured by [App.SetShutdownTimeout].
-// Shutdown continues calling callbacks even after that context expires or a
-// callback fails.
+// Startup callbacks receive the app's run context. Stopping, Cleanup, and
+// Exited have independent contexts and budgets; see App.SetShutdownTimeout,
+// App.SetCleanupTimeout, and App.SetExitedTimeout. App.Finalize is the final
+// logger cleanup, with its own budget after Exited. Shutdown continues calling
+// callbacks even after that context expires or a callback fails. Cleanup and
+// Exited are skipped on ErrShutdownIncomplete.
 func (a *App) On(stage Stage, name string, callback func(ctx context.Context) error) {
 	if callback == nil {
 		panic("app: nil callback")
@@ -57,7 +59,7 @@ func (a *App) On(stage Stage, name string, callback func(ctx context.Context) er
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if phase <= a.stage {
+	if a.state == stateExited || phase <= a.stage {
 		panic(fmt.Sprintf("app: cannot register callback for stage %q after stage %q",
 			stage, lifecyclePhases[a.stage].stage))
 	}
@@ -66,7 +68,7 @@ func (a *App) On(stage Stage, name string, callback func(ctx context.Context) er
 }
 
 // Cleanup registers a simple close function for [StageCleanup]. The function
-// does not receive the shutdown context or its deadline. Use [App.On] with
+// does not receive the cleanup context or its deadline. Use [App.On] with
 // [StageCleanup] for context-aware cleanup.
 func (a *App) Cleanup(fn func() error) {
 	if fn == nil {

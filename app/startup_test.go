@@ -18,8 +18,7 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -62,13 +61,13 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 		},
 		{
 			cancelAt: "first.Init",
-			want:     []string{"config", "init", "first.Init", "stopping", "first.Stop", "cleanup", "exited"},
+			want:     []string{"config", "init", "first.Init", "stopping", "first.Close", "cleanup", "exited"},
 		},
 		{
 			cancelAt: "first.Start",
 			want: []string{
 				"config", "init", "first.Init", "second.Init", "start", "first.Start",
-				"stopping", "second.Stop", "first.Stop", "cleanup", "exited",
+				"stopping", "second.Close", "first.Close", "cleanup", "exited",
 			},
 		},
 	} {
@@ -102,7 +101,7 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 					name:  name,
 					init:  testModuleCallback(record(name + ".Init")),
 					start: testModuleCallback(record(name + ".Start")),
-					stop:  testModuleCallback(record(name + ".Stop")),
+					close: testModuleCallback(record(name + ".Close")),
 				})
 			}
 
@@ -123,85 +122,120 @@ func TestStartupCancellationRollsBack(t *testing.T) {
 	}
 }
 
-func TestBackgroundFailureAtReadyPreservesError(t *testing.T) {
-	a := newTestRunApp()
-	failure := errors.New("worker failed at readiness")
-	cleaned := false
-	a.Cleanup(func() error { cleaned = true; return nil })
-	// Ready may return nil after a background failure canceled the run context.
-	a.On(StageReady, "", func(ctx context.Context) error {
-		a.Go("ready-worker", func(context.Context) error { return failure })
-		<-ctx.Done()
-		return nil
-	})
+func TestPartialStartupRollback(t *testing.T) {
+	for _, phase := range []string{"init", "prepare", "start"} {
+		for _, mode := range []string{"error", "panic"} {
+			t.Run(phase+"/"+mode, func(t *testing.T) {
+				a := newTestRunApp()
+				failure := errors.New(phase)
+				var exited atomic.Bool
+				var closed, finalized bool
+				m := newTestModule("module")
+				work := func(context.Context, *App) error {
+					a.TaskGroup("module").Go("partial", func(ctx context.Context) error {
+						<-ctx.Done()
+						exited.Store(true)
+						return nil
+					})
+					if mode == "panic" {
+						panic(failure)
+					}
+					return failure
+				}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+				switch phase {
+				case "init":
+					m.init = work
+					m.stop = func(context.Context, *App) error {
+						t.Error("Stop after failed Init")
+						return nil
+					}
+					m.wait = func(context.Context, *App) error {
+						t.Error("Wait after failed Init")
+						return nil
+					}
+				case "prepare":
+					m.prepare = work
+					m.start = func(context.Context, *App) error {
+						t.Error("Start after failed Prepare")
+						return nil
+					}
+				case "start":
+					m.start = work
+				}
 
-	err := a.Run(ctx)
-	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "ready-worker") {
-		t.Fatalf("Run lost the named worker failure: %v", err)
-	}
-	if !cleaned {
-		t.Fatal("cleanup did not run")
-	}
-}
+				m.close = func(context.Context, *App) error {
+					closed = true
+					if !exited.Load() {
+						t.Error("Close before partial work exited")
+					}
+					return nil
+				}
 
-func TestBackgroundFailurePublishedDuringShutdown(t *testing.T) {
-	a := newTestRunApp()
-	firstFailure := errors.New("first worker failed")
-	formatting, release := make(chan struct{}), make(chan struct{})
-	releaseError := sync.OnceFunc(func() { close(release) })
-	t.Cleanup(releaseError)
-	lateFailure := &delayedTaskError{
-		error:      errors.New("another worker failed before cancellation"),
-		formatting: formatting,
-		release:    release,
-	}
+				a.Use(m)
+				a.On(StageReady, "unexpected", func(context.Context) error {
+					t.Error("Ready after startup failure")
+					return nil
+				})
+				a.Finalize("logger", func(context.Context) error {
+					finalized = true
+					return nil
+				})
 
-	a.On(StageReady, "", func(ctx context.Context) error {
-		a.Go("late-worker", func(context.Context) error { return lateFailure })
-		select {
-		case <-formatting:
-		case <-ctx.Done():
-			return ctx.Err()
+				result := a.Run(context.Background())
+				if !errors.Is(result, failure) || errors.Is(result, ErrShutdownIncomplete) {
+					t.Fatal(result)
+				}
+				if !exited.Load() || !finalized || closed != (phase != "init") {
+					t.Fatalf("rollback: exited=%v finalized=%v closed=%v", exited.Load(), finalized, closed)
+				}
+				if got := a.Wait(context.Background()); got != result {
+					t.Fatalf("Wait=%v, Run=%v", got, result)
+				}
+			})
 		}
-
-		// The late worker has passed its cancellation check, but is blocked
-		// formatting its error. A different worker now triggers shutdown.
-		a.Go("first-worker", func(context.Context) error { return firstFailure })
-		<-ctx.Done()
-		return nil
-	})
-	a.On(StageStopping, "", func(_ context.Context) error {
-		// Run has consumed the first failure. Let the real task publish its
-		// error while shutdown is waiting for managed tasks to finish.
-		releaseError()
-		return nil
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	if err := a.Run(ctx); !errors.Is(err, firstFailure) || !errors.Is(err, lateFailure) {
-		t.Fatalf("Run must preserve both worker failures, got %v", err)
-	} else if !strings.Contains(err.Error(), `background task "late-worker"`) {
-		t.Fatalf("Run must preserve the late worker's name, got %v", err)
-	}
-	if ctx.Err() != nil {
-		t.Fatal("worker failure stopped the app only after the parent timed out")
 	}
 }
 
-type delayedTaskError struct {
-	error
-	formatting chan struct{}
-	release    <-chan struct{}
-	once       sync.Once
-}
+func TestStartupCallbackPanicsRollbackAndPublishResult(t *testing.T) {
+	for _, phase := range []string{"config", "init-callback", "start-callback", "ready"} {
+		t.Run(phase, func(t *testing.T) {
+			a := newTestRunApp()
+			failure := errors.New("panic in " + phase)
+			m := newTestModule("module")
+			var closed, finalized bool
+			m.close = func(context.Context, *App) error { closed = true; return nil }
+			fail := func(context.Context) error { panic(failure) }
+			switch phase {
+			case "config":
+				a.SetConfigLoader(fail)
+			case "init-callback":
+				a.On(StageInit, "panic", fail)
+			case "start-callback":
+				a.On(StageStart, "panic", fail)
+			case "ready":
+				a.On(StageReady, "panic", fail)
+			}
 
-func (e *delayedTaskError) Error() string {
-	e.once.Do(func() { close(e.formatting) })
-	<-e.release
-	return e.error.Error()
+			a.Use(m)
+			a.Finalize("logger", func(context.Context) error { finalized = true; return nil })
+			a.On(StageReady, "stop", func(context.Context) error { a.Stop(); return nil })
+
+			result := a.Run(context.Background())
+			if !errors.Is(result, failure) {
+				t.Fatalf("Run lost panic cause: %v", result)
+			}
+			initialized := phase != "config" && phase != "init-callback"
+			if closed != initialized || !finalized {
+				t.Errorf("rollback incomplete: closed=%v finalized=%v", closed, finalized)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			if got := a.Wait(ctx); got != result {
+				t.Errorf("Wait did not publish final result: %v / %v", got, result)
+			}
+		})
+	}
 }

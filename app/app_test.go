@@ -16,7 +16,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"os"
 	"runtime/debug"
 	"testing"
@@ -62,6 +61,9 @@ func TestAppConfigurationValidation(t *testing.T) {
 		{"empty name", func(a *App) { a.SetName("") }},
 		{"zero timeout", func(a *App) { a.SetShutdownTimeout(0) }},
 		{"negative timeout", func(a *App) { a.SetShutdownTimeout(-time.Second) }},
+		{"zero cleanup timeout", func(a *App) { a.SetCleanupTimeout(0) }},
+		{"negative exited timeout", func(a *App) { a.SetExitedTimeout(-time.Second) }},
+		{"zero finalizer timeout", func(a *App) { a.SetFinalizerTimeout(0) }},
 		{"nil signal", func(a *App) { a.SetSignals(nil) }},
 		{"nil config loader", func(a *App) { a.SetConfigLoader(nil) }},
 	} {
@@ -84,6 +86,9 @@ func TestAppConfigurationAfterRun(t *testing.T) {
 		{"commit", func() { a.SetCommit("late") }},
 		{"build time", func() { a.SetBuildTime(time.Now()) }},
 		{"timeout", func() { a.SetShutdownTimeout(time.Second) }},
+		{"cleanup timeout", func() { a.SetCleanupTimeout(time.Second) }},
+		{"exited timeout", func() { a.SetExitedTimeout(time.Second) }},
+		{"finalizer timeout", func() { a.SetFinalizerTimeout(time.Second) }},
 		{"signals", func() { a.SetSignals(os.Interrupt) }},
 		{"config loader", func() { a.SetConfigLoader(func(context.Context) error { return nil }) }},
 		{"module", func() { a.Use(newTestModule("late")) }},
@@ -104,39 +109,6 @@ func TestAppConfigurationAfterRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("exited")
-}
-
-func TestWait(t *testing.T) {
-	a := newTestRunApp()
-	waited := make(chan struct{})
-	go func() { a.Wait(); close(waited) }()
-	select {
-	case <-waited:
-		t.Fatal("Wait returned before Run")
-	case <-time.After(20 * time.Millisecond):
-	}
-
-	a.On(StageReady, "stop", func(context.Context) error {
-		a.Stop()
-		return nil
-	})
-	if err := a.Run(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	select {
-	case <-waited:
-	case <-time.After(time.Second):
-		t.Fatal("Wait did not return after Run")
-	}
-}
-
-func TestWaitContextDeadline(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if err := New().WaitContext(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("WaitContext = %v, want DeadlineExceeded", err)
-	}
 }
 
 func TestSetBuildTime(t *testing.T) {

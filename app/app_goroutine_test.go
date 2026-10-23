@@ -34,7 +34,7 @@ func TestGoCompletionAfterCancellation(t *testing.T) {
 	for _, result := range []error{nil, errors.New("late task error")} {
 		name := "success"
 		if result != nil {
-			name = "late error ignored"
+			name = "late error preserved"
 		}
 		t.Run(name, func(t *testing.T) {
 			a := newTestRunApp()
@@ -51,8 +51,8 @@ func TestGoCompletionAfterCancellation(t *testing.T) {
 				return nil
 			})
 			a.On(StageReady, "stop", func(context.Context) error { a.Stop(); return nil })
-			if err := a.Run(context.Background()); err != nil {
-				t.Fatal(err)
+			if err := a.Run(context.Background()); !errors.Is(err, result) {
+				t.Fatalf("Run = %v, want %v", err, result)
 			}
 			if !completed {
 				t.Fatal("Run returned before the managed task finished")
@@ -62,7 +62,8 @@ func TestGoCompletionAfterCancellation(t *testing.T) {
 }
 
 func TestGoFailureStopsStartup(t *testing.T) {
-	failure, panicFailure := errors.New("task failure"), errors.New("panic failure")
+	failure := errors.New("task failure")
+	panicFailure := errors.New("panic failure")
 	original := defaultApp
 	t.Cleanup(func() { defaultApp = original })
 	for _, tc := range []struct {
@@ -111,50 +112,12 @@ func TestGoFailureStopsStartup(t *testing.T) {
 	}
 }
 
-func TestGo_Error_FullErrorChannel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	app := &App{
-		state:     stateRunning,
-		runCtx:    ctx,
-		cancelRun: cancel,
-		errCh:     make(chan error, 1),
-	}
-	queuedErr := errors.New("queued failure")
-	app.errCh <- queuedErr
-
-	// Keep the channel full until the task exits so the send must select default.
-	app.Go("worker", func(context.Context) error {
-		return errors.New("task failure")
-	})
-
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-	defer waitCancel()
-
-	if err := app.waitBackground(waitCtx); err != nil {
-		t.Fatalf("background task blocked on a full error channel: %v", err)
-	}
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		t.Fatalf("background task must cancel the run context, got %v", ctx.Err())
-	}
-
-	select {
-	case err := <-app.errCh:
-		if err != queuedErr {
-			t.Fatalf("queued error = %v, want %v", err, queuedErr)
-		}
-
-	default:
-		t.Fatal("background task removed the queued error")
-	}
-}
-
 func TestConcurrentGoDuringShutdown(t *testing.T) {
 	const attempts = 32
 	for iteration := range 100 {
 		a := newTestRunApp()
-		start, firstRegistered := make(chan struct{}), make(chan struct{})
+		start := make(chan struct{})
+		firstRegistered := make(chan struct{})
 		stopping := make(chan struct{})
 		var registrations sync.WaitGroup
 		var accepted, completedAtCleanup [attempts]bool
@@ -230,4 +193,64 @@ func TestConcurrentGoDuringShutdown(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestBackgroundFailurePublishedDuringShutdown(t *testing.T) {
+	a := newTestRunApp()
+	firstFailure := errors.New("first worker failed")
+	formatting := make(chan struct{})
+	release := make(chan struct{})
+	releaseError := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseError)
+	lateFailure := &delayedTaskError{
+		error:      errors.New("another worker failed before cancellation"),
+		formatting: formatting,
+		release:    release,
+	}
+
+	a.On(StageReady, "", func(ctx context.Context) error {
+		a.Go("late-worker", func(context.Context) error { return lateFailure })
+		select {
+		case <-formatting:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		// The late worker has passed its cancellation check, but is blocked
+		// formatting its error. A different worker now triggers shutdown.
+		a.Go("first-worker", func(context.Context) error { return firstFailure })
+		<-ctx.Done()
+		return nil
+	})
+	a.On(StageStopping, "", func(_ context.Context) error {
+		// Run has consumed the first failure. Let the real task publish its
+		// error while shutdown is waiting for managed tasks to finish.
+		releaseError()
+		return nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := a.Run(ctx); !errors.Is(err, firstFailure) || !errors.Is(err, lateFailure) {
+		t.Fatalf("Run must preserve both worker failures, got %v", err)
+	} else if !strings.Contains(err.Error(), `background task "late-worker"`) {
+		t.Fatalf("Run must preserve the late worker's name, got %v", err)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("worker failure stopped the app only after the parent timed out")
+	}
+}
+
+type delayedTaskError struct {
+	error
+	formatting chan struct{}
+	release    <-chan struct{}
+	once       sync.Once
+}
+
+func (e *delayedTaskError) Error() string {
+	e.once.Do(func() { close(e.formatting) })
+	<-e.release
+	return e.error.Error()
 }

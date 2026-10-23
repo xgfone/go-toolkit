@@ -73,8 +73,14 @@ type App struct {
 	version atomic.Value
 	builtat atomic.Int64
 
-	shutdownTimeout time.Duration
-	signals         []os.Signal
+	shutdownTimeout  time.Duration
+	cleanupTimeout   time.Duration
+	exitedTimeout    time.Duration
+	finalizerTimeout time.Duration
+
+	signals    []os.Signal
+	finalizer  *namedCallback
+	finalizing bool
 
 	modules   []Module
 	callbacks [phaseCount][]namedCallback
@@ -86,9 +92,13 @@ type App struct {
 	runCtx        context.Context
 	cancelRun     context.CancelFunc
 
-	wg    sync.WaitGroup
-	errCh chan error
-	done  chan struct{}
+	groups        map[string]*TaskGroup
+	rootTasks     *TaskGroup
+	moduleBatches [][]*moduleRun
+	taskErrors    []error
+	result        error
+
+	done chan struct{}
 }
 
 // New creates an [App] with minimal default behavior.
@@ -98,7 +108,8 @@ type App struct {
 //   - derives name from the first entry of [os.Args] using [filepath.Base]
 //     and [strings.TrimSuffix] to remove the ".exe" suffix
 //   - uses a minimal [flag] config loader (see [App.SetConfigLoader])
-//   - uses 30 seconds as shutdown timeout
+//   - allows 30 seconds for draining, and 5 seconds each for cleanup, exited
+//     callbacks, and the optional finalizer
 //   - listens to [syscall.SIGINT], [syscall.SIGTERM]
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,6 +122,9 @@ func New() *App {
 	app.SetName(strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe"))
 	app.SetConfigLoader(app.defaultFlagConfigLoader)
 	app.SetShutdownTimeout(30 * time.Second)
+	app.SetCleanupTimeout(5 * time.Second)
+	app.SetExitedTimeout(5 * time.Second)
+	app.SetFinalizerTimeout(5 * time.Second)
 	app.SetSignals(os.Interrupt, syscall.SIGTERM)
 	app.SetVersion("0.0.0")
 	app.SetCommit("")
@@ -155,18 +169,19 @@ func (a *App) BuildTime() time.Time {
 // Context returns the app's lifecycle cancellation context. It is created by
 // [New] and remains the same before, during, and after [App.Run]. It is canceled
 // when shutdown is requested, before [StageStopping], including on startup failure.
-// Use [App.Done] or [App.WaitContext] to wait for shutdown to finish.
+// Use [App.Done] or [App.Wait] to wait for shutdown to finish.
 //
 // This context carries no values or deadline from the parent passed to [App.Run];
-// callbacks and managed background tasks receive that parent's derived run
-// context instead. Shutdown callbacks receive a separate shutdown context.
+// startup callbacks and App.Go tasks receive its derived run context instead.
+// Module TaskGroups retain values without inheriting its cancellation/deadline.
+// Shutdown phases retain parent values but have independent deadlines.
 func (a *App) Context() context.Context { return a.ctx }
 
-// Done returns a channel that closes after [StageCleanup] and [StageExited]
-// callbacks finish, immediately before [App.Run] returns. The same channel is
-// available from [New] onward. It stays open if Run has never been called.
-// If waiting for managed tasks times out, some tasks may still be running
-// when Done closes.
+// Done returns a channel that closes immediately before [App.Run] returns.
+// Normally this follows Cleanup, Exited, and the optional finalizer. On
+// [ErrShutdownIncomplete], these phases are skipped to retain dependencies
+// still used by live tasks. Done then does not mean those tasks have exited.
+// The channel is available from [New] onward and stays open until Run finishes.
 func (a *App) Done() <-chan struct{} { return a.done }
 
 // SetName sets app name.
@@ -217,12 +232,13 @@ func (a *App) SetBuildTime(builtat time.Time) {
 	a.builtat.Store(builtat.Unix())
 }
 
-// SetShutdownTimeout sets graceful shutdown timeout.
+// SetShutdownTimeout sets the budget for stopping callbacks, module Stop and
+// Wait methods, and waiting for managed background tasks. The default is 30
+// seconds. Cleanup, Exited, and the finalizer have separate budgets.
 //
-// The timeout is shared by stopping callbacks, module Stop methods, waiting
-// for managed background tasks, cleanup callbacks, and exited callbacks. It
-// is cooperative: callbacks must observe their context or otherwise return
-// promptly. All shutdown callbacks are attempted even after the deadline.
+// Timeouts are cooperative: callbacks must observe their context or return
+// promptly. If users of resources cannot be joined, Run returns
+// [ErrShutdownIncomplete] without closing those resources or the logger.
 //
 // It must be called before [App.Run].
 func (a *App) SetShutdownTimeout(timeout time.Duration) {
@@ -257,46 +273,49 @@ func (a *App) SetSignals(signals ...os.Signal) {
 	a.signals = slices.Clone(signals)
 }
 
-// Run starts the app lifecycle and blocks until shutdown,
-// which can only be called once.
+// Run starts the app lifecycle and blocks until shutdown, which can only be
+// called once.
 //
-// Startup loads configuration, runs [StageInit], initializes modules, runs
-// [StageStart], starts modules, then runs [StageReady]. Shutdown cancels the
-// run context, runs [StageStopping], stops initialized modules in reverse order,
-// waits for managed background tasks, then runs [StageCleanup] and [StageExited].
-// The same shutdown sequence is used if startup fails.
+// Startup loads configuration, runs StageInit, all Module.Init and Prepare
+// methods, StageStart, all Module.Start methods, then StageReady. Dependencies
+// precede their users. On shutdown, batches stop in reverse dependency order;
+// app-level tasks join the outermost batch. Each batch initiates every Stop and
+// cancels its task groups, then joins every Wait and group before stopping
+// dependencies. Only successful joins permit Close, Cleanup, Exited, and the
+// finalizer. Startup failures use the same rollback path for initialized modules
+// and all admitted tasks. Run's final error is also returned by App.Wait.
+//
+// ctx controls the running lifetime, not the shutdown deadline. Cancellation
+// starts shutdown; its independent phase budgets retain ctx's values without
+// inheriting its cancellation or deadline. These budgets are cooperative.
 //
 // If [App.Run] returns a non-nil error, caller may print it and call [os.Exit]
 // with status 1.
 func (a *App) Run(ctx context.Context) (err error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	cancelRun := func() {
-		cancel()
-		a.cancelContext()
-	}
 
-	signals := a.startRun(runCtx, cancelRun)
+	cancelRun := func() { cancel(); a.cancelContext() }
+	signals, planErr := a.startRun(runCtx, cancelRun)
 	defer cancelRun()
-	// A parent can cancel while a startup callback is still blocked. Forward
-	// cancellation without waiting for that callback to return.
+
 	stopContextCancel := context.AfterFunc(runCtx, a.cancelContext)
 	defer stopContextCancel()
-	errCh := a.errCh
 
 	if len(signals) > 0 {
 		signalCtx, stopSignal := signal.NotifyContext(runCtx, signals...)
 		defer stopSignal()
 
-		// Cancel the context used by startup callbacks and modules as soon as
-		// a signal arrives, even if startup is still waiting on a dependency.
 		stopCancel := context.AfterFunc(signalCtx, cancelRun)
 		defer stopCancel()
 	}
 
-	for phase := phaseConfig; phase <= phaseReady; phase++ {
-		if err = a.runPhase(runCtx, phase); err != nil {
-			break
+	err = planErr
+	if err == nil {
+		for phase := phaseConfig; phase <= phaseReady; phase++ {
+			if err = a.runPhase(runCtx, phase); err != nil {
+				break
+			}
 		}
 	}
 
@@ -304,29 +323,10 @@ func (a *App) Run(ctx context.Context) (err error) {
 		<-runCtx.Done()
 	}
 
-	// A task publishes its error before canceling runCtx. Cancellation may
-	// have interrupted startup; preserve the original failure.
-	select {
-	case backgroundErr := <-errCh:
-		err = errors.Join(err, backgroundErr)
-	default:
-	}
-
 	a.markStopping()
 	cancelRun()
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), a.shutdownTimeout)
-	defer cancelShutdown()
-
-	err = errors.Join(err, a.shutdown(shutdownCtx))
-	// A task may have passed its cancellation check before shutdown and only
-	// published its error while shutdown was waiting for it to finish.
-	select {
-	case backgroundErr := <-errCh:
-		err = errors.Join(err, backgroundErr)
-	default:
-	}
-	a.markExited()
-	return err
+	err = errors.Join(err, a.shutdown(context.WithoutCancel(ctx)))
+	return a.markExited(err)
 }
 
 // Stop requests [App.Run] to stop.
@@ -343,29 +343,34 @@ func (a *App) Stop() {
 	}
 }
 
-// Wait blocks until [App.Run] returns.
-//
-// If [App.Run] is still running, [App.Wait] blocks until the shutdown lifecycle
-// finishes. If [App.Run] has already returned, [App.Wait] returns immediately.
-func (a *App) Wait() {
-	_ = a.WaitContext(context.Background())
-}
-
-// WaitContext blocks until [App.Run] returns or ctx is done.
-//
-// It returns nil if [App.Run] has exited, or the error from [context.Context.Err]
-// if canceled first.
-func (a *App) WaitContext(ctx context.Context) error {
+// Wait waits for Run's final result or ctx cancellation. Canceling a wait does
+// not stop the app or alter its shutdown budgets. Multiple and repeated waiters
+// receive the same final result, including ErrShutdownIncomplete. A completed
+// run wins over an already canceled ctx. Before Run, Wait waits for a future
+// run. Lifecycle methods and callbacks must not call App.Wait.
+func (a *App) Wait(ctx context.Context) error {
 	select {
 	case <-a.done:
-		return nil
+		return a.result
+	default:
+	}
+
+	select {
+	case <-a.done:
+		return a.result
 
 	case <-ctx.Done():
-		return ctx.Err()
+		select {
+		case <-a.done:
+			return a.result
+
+		default:
+			return ctx.Err()
+		}
 	}
 }
 
-func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) []os.Signal {
+func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) ([]os.Signal, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -376,61 +381,40 @@ func (a *App) startRun(ctx context.Context, cancel context.CancelFunc) []os.Sign
 	a.state = stateRunning
 	a.runCtx = ctx
 	a.cancelRun = cancel
-	a.errCh = make(chan error, 1)
-
-	sortModules(a.modules)
-	for _, m := range a.modules {
-		a.registerModuleLocked(m)
+	a.rootTasks = &TaskGroup{
+		app:    a,
+		ctx:    ctx,
+		cancel: func() {},
+		done:   make(chan struct{}),
 	}
-	a.registerCallbackLocked(phaseWaitBackground, "", a.waitBackground)
 
-	// Configuration is frozen once Run starts; these slices cannot change.
-	return a.signals
-}
-
-func (a *App) shutdown(ctx context.Context) error {
-	var errs []error
-	for phase := phaseStopping; phase < phaseCount; phase++ {
-		if err := a.runPhase(ctx, phase); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return a.signals, saferun(ctx, a.prepareModulesLocked)
 }
 
 func (a *App) waitBackground(ctx context.Context) error {
-	done := make(chan struct{})
-
-	go func() {
-		a.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return nil
-
-	case <-ctx.Done():
-		return fmt.Errorf("app: wait background tasks: %w", ctx.Err())
+	if err := a.rootTasks.Wait(ctx); err != nil {
+		return fmt.Errorf("app: wait background tasks: %w", err)
 	}
+	return nil
 }
 
 func (a *App) markStopping() {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.state = stateStopping
+	a.rootTasks.Stop()
+	a.mu.Unlock()
 }
 
-func (a *App) markExited() {
+func (a *App) markExited(err error) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	a.state = stateExited
 	a.runCtx = nil
 	a.cancelRun = nil
-	a.errCh = nil
+	a.result = errors.Join(append([]error{err}, a.taskErrors...)...)
 	close(a.done)
+	return a.result
 }
 
 func (a *App) mustBeNewLocked(method string) {

@@ -62,9 +62,13 @@ func TestDefaultFlagConfigLoader(t *testing.T) {
 		{name: "help", args: []string{"-h"}, wantErr: flag.ErrHelp, wantExit: []int{0}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			originalFlags, originalArgs, originalExit := flag.CommandLine, os.Args, osexit
+			originalFlags := flag.CommandLine
+			originalArgs := os.Args
+			originalExit := osexit
 			t.Cleanup(func() {
-				flag.CommandLine, os.Args, osexit = originalFlags, originalArgs, originalExit
+				flag.CommandLine = originalFlags
+				os.Args = originalArgs
+				osexit = originalExit
 			})
 			flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
 			if tc.parsed {

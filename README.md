@@ -37,6 +37,7 @@ Package comments and example tests document usage and behavior. For upgrades
 from v0.30.2, read the target revision's [iterator migration guide](iterx/MIGRATION.md),
 [slice migration guide](slicex/MIGRATION.md), [map migration guide](mapx/MIGRATION.md),
 and [string migration guide](stringx/README.md#migration) for the packages you use.
+For application lifecycle changes, see the [lifecycle and task ownership migration guide](app/MIGRATION.md).
 For AI-assisted development and migration, install the [go-toolkit skill](#ai-agent-skill).
 
 ## AI Agent skill

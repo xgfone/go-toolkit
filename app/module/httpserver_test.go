@@ -16,6 +16,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,27 +29,32 @@ import (
 
 type wrappedListener struct{ net.Listener }
 
+type failedAcceptListener struct {
+	net.Listener
+	err error
+}
+
+func (l failedAcceptListener) Accept() (net.Conn, error) { return nil, l.err }
+
 func getAddrFunc(addr string) func() string {
 	return func() string { return addr }
 }
 
-// TestNewHttpServer verifies that [NewHttpServer] creates a [app.Module]
-// with the given name, and the result of [HttpServer.Name] matches.
-func TestNewHttpServer(t *testing.T) {
-	m := NewHttpServer("test-server", getAddrFunc(":0"), http.NotFoundHandler())
-	if got := m.Name(); got != "test-server" {
-		t.Errorf("Name() = %q, want %q", got, "test-server")
+func TestHttpServerLifecycle(t *testing.T) {
+	for _, tc := range []struct{ name, addr string }{
+		{"plain", "127.0.0.1:0"},
+		{"tcp URL", "tcp://127.0.0.1:0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewHttpServer(tc.name, getAddrFunc(tc.addr), http.NotFoundHandler())
+			if got := m.Name(); got != tc.name {
+				t.Fatalf("Name=%q, want %q", got, tc.name)
+			}
+			testHttpServerLifecycle(t, m)
+		})
 	}
 }
 
-// TestHttpServerLifecycle exercises the full [HttpServer.Init] → [HttpServer.Start] (concurrently) → [HttpServer.Stop]
-// lifecycle on a random port.
-func TestHttpServerLifecycle(t *testing.T) {
-	m := NewHttpServer("lifecycle", getAddrFunc(":0"), http.NotFoundHandler())
-	testHttpServerLifecycle(t, m)
-}
-
-// TestHttpServerInitFail verifies that [HttpServer.Init] fails when the port is already in use.
 func TestHttpServerInitFail(t *testing.T) {
 	// Listen on a random port and hold it.
 	holder := httptest.NewUnstartedServer(http.NotFoundHandler())
@@ -79,8 +85,75 @@ func TestHttpServerWrapListener(t *testing.T) {
 	if captured == nil {
 		t.Fatal("WrapListener was not called")
 	}
-	if ln, ok := m.listen.(*onceCloseListener); !ok || ln.Listener != wrapped {
-		t.Fatal("Init did not use the wrapped listener")
+	{
+		ln, ok := m.listen.(*onceCloseListener)
+		if !ok || ln.Listener != wrapped {
+			t.Fatal("Init did not use the wrapped listener")
+		}
+	}
+}
+
+func TestHttpServerCapturesHandlerDuringInit(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		name := "default handler"
+		if explicit {
+			name = "explicit handler"
+		}
+		t.Run(name, func(t *testing.T) {
+			original := http.DefaultServeMux
+			t.Cleanup(func() { http.DefaultServeMux = original })
+			http.DefaultServeMux = http.NewServeMux()
+
+			var handler http.Handler
+			if explicit {
+				handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+			}
+			s := NewHttpServer("http", getAddrFunc("127.0.0.1:0"), handler)
+			mux := http.NewServeMux()
+			mux.HandleFunc("/configured", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusCreated)
+			})
+			// Configure the default mux after construction, before Init/Run.
+			http.DefaultServeMux = mux
+			if err := s.Init(context.Background(), nil); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if err := s.Stop(ctx, nil); err != nil {
+					t.Error(err)
+				}
+				if err := s.Wait(ctx, nil); err != nil {
+					t.Error(err)
+				}
+				if err := s.Close(ctx, nil); err != nil {
+					t.Error(err)
+				}
+			})
+
+			// No server is running. Replace the global only to verify that Init
+			// captured its handler and requests do not read the global again.
+			replacement := http.NewServeMux()
+			replacement.HandleFunc("/configured", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusAccepted)
+			})
+			http.DefaultServeMux = replacement
+
+			w := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/configured", nil)
+			s.server.Handler.ServeHTTP(w, request)
+			want := http.StatusCreated
+			if explicit {
+				want = http.StatusNoContent
+			}
+			if w.Code != want {
+				t.Fatalf("status = %d, want %d", w.Code, want)
+			}
+		})
 	}
 }
 
@@ -111,6 +184,12 @@ func TestHttpServerInvalidAddr(t *testing.T) {
 			if err := m.Stop(context.Background(), nil); err != nil {
 				t.Fatalf("Stop: unexpected error: %v", err)
 			}
+			if err := m.Wait(context.Background(), nil); err != nil {
+				t.Fatalf("Wait: unexpected error: %v", err)
+			}
+			if err := m.Close(context.Background(), nil); err != nil {
+				t.Fatalf("Close: unexpected error: %v", err)
+			}
 		})
 	}
 }
@@ -125,18 +204,17 @@ func TestHttpServerStartRequiresApp(t *testing.T) {
 		if err := m.Stop(context.Background(), nil); err != nil {
 			t.Errorf("Stop after rejected Start: %v", err)
 		}
+		if err := m.Wait(context.Background(), nil); err != nil {
+			t.Errorf("Wait after rejected Start: %v", err)
+		}
+		if err := m.Close(context.Background(), nil); err != nil {
+			t.Errorf("Close after rejected Start: %v", err)
+		}
 	})
 
 	if err := m.Start(context.Background(), nil); err == nil {
 		t.Fatal("Start without an App must fail")
 	}
-}
-
-// TestHttpServerURLScheme verifies that [HttpServer.Init] correctly parses a "tcp://..." URL
-// and extracts the network and address from it.
-func TestHttpServerURLScheme(t *testing.T) {
-	m := NewHttpServer("scheme", getAddrFunc("tcp://:0"), http.NotFoundHandler())
-	testHttpServerLifecycle(t, m)
 }
 
 func testHttpServerLifecycle(t *testing.T, m *HttpServer) {
@@ -180,5 +258,95 @@ func testHttpServerLifecycle(t *testing.T, m *HttpServer) {
 
 	if !ready {
 		t.Fatal("HTTP server never became ready")
+	}
+}
+
+func TestHTTPInitFailureReleasesListener(t *testing.T) {
+	for _, panics := range []bool{false, true} {
+		name := "nil wrapper"
+		if panics {
+			name = "panicking wrapper"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			s := NewHttpServer("http",
+				func() string { return "127.0.0.1:0" },
+				http.NotFoundHandler(),
+			)
+
+			var raw net.Listener
+			s.WrapListener(func(l net.Listener) net.Listener {
+				raw = l
+				if panics {
+					panic("wrapper failed")
+				}
+				return nil
+			})
+
+			func() {
+				defer func() {
+					if p := recover(); p != nil && !panics {
+						t.Errorf("unexpected panic: %v", p)
+					}
+				}()
+
+				if err := s.Init(context.Background(), nil); err == nil && !panics {
+					t.Error("nil wrapped listener accepted")
+				}
+			}()
+
+			if s.IsValid() {
+				t.Error("failed Init left the server valid")
+			}
+			if err := s.Stop(context.Background(), nil); err != nil {
+				t.Error(err)
+			}
+			if err := s.Close(context.Background(), nil); err != nil {
+				t.Error(err)
+			}
+			if raw == nil {
+				t.Fatal("listener was not created")
+			}
+			defer raw.Close() //nolint:errcheck
+
+			addr := raw.Addr().String()
+			wait := 30 * time.Millisecond
+			c, err := net.DialTimeout("tcp", addr, wait)
+			if err == nil {
+				_ = c.Close()
+				t.Error("failed Init leaked its listening socket")
+			}
+		})
+	}
+}
+
+func TestRegressionServeErrorStopsApp(t *testing.T) {
+	for _, failure := range []error{
+		net.ErrClosed,
+		errors.New("wrapped listener failed"),
+	} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			s := NewHttpServer("http", getAddrFunc("127.0.0.1:0"), http.NotFoundHandler())
+			s.WrapListener(func(l net.Listener) net.Listener {
+				_ = l.Close()
+				return failedAcceptListener{Listener: l, err: failure}
+			})
+
+			a := app.New()
+			a.SetSignals()
+			a.SetConfigLoader(func(context.Context) error { return nil })
+			a.Use(s)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			if err := a.Run(ctx); !errors.Is(err, failure) {
+				t.Fatalf("Run must preserve the listener failure, got %v", err)
+			}
+
+			if ctx.Err() != nil {
+				t.Fatal("Serve failure stopped the app only after the parent timed out")
+			}
+		})
 	}
 }
