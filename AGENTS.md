@@ -16,3 +16,16 @@ second := make(chan struct{})
 
 ctx, cancel := context.WithCancel(parent)
 ```
+
+## 迁移文档（Migration）维护
+
+- 所有迁移文档统一描述 **v0.30.2 → v1** 的 API 和行为差异。起点固定为 Git 标签 `v0.30.2`，
+  目标为文档所在源码树的 v1 实现；不得改为 v1.0.0-beta 之间或其他 v1 中间版本之间的迁移说明。
+- 迁移对照中的旧 API、签名和行为必须根据 `v0.30.2` 标签源码核对，新 API 和行为根据目标 v1
+  源码核对。不得将仅在 v1 开发过程中存在的中间接口当作 v0.30.2 的旧接口。
+- 后续修改 v1 的公共 API、行为、生命周期或工具链要求等影响迁移的内容时，必须同步更新相关迁移文档，
+  保持从 v0.30.2 直接迁移到目标 v1 的完整方案；不要追加 beta 之间的改名历史作为迁移步骤。
+- 维护范围包括各子包的 `MIGRATION.md`、`stringx/README.md` 的 Migration 章节，以及
+  `.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md`。同时核对
+  README 和技能说明中的迁移范围、索引及链接，保持一致。
+- 修改迁移文档时，应说明实际影响及替换方式，核对示例中的新旧 API，并验证相关文档链接。

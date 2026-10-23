@@ -36,19 +36,20 @@ Use documentation from the release tag or commit selected by your application.
 Package comments and example tests document usage and behavior. For upgrades
 from v0.30.2, read the target revision's [iterator migration guide](iterx/MIGRATION.md),
 [slice migration guide](slicex/MIGRATION.md), [map migration guide](mapx/MIGRATION.md),
-and [string migration guide](stringx/README.md#migration) for the packages you use.
-For application lifecycle changes, see the [lifecycle and task ownership migration guide](app/MIGRATION.md).
+the [string migration guide](stringx/README.md#migration), and the
+[application lifecycle migration guide](app/MIGRATION.md) for the packages you use.
+These guides compare v0.30.2 directly with the v1 implementation in their source tree.
 For AI-assisted development and migration, install the [go-toolkit skill](#ai-agent-skill).
 
 ## AI Agent skill
 
 The [go-toolkit skill](.agents/skills/go-toolkit/SKILL.md) guides agents through
 package selection, version-aware documentation lookup, important usage contracts,
-and migration from v0.30.2 or v1 prereleases toward v1. It includes a
+and migration from v0.30.2 to v1. It includes a
 [migration index](.agents/skills/go-toolkit/references/migration-v0.30.2-to-v1.md)
-for changes outside the existing package guides, checked against a stated source
-revision. The exact target's APIs remain authoritative; a beta or development
-snapshot must not be treated as a final v1 release.
+for changes outside the package guides, using the same v0.30.2 baseline. The exact
+target's APIs remain authoritative; use the documentation from the v1 tag or
+revision selected by the application.
 
 Adding this Go dependency does **not** install the skill or load this library's
 agent instructions into the consuming project's session. Install the skill

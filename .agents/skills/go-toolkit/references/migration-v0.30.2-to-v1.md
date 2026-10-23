@@ -1,10 +1,8 @@
-# Migration index: v0.30.2 to v1 development
+# Migration index: v0.30.2 to v1
 
-This index was initially checked against tag `v0.30.2` and source commit
-`a3df9f89e02c9996b6b6b5d4340ca5a61a3c0e45`, and includes the current application
-lifecycle API described below. It is not a promise about a final `v1.0.0` release
-or every beta. Check the exact target source before applying a replacement;
-later commits and individual prereleases can differ.
+This index compares tag `v0.30.2` with the v1 implementation in the source tree
+containing this document. All previous APIs below refer to `v0.30.2`. Use the
+index and package guides from the v1 tag or revision selected by your application.
 
 Paths in this document are relative to the selected **go-toolkit module source
 root**, not this reference's installed location. For usage contracts and version
@@ -19,27 +17,27 @@ discovery, return to the skill's `SKILL.md`.
   codecs, generators, middleware, and lifecycle callbacks. Migrate only the packages
   actually used; do not introduce unrelated services or experimental APIs.
 - Read the target version's package-local guides. There is no root-level
-  `MIGRATION.md` in the checked snapshot. For packages without a guide, compare
-  signatures, comments, source, and tests between the actual source and target
-  revisions. In a checkout, `git diff SOURCE TARGET -- PACKAGE` is useful.
+  `MIGRATION.md` in this source tree. For packages without a guide, compare
+  signatures, comments, source, and tests between `v0.30.2` and the selected
+  v1 revision. In a checkout, use `git diff v0.30.2 TARGET -- PACKAGE`.
 
 ## Existing package migration guides
 
 | Package   | Target module document        | Important checks                                                                                                                                                                                                                                                                              |
 | --------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`     | `app/MIGRATION.md`            | Replace Hook/OnNamed/GoNamed callbacks and the old Module contract; adopt dependency batches, module task groups, explicit joins and resource release, and independent shutdown budgets.                                                                                                      |
 | `iterx`   | `iterx/MIGRATION.md`          | `Map` becomes `To`; callback forms become `SumFunc`/`CountFunc`. `Sum`/`Count` now consume values directly. Replace removed `All`, `Any`, `Seq`, `Seq2`, and numeric constraints as documented. Preserve laziness and early termination.                                                      |
-| `slicex`  | `slicex/MIGRATION.md`         | `Convert` becomes `To` and conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, nil versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements.                                                     |
-| `mapx`    | `mapx/MIGRATION.md`           | `Convert` becomes `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/Pair helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed.                                                       |
+| `slicex`  | `slicex/MIGRATION.md`         | Remove the deprecated `Convert` alias in favor of the existing `To`; conversion `Filter` becomes `FilterTo`. Audit removed collection/containment helpers, nil versus empty outputs, single-slice sharing, capacity, and containment complexity before using standard replacements.           |
+| `mapx`    | `mapx/MIGRATION.md`           | Remove the deprecated `Convert` alias in favor of the existing `To`; construct `SMap` with `make`. Replace removed keys/values/collection/filter/Pair helpers with standard iterators and the documented adapters. Preserve overwrite semantics, nilness, and capacity where needed.          |
 | `stringx` | `stringx/README.md#migration` | Concrete `Desensitizer` becomes `MaskDesensitizer`; `Desensitizer` is now an interface. Presets become getters/setters. `Builder` becomes `AffixGenerator`; string-producing `Generate(n)` and buffer-appending `Append(dst,n)` replace the old API. Update custom generator implementations. |
 
-Do not copy a module guide from an older installed dependency and assume it
-describes the target. For a beta-to-beta or beta-to-development upgrade, also
-check changes after that beta. For example, the current iterator adapters use
-`Skip`; earlier v1 development used `Drop`.
+Read the package guides from the selected v1 source rather than copying them
+from an older installed dependency. The migration boundary remains v0.30.2 to v1
+for every package.
 
 ## Other API removals and renames
 
-| Previous API or import                                                   | Replacement in the checked source                                                                                                     |
+| v0.30.2 API or import                                                    | v1 replacement                                                                                                                        |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `app.DefaultApp`                                                         | `app.Default()`; configure the returned instance or use an application-owned `app.New()`.                                             |
 | `router.DefaultRouter`                                                   | `router.Default()`; use `router.New()` for an independent router.                                                                     |
@@ -57,19 +55,26 @@ check changes after that beta. For example, the current iterator adapters use
 
 ### Application lifecycle
 
-Current lifecycle callbacks have the signature `func(ctx context.Context) error`.
-Capture the owning `*app.App` in a closure when it is needed. The callback context
-is supplied at execution time; do not capture a startup context for shutdown work.
+In v0.30.2, `app.Hook` took `context.Context, *app.App`. v1 removes Hook;
+lifecycle callbacks and configuration loaders take only `context.Context` and
+return an error. Capture the owning App in a closure when it is needed. Task
+callbacks already took only context in v0.30.2 and keep that signature. The
+callback context is supplied at execution time; do not capture a startup context
+for shutdown work.
 
-| Purpose                                | Current interface                                                       |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| Register a callback on an App          | `a.On(stage, name, callback)`                                           |
-| Register a callback on the default App | `stage.On(name, callback)` or `app.Default().On(stage, name, callback)` |
-| Start a managed task                   | `a.Go(name, callback)` or `app.Go(name, callback)`                      |
-| Set the configuration loader           | `a.SetConfigLoader(func(ctx context.Context) error)`                    |
-| Register a simple resource closer      | `a.Cleanup(func() error)`                                               |
-| Observe cancellation                   | `a.Context().Done()`                                                    |
-| Wait for shutdown to finish            | `a.Done()` or `a.Wait(ctx)` (returns Run result)                        |
+| v0.30.2 API                                          | v1 replacement                                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `a.On(stage, hook)` / `a.OnNamed(stage, name, hook)` | `a.On(stage, name, callback)`; use `""` for an unnamed callback.                                        |
+| `stage.On(hook)` / `stage.OnNamed(name, hook)`       | `stage.On(name, callback)` on the default App.                                                          |
+| `a.Go(fn)` / `a.GoNamed(name, fn)`                   | `a.Go(name, fn)`; the same change applies to package-level `app.Go` / `app.GoNamed`.                    |
+| `a.SetConfigLoader(hook)`                            | `a.SetConfigLoader(func(context.Context) error)`.                                                       |
+| `a.OnCleanup(hook)` / `app.CloserFuncHook(fn)`       | `a.Cleanup(fn)` for a simple closer, or `a.On(app.StageCleanup, name, callback)`.                       |
+| `a.AtExit(fn)`                                       | `a.On(app.StageExited, name, callback)` for notifications; `a.Finalize(name, callback)` for the logger. |
+| `a.Wait()` / `a.WaitContext(ctx)`                    | `a.Wait(ctx) error`, returning Run's final result.                                                      |
+
+`a.Cleanup(func() error)` remains available. App.Context, App.Done, TaskGroup,
+ReportError, and Finalize are additions; use Context to observe cancellation,
+and Done or Wait to observe completion.
 
 Names may be empty. Module methods retain their `context.Context, *app.App` parameters.
 Callbacks may register future stages during execution, but registering the current
@@ -88,7 +93,7 @@ is no such activity. The app separately stops and joins registered group tasks;
 both joins must succeed before providers stop or Close releases resources.
 Replace the old Stop resource closer with Close. Pure database/Redis modules can
 leave Prepare/Start/Stop/Wait empty; driver-internal maintenance belongs to the
-pool's Close. There is no ShutdownModule.
+pool's Close.
 
 Optional Dependencies() []string names required registered modules. Use
 app.WithDependencies(module, names...) to add dependencies without a custom wrapper;
@@ -114,21 +119,22 @@ tasks. App.Go uses the run context and joins the outermost batch; it has no modu
 dependency ordering. Track child work explicitly. Logger writer tasks belong to
 finalization, outside business groups.
 
-Replace both App.Wait() and App.WaitContext(ctx) with App.Wait(ctx) error.
+Replace v0.30.2 App.Wait() and App.WaitContext(ctx) with App.Wait(ctx) error.
 It returns the same final result as Run, supports concurrent/repeated waiters,
 and prefers a completed result over a canceled wait context. Canceling a wait
-does not stop the app. Use context.Background() for unbounded waiting;
-no WaitForever.
+does not stop the app. Use context.Background() for unbounded waiting.
 
 After successful business joins, module Close precedes Cleanup (reverse order),
 Exited, and a.Finalize("logger", callback). Initialize logging in StageInit and
 close it only in the finalizer. Write-back caches must persist pending data
 before databases close; closing clients must not delete shared Redis data.
 
-SetShutdownTimeout controls all drain batches. Cleanup, Exited, and the logger
-finalizer have separate SetCleanupTimeout, SetExitedTimeout, and
-SetFinalizerTimeout budgets. Run cancellation triggers stopping; shutdown
-contexts retain values without the running cancellation/deadline. Deadlines
+In v0.30.2, module Stop and the app-level task join shared SetShutdownTimeout;
+Cleanup and Exited used unbounded background contexts. In v1, SetShutdownTimeout
+controls all drain batches. Cleanup, Exited, and the logger finalizer have
+separate SetCleanupTimeout, SetExitedTimeout, and SetFinalizerTimeout budgets.
+Run cancellation triggers stopping; shutdown contexts retain values without the
+running cancellation/deadline. Deadlines
 are cooperative, not forced goroutine termination.
 
 If joining fails, Run and Wait return app.ErrShutdownIncomplete. A failed
@@ -143,14 +149,17 @@ metadata, config, module methods, callbacks, and the finalizer become errors and
 follow rollback; Wait panics retain dependencies. HTTP Wait cancellation only
 ends the observer wait; Stop's context controls its grace budget. Failed HTTP
 Init closes its raw listener even when wrapping returns nil or panics. See
-app/MIGRATION.md for the full contract.
+app/MIGRATION.md for the full v0.30.2-to-v1 lifecycle migration. Regenerate files
+from app/cmd/version so generated initializers use app.Default() instead of
+app.DefaultApp; the v1 command also parses its flags and adds a commit-count
+suffix when HEAD is beyond its selected version tag.
 
 ### JSON codecs
 
 The `jsonx` package and its global marshal/unmarshal hooks were removed.
 Current HTTP and result helpers use `encoding/json/v2`.
 
-| Previous call                            | Replacement                                                                                |
+| v0.30.2 call                             | Replacement                                                                                |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `jsonx.Marshal` / `MarshalBytes`         | `json.Marshal(value)`.                                                                     |
 | `jsonx.Unmarshal` / `UnmarshalBytes`     | `json.Unmarshal(data, dst)`.                                                               |
@@ -168,7 +177,7 @@ policy is preserved.
 ### Time policy
 
 `timex.Format`/`Formats` and their getters/setters are removed, as are
-`Location`, `GetLocation`, `SetLocation`, and `Unix` in the checked source.
+`Location`, `GetLocation`, `SetLocation`, and `Unix` in v1.
 Keep formatting and parsing policies in the application. Use `time.Unix`
 and explicit `In(location)` when a specific location is required.
 
@@ -176,8 +185,11 @@ and explicit `In(location)` when a specific location is required.
 converting to the old UTC default. `Today` uses the returned time's location.
 Code requiring UTC should request it explicitly; a custom `SetNowFunc`
 can return UTC for toolkit clock consumers, including string time generators.
-Restore `time.Now` after tests and do not replace the clock concurrently with
-its consumers. `timex.Sleep` is a new cancellation-aware helper.
+App.BuildTime now returns the stored instant in time.Local instead of the
+v0.30.2 timex.Location policy (UTC by default). Convert explicitly when a
+particular location is required. Restore `time.Now` after tests and do not
+replace the clock concurrently with its consumers. `timex.Sleep` is a new
+cancellation-aware helper.
 
 ## Behavioral changes to verify
 

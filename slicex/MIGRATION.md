@@ -1,6 +1,8 @@
-# slicex: v0.30.2 to v1.0.0
+# slicex: v0.30.2 to v1
 
-This guide compares v0.30.2 with v1.0.0. Examples omit imports and declarations of existing variables.
+This guide compares tag `v0.30.2` with the v1 implementation in this source tree.
+Use the guide from your selected v1 tag or revision. Examples omit imports and
+declarations of existing variables.
 
 ## 1. Additions
 

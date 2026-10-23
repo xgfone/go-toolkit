@@ -1,7 +1,72 @@
-# Application lifecycle, dependencies, and task ownership
+# app: v0.30.2 to v1
 
-This replaces the module and waiting APIs after `03fa97c`. Update every module
-and wrapper before upgrading; this is a source and behavior breaking change.
+This guide compares the API at tag `v0.30.2` with the v1 implementation in this
+source tree. Use the guide from the v1 tag or revision selected by your
+application. Examples omit imports and declarations of application resources.
+Upgrade the toolchain from Go 1.24 to Go 1.27 before updating the module.
+
+## API migration from v0.30.2
+
+| v0.30.2 API                                          | v1 replacement                                                                                                                               |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app.DefaultApp`                                     | `app.Default()`; the default instance is no longer an assignable exported variable. Use `app.New()` for an application-owned instance.       |
+| `app.Hook`, taking `context.Context, *app.App`       | Callbacks take only `context.Context` and return an error. Capture the owning App in a closure.                                              |
+| `a.On(stage, hook)` / `a.OnNamed(stage, name, hook)` | `a.On(stage, name, callback)`; use `""` for an unnamed callback.                                                                             |
+| `stage.On(hook)` / `stage.OnNamed(name, hook)`       | `stage.On(name, callback)` on the default App.                                                                                               |
+| `a.SetConfigLoader(hook)`                            | `a.SetConfigLoader(func(context.Context) error)`; capture the App when needed.                                                               |
+| `a.Go(fn)` / `a.GoNamed(name, fn)`                   | `a.Go(name, fn)`; use `""` for an unnamed task. The same change applies to package-level `app.Go` / `app.GoNamed`.                           |
+| `app.CloserFuncHook(fn)` / `a.OnCleanup(hook)`       | Use `a.Cleanup(fn)` for a simple closer, or `a.On(app.StageCleanup, name, callback)` for a context-aware callback.                           |
+| `a.AtExit(fn)`                                       | Use `a.On(app.StageExited, name, callback)` for a final notification; move logger release to `a.Finalize(name, callback)`.                   |
+| `a.Wait()` / `a.WaitContext(ctx)`                    | `a.Wait(ctx) error`; it now returns Run's final result rather than only wait cancellation. Use `context.Background()` for unbounded waiting. |
+| Module `Name/Init/Start/Stop`                        | Keep Name/Init/Start, add Prepare/Wait/Close, and split the old Stop into stop signaling, joining, and resource release as described below.  |
+
+The six public Stage constants and `a.Cleanup(func() error)` remain available.
+`App.Stop()` still requests shutdown without waiting. `App.Context()`,
+`App.Done()`, module TaskGroups, dependency declarations, ReportError, and
+Finalize are additions.
+
+For example, replace a v0.30.2 named hook:
+
+```go
+a.OnNamed(app.StageInit, "logger", func(ctx context.Context, owner *app.App) error {
+    return setupLogger(ctx, owner.Name())
+})
+```
+
+with a v1 callback that captures the same App:
+
+```go
+a.On(app.StageInit, "logger", func(ctx context.Context) error {
+    return setupLogger(ctx, a.Name())
+})
+```
+
+Module methods still receive `context.Context, *app.App`; only lifecycle
+callbacks and configuration loaders lose the App argument. Task callbacks
+already took only context in v0.30.2 and keep that signature.
+
+## Lifecycle changes from v0.30.2
+
+The v0.30.2 startup sequence was configuration -> StageInit -> Module.Init ->
+StageStart -> Module.Start -> StageReady. v1 inserts **all Module.Prepare calls**
+between Module.Init and StageStart. Module priority still defaults to 1 and
+sorts descending; v1 dependency declarations take precedence over priority.
+
+In v0.30.2, shutdown ran StageStopping, every initialized Module.Stop in reverse
+order, the app-level task join, StageCleanup, and StageExited. A database's old
+Stop could therefore close its pool before app-level tasks finished. Cleanup and
+Exited received unbounded background contexts and ran even after a failed join.
+v1 instead drains users before stopping providers, adds Module.Close after all
+joins, gives cleanup and exit their own budgets, and retains resources when exit
+cannot be proven. Logging moves from StageExited to the finalizer.
+
+In v0.30.2, stage callbacks, configuration loading, and module methods could panic
+out of Run; managed task panics were recovered. v1 also recovers panics from the
+lifecycle operations and metadata read during Run, so they follow the failure and
+rollback paths described below. Managed task failures during shutdown are preserved
+unless they consist solely of expected cancellation. Cancellation, including configured
+signals, can interrupt startup in v1; `a.SetSignals()` with no arguments disables
+OS-signal handling.
 
 ## Module contract
 
@@ -148,7 +213,7 @@ not the business groups that are canceled during draining.
 
 Startup is configuration -> StageInit -> Module.Init -> Module.Prepare ->
 StageStart -> Module.Start -> StageReady. StageInit is suitable for logging;
-StageStart now follows all module preparation. HTTP may already serve during
+StageStart follows the new module preparation phase. HTTP may already serve during
 StageReady, so required request data must be ready before Start. A strict global
 admission barrier requires an explicit gate in addition to readiness reporting.
 
@@ -158,14 +223,14 @@ runs in reverse dependency order, followed by Cleanup (reverse registration),
 Exited (registration order), and the single finalizer. App.Done closes after the
 final result is stored, immediately before Run returns.
 
-`App.Stop()` requests shutdown; it does not wait. Replace both `App.Wait()` and
-`App.WaitContext(ctx)` with `App.Wait(ctx) error`. For unbounded waiting use
-`a.Wait(context.Background())`; there is no WaitForever method. Wait returns the
-same final error as Run, including startup, task, cleanup, finalizer, or incomplete
-shutdown failures. It supports concurrent and repeated callers. If the app is
-already done, its result takes precedence over a canceled waiting context.
-Canceling a wait returns ctx.Err without stopping the app or changing budgets.
-Before Run, Wait waits for a future run. Never call App.Wait from lifecycle code.
+`App.Stop()` requests shutdown; it does not wait. Replace v0.30.2 `App.Wait()`
+and `App.WaitContext(ctx)` with `App.Wait(ctx) error`. For unbounded waiting
+use `a.Wait(context.Background())`. Wait returns the same final error as Run,
+including startup, task, cleanup, finalizer, or incomplete shutdown failures.
+It supports concurrent and repeated callers. If the app is already done, its
+result takes precedence over a canceled waiting context. Canceling a wait returns
+ctx.Err without stopping the app or changing budgets. Before Run, Wait waits for
+a future run. Never call App.Wait from lifecycle code.
 
 ## Independent budgets and incomplete shutdown
 
@@ -201,9 +266,16 @@ and finalization are attempted.
 
 ## HTTP, caching, and logging
 
-With a nil handler, HttpServer captures `http.DefaultServeMux` during Init.
-Configure or replace the default mux before App.Run; do not reassign
-`http.DefaultServeMux` while the app is running.
+In v0.30.2, HttpServer.Start launched an unmanaged Serve goroutine, and Stop
+called Shutdown synchronously. In v1, Start requires a running App and launches
+Serve in the module's TaskGroup; Stop initiates shutdown, Wait joins business
+activity, and Close releases remaining resources. Serve failures are included
+in Run's final result. Register the server with `a.Use`, and declare its
+downstream dependencies with `app.WithDependencies` as shown above.
+
+With a nil handler, v0.30.2 relied on net/http's default-mux lookup while serving;
+v1 captures `http.DefaultServeMux` during Init. Configure or replace the default
+mux before App.Run; do not reassign `http.DefaultServeMux` while the app is running.
 
 HttpServer owns Serve through its module task group, which the app joins
 independently of HttpServer.Wait. Stop gates new handlers, closes its listener,
@@ -233,9 +305,29 @@ accepted; it can coordinate multiple outputs. Keep logging outside normal module
 Close so cleanup and Exited can still log. Report the final returned error to
 stderr after the logger has closed.
 
-## Renaming existing implementations
+## Migrating a v0.30.2 module
 
-From the original Init/Start/Stop module API, move resource release from Stop to
-Close; add Prepare and Wait; retain or move stop-admission signaling into Stop.
-From the intermediate API, rename StopAccepting to Stop and WaitStopped to Wait,
-and add Prepare. Remove ShutdownModule: the six operations are all on Module.
+For each existing Module implementation and wrapper:
+
+1. Keep Init for resource acquisition and move required business-data loading
+   to Prepare when it must run after every module's Init.
+2. Keep Start for starting activity. Move module-owned App.GoNamed/App.Go work
+   to `a.TaskGroup(moduleName).Go(name, callback)` when dependency order matters.
+3. Split the old Stop: initiate business shutdown in Stop, join activity outside
+   the TaskGroup in Wait, and release resources in Close. The App joins group
+   tasks automatically. Return nil from phases with no work.
+4. Declare required module names with Dependencies or WithDependencies; forward
+   dependency and priority metadata through custom wrappers.
+5. Move logger cleanup previously registered with AtExit or StageExited to
+   Finalize, and update callback registration using the API table above.
+
+## Generated build metadata
+
+Regenerate files produced by `app/cmd/version`, or replace generated references
+to `app.DefaultApp` with `app.Default()`. The v1 command also parses its flags
+and appends the count of commits after its selected version tag when nonzero,
+such as `v1.2.0-3`; check consumers that parse App.Version as a plain release tag.
+
+App.BuildTime now returns the stored instant in `time.Local`; v0.30.2 used
+`timex.Location`, which defaulted to UTC. Use `.UTC()` or `.In(location)` when
+your application needs a specific output location.

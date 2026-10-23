@@ -96,9 +96,11 @@ concurrent generation and supply a concurrency-safe clock function.
 
 ## Migration
 
-This redesign changes public API names and signatures:
+This section compares tag `v0.30.2` with the v1 implementation in this source
+tree. Use the documentation from your selected v1 tag or revision. Upgrade the
+toolchain from Go 1.24 to Go 1.27 before updating the module.
 
-| Previous API                                   | Replacement                                                                                  |
+| v0.30.2 API                                    | v1 replacement                                                                               |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Concrete `Desensitizer`                        | `MaskDesensitizer`; `Desensitizer` is now an interface                                       |
 | `d.Left`, `d.Right`, `d.Chars`                 | `d.Left()`, `d.Right()`, `d.Chars()`; configure with `WithXxx`                               |

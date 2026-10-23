@@ -1,6 +1,6 @@
 ---
 name: go-toolkit
-description: Use github.com/xgfone/go-toolkit packages in Go applications for collection transforms, HTTP services and clients, application lifecycle, struct binding, masking, and utility tasks, or migrate v0.30.2 and v1 prereleases toward v1. Apply only to this module's usage and upgrades.
+description: Use github.com/xgfone/go-toolkit packages in Go applications for collection transforms, HTTP services and clients, application lifecycle, struct binding, masking, and utility tasks, or migrate v0.30.2 to v1. Apply only to this module's usage and upgrades.
 ---
 
 # Using and migrating go-toolkit
@@ -26,12 +26,13 @@ revision. For vendored builds, also inspect `vendor/modules.txt` and the vendore
 package. If the module is not installed, use the requested version rather than
 silently selecting the latest one.
 
-For migration, identify the exact source and target tags or commits. To inspect
-a target not installed in the application, use a checkout of that revision or
+For migration, use tag `v0.30.2` as the source baseline and identify the exact
+v1 target tag or commit. To inspect a target not installed in the application,
+use a checkout of that revision or
 `go mod download -json github.com/xgfone/go-toolkit@VERSION` and read its `Dir`.
 This inspection is separate from upgrading the application's dependency. Do not
-assume a final `v1.0.0` release exists or that a beta includes changes from the
-development branch. If a requested revision is unavailable, report that fact.
+assume the selected v1 target includes changes from later revisions. If a
+requested revision is unavailable, report that fact.
 
 All module paths and documentation paths in the following table are relative
 to the selected **go-toolkit source/documentation root**, not the consuming
@@ -147,11 +148,11 @@ package comments and example tests instead of inventing analogies from this API.
 
 ## Migrate and verify
 
-For v0.30.2-to-v1 or v1 prerelease upgrades, read
+For migration from v0.30.2 to v1, read
 [references/migration-v0.30.2-to-v1.md](references/migration-v0.30.2-to-v1.md)
 relative to this **skill directory**, then the target module's relevant migration
-guides and source. The bundled index identifies a checked source revision; it
-does not override the application's exact target.
+guides and source. The bundled index compares the v0.30.2 baseline with the v1
+source tree containing it; use the copy matching the application's exact target.
 
 After updating used call sites, run the consuming application's relevant tests.
 Check collection nilness/order/sharing, JSON behavior, destination binding,
