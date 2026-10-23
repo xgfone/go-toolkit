@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -145,5 +147,87 @@ func TestGo_Error_FullErrorChannel(t *testing.T) {
 
 	default:
 		t.Fatal("background task removed the queued error")
+	}
+}
+
+func TestConcurrentGoDuringShutdown(t *testing.T) {
+	const attempts = 32
+	for iteration := range 100 {
+		a := newTestRunApp()
+		start, firstRegistered := make(chan struct{}), make(chan struct{})
+		stopping := make(chan struct{})
+		var registrations sync.WaitGroup
+		var accepted, completedAtCleanup [attempts]bool
+		var completed [attempts]atomic.Bool
+		for i := range attempts {
+			registrations.Go(func() {
+				if i == 0 {
+					defer close(firstRegistered)
+				}
+				if i == attempts-1 {
+					<-stopping
+				} else {
+					<-start
+				}
+
+				defer func() {
+					if r := recover(); r != nil && r != "app: Go can only be called while app is running" {
+						t.Errorf("unexpected task registration panic: %v", r)
+					}
+				}()
+
+				a.Go("concurrent", func(ctx context.Context) error {
+					<-ctx.Done()
+					completed[i].Store(true)
+					return nil
+				})
+				accepted[i] = true
+			})
+		}
+
+		a.On(StageReady, "stop", func(ctx context.Context) error {
+			close(start)
+			// Admit at least one task before Stop; the remaining callers race
+			// with shutdown closing task registration.
+			select {
+			case <-firstRegistered:
+				a.Stop()
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+
+		a.On(StageStopping, "late-registration", func(context.Context) error {
+			close(stopping)
+			return nil
+		})
+
+		a.On(StageCleanup, "check-workers", func(context.Context) error {
+			for i := range completed {
+				completedAtCleanup[i] = completed[i].Load()
+			}
+			return nil
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := a.Run(ctx)
+		cancel()
+		registrations.Wait()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !accepted[0] {
+			t.Fatal("task registration before Stop must succeed")
+		}
+		if accepted[attempts-1] {
+			t.Fatal("task registration during Stopping must panic")
+		}
+		for i, registered := range accepted {
+			if completedAtCleanup[i] != registered {
+				t.Fatalf("iteration %d, task %d: accepted=%v, completed before Cleanup=%v",
+					iteration, i, registered, completedAtCleanup[i])
+			}
+		}
 	}
 }

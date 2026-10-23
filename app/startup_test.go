@@ -19,6 +19,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -149,16 +150,33 @@ func TestBackgroundFailureAtReadyPreservesError(t *testing.T) {
 func TestBackgroundFailurePublishedDuringShutdown(t *testing.T) {
 	a := newTestRunApp()
 	firstFailure := errors.New("first worker failed")
-	lateFailure := errors.New("another worker failed before cancellation")
+	formatting, release := make(chan struct{}), make(chan struct{})
+	releaseError := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseError)
+	lateFailure := &delayedTaskError{
+		error:      errors.New("another worker failed before cancellation"),
+		formatting: formatting,
+		release:    release,
+	}
+
 	a.On(StageReady, "", func(ctx context.Context) error {
+		a.Go("late-worker", func(context.Context) error { return lateFailure })
+		select {
+		case <-formatting:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		// The late worker has passed its cancellation check, but is blocked
+		// formatting its error. A different worker now triggers shutdown.
 		a.Go("first-worker", func(context.Context) error { return firstFailure })
 		<-ctx.Done()
 		return nil
 	})
 	a.On(StageStopping, "", func(_ context.Context) error {
-		// Simulate a worker that passed its cancellation check before shutdown,
-		// then published its failure after Run consumed the first worker error.
-		a.errCh <- lateFailure
+		// Run has consumed the first failure. Let the real task publish its
+		// error while shutdown is waiting for managed tasks to finish.
+		releaseError()
 		return nil
 	})
 
@@ -167,5 +185,23 @@ func TestBackgroundFailurePublishedDuringShutdown(t *testing.T) {
 
 	if err := a.Run(ctx); !errors.Is(err, firstFailure) || !errors.Is(err, lateFailure) {
 		t.Fatalf("Run must preserve both worker failures, got %v", err)
+	} else if !strings.Contains(err.Error(), `background task "late-worker"`) {
+		t.Fatalf("Run must preserve the late worker's name, got %v", err)
 	}
+	if ctx.Err() != nil {
+		t.Fatal("worker failure stopped the app only after the parent timed out")
+	}
+}
+
+type delayedTaskError struct {
+	error
+	formatting chan struct{}
+	release    <-chan struct{}
+	once       sync.Once
+}
+
+func (e *delayedTaskError) Error() string {
+	e.once.Do(func() { close(e.formatting) })
+	<-e.release
+	return e.error.Error()
 }
