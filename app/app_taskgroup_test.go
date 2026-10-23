@@ -25,6 +25,47 @@ import (
 	"time"
 )
 
+func TestTaskGroupValidationAndCompletion(t *testing.T) {
+	a := newTestRunApp()
+	assertPanics(t, func() { a.TaskGroup("worker") })
+	a.Use(newTestModule("worker"))
+	a.On(StageReady, "validate", func(context.Context) error {
+		assertPanics(t, func() { a.TaskGroup("unknown") })
+		g := a.TaskGroup("worker")
+		assertPanics(t, func() { g.Go("nil", nil) })
+		select {
+		case <-g.Done():
+			t.Error("idle group completed before admission was sealed")
+		default:
+		}
+
+		g.Stop()
+		g.Stop()
+		select {
+		case <-g.Done():
+		default:
+			t.Error("sealed idle group did not complete")
+		}
+		a.Stop()
+		return nil
+	})
+	if err := a.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTaskGroupCompletionWinsCanceledWait(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	for range 64 {
+		g := newTaskGroup(newTestRunApp(), "worker", context.Background())
+		ctx := completionContext{canceled, sync.OnceFunc(g.Stop)}
+		if err := g.Wait(ctx); err != nil {
+			t.Fatalf("completed group lost to canceled wait: %v", err)
+		}
+	}
+}
+
 func TestTaskGroupsKeepDownstreamAdmissionOpen(t *testing.T) {
 	a := newTestRunApp()
 	type key struct{}
@@ -167,26 +208,43 @@ func TestModuleTaskFailureAndPanicAreFinalResults(t *testing.T) {
 	}
 }
 
-func TestTaskCancellationDoesNotHideJoinedFailures(t *testing.T) {
-	a := newTestRunApp()
-	m := newTestModule("worker")
+type emptyTaskError struct{ error }
+
+func (*emptyTaskError) Unwrap() []error { return nil }
+
+func TestTaskCancellationErrorClassification(t *testing.T) {
 	failure := errors.New("final write failed")
-	m.start = func(context.Context, *App) error {
-		a.TaskGroup("worker").Go("flush", func(ctx context.Context) error {
-			<-ctx.Done()
-			return errors.Join(ctx.Err(), failure)
+	noCauses := &emptyTaskError{failure}
+	for _, tc := range []struct {
+		name   string
+		result error
+		want   error
+	}{
+		{name: "canceled", result: context.Canceled},
+		{name: "wrapped", result: fmt.Errorf("stopped: %w", context.Canceled)},
+		{name: "joined", result: errors.Join(context.Canceled, context.Canceled)},
+		{name: "joined failure", result: errors.Join(context.Canceled, failure), want: failure},
+		{name: "empty causes", result: noCauses, want: noCauses},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestRunApp()
+			m := newTestModule("worker")
+			m.start = func(context.Context, *App) error {
+				a.TaskGroup("worker").Go("flush", func(ctx context.Context) error {
+					<-ctx.Done()
+					return tc.result
+				})
+				return nil
+			}
+			a.Use(m)
+			a.On(StageReady, "stop", func(context.Context) error {
+				a.Stop()
+				return nil
+			})
+			if err := a.Run(context.Background()); !errors.Is(err, tc.want) {
+				t.Fatalf("Run = %v, want %v", err, tc.want)
+			}
 		})
-		return nil
-	}
-	a.Use(m)
-
-	a.On(StageReady, "stop", func(context.Context) error {
-		a.Stop()
-		return nil
-	})
-
-	if err := a.Run(context.Background()); !errors.Is(err, failure) {
-		t.Fatal(err)
 	}
 }
 

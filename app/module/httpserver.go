@@ -251,9 +251,10 @@ func (s *HttpServer) Stop(ctx context.Context, a *app.App) error {
 					s.cancelRequests()
 				}
 
-				if err := s.server.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-					s.shutdownErr = errors.Join(s.shutdownErr, err)
-				}
+				// Shutdown has already closed and unregistered the listeners.
+				// Close now only forces connections closed; their errors are
+				// ignored.
+				_ = s.server.Close()
 			}
 		}()
 	})

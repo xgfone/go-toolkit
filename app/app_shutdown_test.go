@@ -130,7 +130,12 @@ func TestModuleShutdownOrderAndResourceSafety(t *testing.T) {
 }
 
 func TestShutdownTimeoutRetainsResources(t *testing.T) {
-	for _, source := range []string{"app task", "module task", "module wait"} {
+	for _, source := range []string{
+		"app task without modules",
+		"app task",
+		"module task",
+		"module wait",
+	} {
 		t.Run(source, func(t *testing.T) {
 			a := newTestRunApp()
 			a.SetShutdownTimeout(20 * time.Millisecond)
@@ -154,7 +159,7 @@ func TestShutdownTimeoutRetainsResources(t *testing.T) {
 			db := newTestModule("database")
 			m.start = func(context.Context, *App) error {
 				switch source {
-				case "app task":
+				case "app task", "app task without modules":
 					a.Go("uncooperative", work)
 				case "module task":
 					a.TaskGroup("server").Go("uncooperative", work)
@@ -184,7 +189,13 @@ func TestShutdownTimeoutRetainsResources(t *testing.T) {
 				}
 			}
 
-			a.Use(db, WithDependencies(m, "database"))
+			if source == "app task without modules" {
+				a.On(StageStart, "worker", func(ctx context.Context) error {
+					return m.start(ctx, a)
+				})
+			} else {
+				a.Use(db, WithDependencies(m, "database"))
+			}
 			for _, stage := range []Stage{StageCleanup, StageExited} {
 				a.On(stage, "retain", func(context.Context) error {
 					t.Errorf("%s ran with live work", stage)

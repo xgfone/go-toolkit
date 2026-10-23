@@ -83,12 +83,14 @@ func TestHTTPDrainTimeoutRetainsDatabaseAndLogger(t *testing.T) {
 
 	client := &http.Client{Transport: transport, Timeout: time.Second}
 	requestDone := make(chan struct{})
+	var requestErr error
 	a.On(app.StageReady, "request", func(ctx context.Context) error {
 		go func() {
 			defer close(requestDone)
 			{
 				url := "http://" + s.listen.Addr().String()
 				response, err := client.Get(url)
+				requestErr = err
 				if err == nil {
 					_ = response.Body.Close()
 				}
@@ -118,6 +120,31 @@ func TestHTTPDrainTimeoutRetainsDatabaseAndLogger(t *testing.T) {
 	}
 
 	select {
+	case <-s.shutdownDone:
+	case <-parent.Done():
+		t.Fatal("HTTP shutdown did not finish closing connections")
+	}
+
+	select {
+	case <-requestDone:
+		if requestErr == nil {
+			t.Fatal("request succeeded while its handler was still blocked")
+		}
+		var networkError net.Error
+		if errors.As(requestErr, &networkError) && networkError.Timeout() {
+			t.Fatalf("request timed out instead of being forcibly closed: %v", requestErr)
+		}
+	case <-parent.Done():
+		t.Fatal("forced shutdown did not close the active connection")
+	}
+
+	wait, cancelWait := context.WithCancel(context.Background())
+	cancelWait()
+	if err := s.Wait(wait, a); err != context.Canceled {
+		t.Fatalf("Wait returned before the remaining handler exited: %v", err)
+	}
+
+	select {
 	case <-exited:
 		t.Fatal("handler exited before explicit release")
 	default:
@@ -130,12 +157,12 @@ func TestHTTPDrainTimeoutRetainsDatabaseAndLogger(t *testing.T) {
 		t.Fatal("handler did not finish after release")
 	}
 
-	select {
-	case <-requestDone:
-	case <-parent.Done():
-		t.Fatal("HTTP client did not finish")
+	if err := s.Wait(parent, a); err != nil {
+		t.Fatalf("Wait did not recognize the handler's eventual exit: %v", err)
 	}
-
+	if err := s.Wait(parent, nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("standalone Wait lost the graceful shutdown error: %v", err)
+	}
 	if closed.Load() {
 		t.Fatal("app must not finalize asynchronously after returning incomplete shutdown")
 	}

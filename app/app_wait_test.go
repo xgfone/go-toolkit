@@ -22,6 +22,43 @@ import (
 	"time"
 )
 
+type completionContext struct {
+	context.Context
+	complete func()
+}
+
+func (c completionContext) Done() <-chan struct{} {
+	c.complete()
+	return c.Context.Done()
+}
+
+func TestAppCompletionWinsCanceledWait(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	failure := errors.New("finalizer failed")
+	for range 64 {
+		a := newTestRunApp()
+		a.On(StageReady, "stop", func(context.Context) error {
+			a.Stop()
+			return nil
+		})
+		a.Finalize("logger", func(context.Context) error {
+			return failure
+		})
+
+		var result error
+		// Complete after Wait's initial check, while it observes cancellation.
+		complete := sync.OnceFunc(func() {
+			result = a.Run(context.Background())
+		})
+
+		ctx := completionContext{canceled, complete}
+		if got := a.Wait(ctx); got != result || !errors.Is(got, failure) {
+			t.Fatalf("Wait = %v, Run = %v", got, result)
+		}
+	}
+}
+
 func TestAppWaitFinalResultAndCancellation(t *testing.T) {
 	a := newTestRunApp()
 	ready := make(chan struct{})

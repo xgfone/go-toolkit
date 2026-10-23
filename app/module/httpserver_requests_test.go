@@ -37,7 +37,9 @@ func TestRequestCompletionWinsCanceledWait(t *testing.T) {
 	for range 64 {
 		g := &requestGroup{done: make(chan struct{})}
 		g.enter()
-		g.stop()
+		if !g.stop() || g.stop() {
+			t.Fatal("request admission must only close once")
+		}
 		ctx := completionContext{canceled, sync.OnceFunc(g.leave)}
 		if err := g.wait(ctx); err != nil {
 			t.Fatalf("completed request lost to canceled wait: %v", err)

@@ -30,6 +30,49 @@ func TestGoValidation(t *testing.T) {
 	assertPanics(t, func() { New().Go("", func(context.Context) error { return nil }) })
 }
 
+func TestReportErrorLifecycle(t *testing.T) {
+	a := newTestRunApp()
+	ignored := errors.New("reported outside Run")
+	failure := errors.New("asynchronous failure")
+	shutdownFailure := errors.New("failure during cleanup")
+	a.ReportError(nil)
+	a.ReportError(ignored)
+	if a.Context().Err() != nil {
+		t.Fatal("reporting before Run canceled the app")
+	}
+
+	a.On(StageReady, "report", func(ctx context.Context) error {
+		a.ReportError(nil)
+		if ctx.Err() != nil {
+			t.Error("reporting nil stopped the app")
+		}
+		go a.ReportError(failure)
+		<-ctx.Done()
+		return nil
+	})
+	a.Cleanup(func() error {
+		a.ReportError(shutdownFailure)
+		return nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result := a.Run(ctx)
+	if !errors.Is(result, failure) || !errors.Is(result, shutdownFailure) ||
+		errors.Is(result, ignored) {
+		t.Fatalf("Run lost reported failures or kept an ignored error: %v", result)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("ReportError did not trigger shutdown")
+	}
+
+	a.ReportError(ignored)
+	a.ReportError(nil)
+	if got := a.Wait(context.Background()); got != result {
+		t.Fatalf("late ReportError changed the final result: %v", got)
+	}
+}
+
 func TestGoCompletionAfterCancellation(t *testing.T) {
 	for _, result := range []error{nil, errors.New("late task error")} {
 		name := "success"
