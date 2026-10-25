@@ -244,7 +244,7 @@ func TestHTTPWaitCancellationDoesNotStopRequests(t *testing.T) {
 				releaseRequest()
 				a.Stop()
 				select {
-				case <-returned:
+				case <-returned: //nolint:errcheck
 				case <-time.After(2 * time.Second):
 					t.Error("app cleanup did not finish")
 				}

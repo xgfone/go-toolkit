@@ -81,7 +81,7 @@ func TestHTTPWorkerCacheDatabaseAndFileLoggerPipeline(t *testing.T) {
 	log := func(message string) {
 		logMu.Lock()
 		defer logMu.Unlock()
-		fmt.Fprintln(output, message)
+		_, _ = fmt.Fprintln(output, message)
 	}
 
 	a.On(app.StageInit, "logger", func(context.Context) error {

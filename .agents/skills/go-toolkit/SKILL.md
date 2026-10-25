@@ -105,6 +105,7 @@ the packages needed for the task.
   module-owned work; its context preserves `Run`'s values and is canceled in the
   module's shutdown batch. `App.Go` and package-level `Go` use the run context
   for app-level tasks without dependency ordering; task names may be empty.
+  With no names, `WithDependencies` returns the original module.
   `App.Context()` signals cancellation. `App.Wait(ctx)` returns `Run`'s final
   result; canceling the wait does not stop the app. `Done()` signals `Run`'s
   completion, including `ErrShutdownIncomplete`, which retains dependencies

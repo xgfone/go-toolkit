@@ -93,6 +93,11 @@ func (m testPriorityModule) Priority() int { return m.priority }
 
 func TestWithDependenciesPreservesMetadataAndCopiesNames(t *testing.T) {
 	assertPanics(t, func() { WithDependencies(nil, "database") })
+	assertPanics(t, func() { WithDependencies(nil) })
+	plain := newTestModule("plain")
+	if WithDependencies(plain) != plain {
+		t.Fatal("empty dependencies must preserve the original module")
+	}
 	original := dependencyModule{
 		testModule:   newTestModule("api"),
 		dependencies: []string{"database"},
@@ -108,7 +113,7 @@ func TestWithDependenciesPreservesMetadataAndCopiesNames(t *testing.T) {
 	if got := wrapped.(interface{ Priority() int }).Priority(); got != 7 {
 		t.Fatalf("Priority=%d, want 7", got)
 	}
-	if got := WithDependencies(newTestModule("plain")).(interface{ Priority() int }).
+	if got := WithDependencies(plain, "database").(interface{ Priority() int }).
 		Priority(); got != 1 {
 		t.Fatalf("default Priority=%d, want 1", got)
 	}

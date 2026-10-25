@@ -164,7 +164,7 @@ func TestShutdownTimeoutRetainsResources(t *testing.T) {
 				case "module task":
 					a.TaskGroup("server").Go("uncooperative", work)
 				case "module wait":
-					go work(context.Background()) // Joined explicitly by Module.Wait.
+					go work(context.Background()) //nolint:errcheck
 				}
 				return nil
 			}

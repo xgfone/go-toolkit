@@ -48,7 +48,7 @@ func TestRegressionNoSignals(t *testing.T) {
 
 	case <-time.After(150 * time.Millisecond):
 		a.Stop()
-		<-done
+		<-done //nolint:errcheck
 	}
 }
 
@@ -87,7 +87,7 @@ func TestRegressionSignalCancelsStartup(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		a.Stop()
-		<-done
+		<-done //nolint:errcheck
 		t.Fatal("SIGUSR1 does not cancel the startup callback context")
 	}
 }

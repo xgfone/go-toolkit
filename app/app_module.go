@@ -62,12 +62,16 @@ type Module interface {
 // The module's existing dependencies come first, and its name, lifecycle methods,
 // and optional Priority() int are preserved (the default priority is 1).
 // Wrapping a module repeatedly adds dependencies; it does not replace them.
+// With no dependencies, m is returned unchanged, including its optional interfaces.
 //
 // The supplied slice is copied. Run validates the combined dependencies,
 // including repeated names, before initialization. A nil m panics.
 func WithDependencies(m Module, dependencies ...string) Module {
 	if m == nil {
 		panic("app: nil module")
+	}
+	if len(dependencies) == 0 {
+		return m
 	}
 	return dependentModule{
 		dependencies: slices.Clone(dependencies),

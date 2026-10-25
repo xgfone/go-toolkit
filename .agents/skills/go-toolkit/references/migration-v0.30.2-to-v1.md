@@ -99,12 +99,13 @@ driver-internal maintenance belongs to the pool's `Close`.
 Optional `Dependencies() []string` names required registered modules. Use
 `app.WithDependencies(module, names...)` to add dependencies without a custom
 wrapper; it copies the supplied names and preserves existing dependencies and
-priority. Repeated wrapping appends names; repeated names still fail validation.
-The app validates unique names and missing/repeated/self/cyclic dependencies
-before startup. Explicit dependencies override `Priority`; priority and registration
-order break ties within dependency batches. Startup visits providers first. Shutdown
-visits users first: each batch calls every `Stop`, cancels its `TaskGroup` instances,
-then joins every `Wait` and group before stopping the provider batch.
+priority. An empty names list returns the original module unchanged; a `nil` module
+still panics. Repeated wrapping appends names; repeated names still fail validation.
+The app validates unique names and missing/repeated/self/cyclic dependencies before
+startup. Explicit dependencies override `Priority`; priority and registration order
+break ties within dependency batches. Startup visits providers first. Shutdown visits
+users first: each batch calls every `Stop`, cancels its `TaskGroup` instances, then
+joins every `Wait` and group before stopping the provider batch.
 
 `TaskGroup` use is optional: resource-only modules may leave their groups unused.
 Use `a.TaskGroup(moduleName).Go(name, callback)` for module-owned workers, servers,

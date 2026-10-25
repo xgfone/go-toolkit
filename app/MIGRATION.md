@@ -133,6 +133,8 @@ defining a wrapper type. It preserves the module's name, lifecycle methods,
 priority, and existing dependencies. Supplied names are copied and appended to
 existing dependencies, including those from earlier calls to `WithDependencies`.
 Repeated names remain validation errors; wrapping does not replace dependencies.
+With no supplied names, `WithDependencies` returns the original module unchanged,
+preserving its concrete type and optional interfaces. A `nil` module still panics.
 
 For example, declare an HTTP server's downstream worker when registering it:
 
@@ -207,6 +209,30 @@ the outermost shutdown batch before provider batches stop. They have no module
 dependency ordering: migrate HTTP `Serve`, queue consumers, cache refreshers, and
 other ordered business work to the owning module's `TaskGroup`. Goroutines started
 directly with `go` and detached children are not automatically tracked.
+
+For optional periodic scans and maintenance that can begin after HTTP starts,
+register a `StageReady` callback that starts the task with `App.Go`:
+
+```go
+a.On(app.StageReady, "", func(context.Context) error {
+    a.Go("", func(ctx context.Context) error {
+        refreshOptionalCacheUntilCanceled(ctx)
+        return nil
+    })
+    return nil
+})
+```
+
+The task starts asynchronously, receives the run context, reports failures in
+`Run`/`Wait`, and joins before providers stop. Startup failure before the
+registration callback executes leaves the task unstarted. Use an empty name
+when the callback always returns `nil`.
+
+Required initial cache data belongs in `Prepare` or `StageStart`. Queue consumers
+that must remain available to draining HTTP handlers belong in a module group;
+make the HTTP module depend on that consumer and the consumer depend on its
+database. An app-level periodic scanner may share the consumer's business logic,
+but must serialize conflicting writes with callback handling.
 
 Internal logger writers and rotation workers belong to logger finalization,
 not the business groups that are canceled during draining.
