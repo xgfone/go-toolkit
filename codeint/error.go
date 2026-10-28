@@ -16,12 +16,9 @@
 package codeint
 
 import (
-	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/xgfone/go-toolkit/internal/pools"
 )
@@ -203,24 +200,4 @@ func (e Error) Wrap(err error) error {
 	default:
 		return e.WithError(err)
 	}
-}
-
-// Decode uses the decode function to decode the result to the error.
-func (e *Error) Decode(decode func(any) error) error {
-	return decode(e)
-}
-
-// DecodeJSON decodes a single JSON value from the reader into the error.
-func (e *Error) DecodeJSON(reader io.Reader) error {
-	return json.UnmarshalRead(reader, e)
-}
-
-// DecodeJSONBytes uses [json.Unmarshal] to decode the []byte data into the error.
-func (e *Error) DecodeJSONBytes(data []byte) error {
-	return json.Unmarshal(data, e)
-}
-
-// DecodeJSONString uses [json.UnmarshalRead] to decode the string data into the error.
-func (e *Error) DecodeJSONString(data string) error {
-	return json.UnmarshalRead(strings.NewReader(data), e)
 }

@@ -58,7 +58,7 @@ func TestResponse(t *testing.T) {
 
 	resp = resp.WithData(float64(123))
 	_resp1 := Response{Error: new(_Error)}
-	if err := _resp1.DecodeJSONBytes([]byte(s)); err != nil {
+	if err := json.Unmarshal([]byte(s), &_resp1); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(_resp1.Data, resp.Data) {
 		t.Errorf("expect data %v, but got %v", resp.Data, _resp1.Data)
@@ -67,22 +67,12 @@ func TestResponse(t *testing.T) {
 	}
 
 	_resp2 := Response{Error: new(_Error)}
-	if err := _resp2.DecodeJSON(strings.NewReader(s)); err != nil {
+	if err := json.UnmarshalRead(strings.NewReader(s), &_resp2); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(_resp2.Data, resp.Data) {
 		t.Errorf("expect data %v, but got %v", resp.Data, _resp2.Data)
 	} else if !_errequal(_resp2.Error, resp.Error) {
 		t.Errorf("expect error %v, but got %v", resp.Error, _resp2.Error)
-	}
-
-	_resp3 := Response{Error: new(_Error)}
-	decode := func(v any) error { return json.Unmarshal([]byte(s), v) }
-	if err := _resp3.Decode(decode); err != nil {
-		t.Error(err)
-	} else if !reflect.DeepEqual(_resp3.Data, resp.Data) {
-		t.Errorf("expect data %v, but got %v", resp.Data, _resp3.Data)
-	} else if !_errequal(_resp3.Error, resp.Error) {
-		t.Errorf("expect error %v, but got %v", resp.Error, _resp3.Error)
 	}
 }
 

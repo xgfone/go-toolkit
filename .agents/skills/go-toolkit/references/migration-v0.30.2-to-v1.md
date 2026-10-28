@@ -50,6 +50,7 @@ for every package.
 | `netx.IPIsOn`                                                            | `netx.IsLocalIP`.                                                                                                                                                     |
 | `runtimex.TrimPkgFile`                                                   | `runtimex.TrimSourcePath`.                                                                                                                                            |
 | `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                                                            |
+| Decoding methods on `codeint.Error` and `result.Response`                | Call the decoder directly; see the JSON replacements below.                                                                                                           |
 | `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                                                     |
 | `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                                                       |
 
@@ -159,7 +160,9 @@ suffix when HEAD is beyond its selected version tag.
 ### JSON codecs
 
 The `jsonx` package and its global marshal/unmarshal hooks were removed.
-Current HTTP and result helpers use `encoding/json/v2`.
+Current HTTP JSON helpers use `encoding/json/v2`. The decoding convenience
+methods on `codeint.Error` and `result.Response` were also removed; decode into
+these types with standard-library functions or application-owned codecs.
 
 | v0.30.2 call                             | Replacement                                                                                |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -169,6 +172,22 @@ Current HTTP and result helpers use `encoding/json/v2`.
 | `jsonx.UnmarshalReader(dst, reader)`     | `json.UnmarshalRead(reader, dst)`; note the argument order.                                |
 | `MarshalString` / `MarshalStringWithCap` | Marshal to bytes and convert to a string, or use an application-owned writer/buffer.       |
 | `UnmarshalString`                        | `json.Unmarshal([]byte(text), dst)` or `json.UnmarshalRead(strings.NewReader(text), dst)`. |
+
+Replace all seven removed decoding methods from v0.30.2 as follows:
+
+| v0.30.2 method                                                     | v1 replacement                                                        |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `codeint.Error.Decode`, `result.Response.Decode`                   | `decode(dst)`; pass the destination pointer directly to the callback. |
+| `codeint.Error.DecodeJSON`, `result.Response.DecodeJSON`           | `json.UnmarshalRead(reader, dst)`                                     |
+| `codeint.Error.DecodeJSONBytes`, `result.Response.DecodeJSONBytes` | `json.Unmarshal(data, dst)`                                           |
+| `codeint.Error.DecodeJSONString`                                   | `json.UnmarshalRead(strings.NewReader(text), dst)`                    |
+
+Here `json` denotes `encoding/json/v2`, and `dst` is a non-`nil` destination
+pointer, such as `&codedErr` for a `codeint.Error` or `&response` for a
+`result.Response`. Pass `json.Options` to the standard-library functions when
+needed. For a non-`null` JSON error, initialize `result.Response.Error` with a
+concrete error pointer, such as
+`response := result.Response{Error: new(codeint.Error)}`, before decoding.
 
 Rework custom `SetMarshalWriterFunc`/`SetUnmarshalReaderFunc` integrations
 explicitly; there is no replacement global hook. The old default writer already

@@ -30,6 +30,13 @@ second := make(chan struct{})
 ctx, cancel := context.WithCancel(parent)
 ```
 
+## JSON Encoding and Decoding
+
+- Use `encoding/json/v2` for JSON encoding and decoding in Go source, tests,
+  and examples. Do not introduce `encoding/json` or third-party JSON codecs.
+- Migration documents may describe the old `encoding/json` APIs and behavior
+  at tag `v0.30.2`, but examples intended for v1 must use `encoding/json/v2`.
+
 ## Code Identifiers in Markdown
 
 - When adding or modifying any Markdown document, including READMEs, migration

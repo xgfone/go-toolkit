@@ -73,6 +73,11 @@ the packages needed for the task.
   collections, field-name matching, duplicate/trailing values, and writer
   newlines differ from v0.30.2. Plain errors and `time.Duration` can fail
   encoding; use serializable wire DTOs and check render errors.
+- `codeint.Error` and `result.Response` have no decoding convenience methods in
+  v1. Use `json.Unmarshal(data, dst)` or `json.UnmarshalRead(reader, dst)` from
+  `encoding/json/v2`, or pass `dst` directly to an application-owned decoder.
+  For a non-`null` JSON error, initialize `result.Response.Error` with a concrete
+  error pointer before decoding.
 - HTTP request binders accept destination struct pointers, bind the requested
   source, then apply defaults and validation. Use `path`, `query`, `header`, or
   `form` tags as appropriate. `BindPath` reads `Request.PathValue`; a router or

@@ -14,11 +14,6 @@
 
 package result
 
-import (
-	"encoding/json/v2"
-	"io"
-)
-
 // Success calls [Respond] with the response returned by [Ok], which is equal to
 //
 //	Respond(responder, Ok(data))
@@ -65,21 +60,6 @@ func (r Response) WithData(data any) Response {
 func (r Response) WithError(err error) Response {
 	r.Error = err
 	return r
-}
-
-// Decode uses the decode function to decode the result to the response.
-func (r *Response) Decode(decode func(any) error) error {
-	return decode(r)
-}
-
-// DecodeJSON decodes a single JSON value from the reader into the response.
-func (r *Response) DecodeJSON(reader io.Reader) error {
-	return json.UnmarshalRead(reader, r)
-}
-
-// DecodeJSONBytes uses [json.Unmarshal] to decode the []byte data into the response.
-func (r *Response) DecodeJSONBytes(data []byte) error {
-	return json.Unmarshal(data, r)
 }
 
 // Respond sends the response by the responder,

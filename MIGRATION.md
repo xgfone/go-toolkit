@@ -39,6 +39,7 @@ by several packages. Examples omit imports and application-specific values.
 | `netx.IPIsOn`                                                          | `netx.IsLocalIP`; the local-interface lookup contract is retained.                                                                      |
 | `runtimex.TrimPkgFile`                                                 | `runtimex.TrimSourcePath`; the trimming policy is retained.                                                                             |
 | `codeint.Error.TryError(err)`                                          | The existing `codeint.Error.Wrap(err)` method.                                                                                          |
+| Decoding methods on `codeint.Error` and `result.Response`              | Call the decoder directly; see the [JSON replacements](#json-encoding-and-decoding) below.                                              |
 
 The status-handler change also affects local type inference. For example,
 `handler := httpx.Handler404` now infers the concrete constant's type. Use an
@@ -60,9 +61,11 @@ Its default writer used an `Encoder` with HTML escaping disabled and appended
 a newline. Its default reader used `Decoder.Decode` once, without requiring EOF.
 The `[]byte`/`string` marshal helpers removed the writer's trailing newline.
 
-In v1, HTTP JSON rendering and request encoding, JSON body binding, and
-`codeint.Error` / `result.Response` JSON decoding use `encoding/json/v2` directly.
-The global codec setters no longer intercept these operations.
+In v1, HTTP JSON rendering and request encoding, and JSON body binding use
+`encoding/json/v2` directly. The decoding convenience methods on `codeint.Error`
+and `result.Response` are removed; decode into these types with standard-library
+functions or application-owned codecs. The global codec setters no longer
+intercept toolkit JSON operations.
 
 | Removed v0.30.2 call                          | v1 standard-library replacement                                                           |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -73,7 +76,24 @@ The global codec setters no longer intercept these operations.
 | `jsonx.UnmarshalReader(dst, reader)`          | `json.UnmarshalRead(reader, dst)`; argument order changes.                                |
 | `jsonx.UnmarshalString`                       | `json.Unmarshal([]byte(text), dst)` or `json.UnmarshalRead(strings.NewReader(text), dst)` |
 
-Here `json` denotes `encoding/json/v2`. These replacements change defaults:
+The following seven methods from v0.30.2 are also removed:
+
+| v0.30.2 method                                                     | v1 replacement                                                        |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `codeint.Error.Decode`, `result.Response.Decode`                   | `decode(dst)`; pass the destination pointer directly to the callback. |
+| `codeint.Error.DecodeJSON`, `result.Response.DecodeJSON`           | `json.UnmarshalRead(reader, dst)`                                     |
+| `codeint.Error.DecodeJSONBytes`, `result.Response.DecodeJSONBytes` | `json.Unmarshal(data, dst)`                                           |
+| `codeint.Error.DecodeJSONString`                                   | `json.UnmarshalRead(strings.NewReader(text), dst)`                    |
+
+Here `json` denotes `encoding/json/v2`, and `dst` is a non-`nil` pointer to the
+destination, such as `&codedErr` for a `codeint.Error` or `&response` for a
+`result.Response`. The standard-library calls also accept `json.Options`.
+For a non-`null` JSON error, initialize `result.Response.Error` with a concrete
+error pointer before decoding, for example
+`response := result.Response{Error: new(codeint.Error)}`; its `error` interface
+does not select a concrete type automatically.
+
+The JSON replacements change defaults:
 
 | Case                                                     | v0.30.2 default                         | Current v1 default                                                                                               |
 | -------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -119,19 +139,18 @@ use an application-owned responder when those errors must be handled.
 When retaining a previous wire contract, use explicit DTO fields and tags
 supported by the target codec, or own the encoder/decoder. For example, this
 application-owned writer retains the old default writer's newline and HTML
-policy using the `encoding/json` import:
+policy using `encoding/json/v2`:
 
 ```go
 func writeLegacyJSON(w http.ResponseWriter, status int, value any) error {
-    var buf bytes.Buffer
-    encoder := json.NewEncoder(&buf)
-    encoder.SetEscapeHTML(false)
-    if err := encoder.Encode(value); err != nil {
+    data, err := json.Marshal(value)
+    if err != nil {
         return err
     }
+    data = append(data, '\n')
     w.Header().Set("Content-Type", "application/json; charset=UTF-8")
     w.WriteHeader(status)
-    _, err := w.Write(buf.Bytes())
+    _, err = w.Write(data)
     return err
 }
 ```

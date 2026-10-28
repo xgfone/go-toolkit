@@ -22,33 +22,20 @@ import (
 	"testing"
 )
 
-func TestErrorDecode(t *testing.T) {
+func TestErrorUnmarshal(t *testing.T) {
 	var err Error
 
-	if e := err.Decode(func(a any) error {
-		return json.Unmarshal([]byte(`{"Code":401}`), a)
-	}); e != nil {
+	if e := json.Unmarshal([]byte(`{"Code":401}`), &err); e != nil {
 		t.Errorf("got an error: %s", e.Error())
 	} else if err.Code != 401 {
 		t.Errorf("expect code %d, but got %d", 401, err.Code)
 	}
 
-	if e := err.DecodeJSON(strings.NewReader(`{"Code":402}`)); e != nil {
+	reader := strings.NewReader(`{"Code":402}`)
+	if e := json.UnmarshalRead(reader, &err); e != nil {
 		t.Errorf("got an error: %s", e.Error())
 	} else if err.Code != 402 {
 		t.Errorf("expect code %d, but got %d", 402, err.Code)
-	}
-
-	if e := err.DecodeJSONBytes([]byte(`{"Code":403}`)); e != nil {
-		t.Errorf("got an error: %s", e.Error())
-	} else if err.Code != 403 {
-		t.Errorf("expect code %d, but got %d", 403, err.Code)
-	}
-
-	if e := err.DecodeJSONString(`{"Code":404}`); e != nil {
-		t.Errorf("got an error: %s", e.Error())
-	} else if err.Code != 404 {
-		t.Errorf("expect code %d, but got %d", 404, err.Code)
 	}
 }
 
