@@ -51,6 +51,7 @@ for every package.
 | `runtimex.TrimPkgFile`                                                   | `runtimex.TrimSourcePath`.                                                                                                                                            |
 | `codeint.Error.TryError(err)`                                            | `codeint.Error.Wrap(err)`.                                                                                                                                            |
 | Decoding methods on `codeint.Error` and `result.Response`                | Call the decoder directly; see the JSON replacements below.                                                                                                           |
+| `codeint.Error` comparability                                            | Use `errors.Is` for code matching and application-owned comparable map keys; see error matching below.                                                                |
 | `iox.Uploader` / `UploaderFunc`                                          | Define the required upload interface/adapter in the application; these abstractions were removed.                                                                     |
 | `github.com/xgfone/go-toolkit/redact`                                    | `github.com/xgfone/go-toolkit/exp/redact`; this package is now experimental and has no compatibility guarantee.                                                       |
 
@@ -156,6 +157,32 @@ ends the observer wait; `Stop`'s context controls its grace budget. Failed HTTP
 from `app/cmd/version` so generated initializers use `app.Default()` instead of
 `app.DefaultApp`; the v1 command also parses its flags and adds a commit-count
 suffix when HEAD is beyond its selected version tag.
+
+### Error matching
+
+In v0.30.2, `codeint.Error` was structurally comparable, but direct comparisons
+and `errors.Is` could panic when `Data` contained a slice or map. v1 adds a
+private zero-size field to make `codeint.Error` non-comparable, so `errors.Is`
+skips direct equality and calls `Error.Is` for code matching. Value receivers,
+value-returning constructors and `WithXxx` methods, and implementation of `error`
+by both `codeint.Error` and `*codeint.Error` are retained.
+
+In v0.30.2, a typed `nil` `*codeint.Error` target could panic in `Error.Is` or
+`errors.Is` through the generic `GetCode()` branch. In v1, `Error.Is` handles
+`*codeint.Error` targets explicitly: a `nil` pointer target does not match the
+receiver, even when its `Code` is zero; non-`nil` pointer targets match by `Code`.
+
+Replace `==` / `!=` on `codeint.Error` values with `errors.Is` for code matching,
+or compare selected fields for a different application-defined equality policy.
+`map[codeint.Error]V` and use of `codeint.Error` as a `comparable` type argument
+no longer compile; use an explicit comparable key such as `Code` instead. Equality
+between two `error` interfaces holding `codeint.Error` values and insertion of
+such values into `map[error]V` now panic even with comparable `Data`.
+Comparisons of an `error` to `nil` remain valid, and `*codeint.Error` pointers
+remain comparable by identity. Replace positional struct literals with keyed
+literals, such as `codeint.Error{Code: 400}`, or use `codeint.NewError` because
+the struct now contains a private field. Root `MIGRATION.md` documents the
+matching example and complete migration actions.
 
 ### JSON codecs
 

@@ -40,6 +40,7 @@ by several packages. Examples omit imports and application-specific values.
 | `runtimex.TrimPkgFile`                                                 | `runtimex.TrimSourcePath`; the trimming policy is retained.                                                                             |
 | `codeint.Error.TryError(err)`                                          | The existing `codeint.Error.Wrap(err)` method.                                                                                          |
 | Decoding methods on `codeint.Error` and `result.Response`              | Call the decoder directly; see the [JSON replacements](#json-encoding-and-decoding) below.                                              |
+| `codeint.Error` comparability                                          | Use `errors.Is` for code matching and application-owned comparable map keys; see [error matching](#error-matching-and-comparability).   |
 
 The status-handler change also affects local type inference. For example,
 `handler := httpx.Handler404` now infers the concrete constant's type. Use an
@@ -158,6 +159,50 @@ func writeLegacyJSON(w http.ResponseWriter, status int, value any) error {
 Installing such a writer in your application does not alter toolkit JSON body
 binding or decoding automatically. Migrate those call sites separately. In
 particular, changing the removed global `jsonx` hooks has no v1 equivalent.
+
+## Error matching and comparability
+
+In v0.30.2, `codeint.Error` was a comparable struct with interface fields.
+Comparing two values could panic when `Data` held a slice, map, or another
+non-comparable value. `errors.Is` could also panic before reaching `Error.Is`,
+because it first attempted a direct equality check.
+
+In v1, `codeint.Error` has a private zero-size field that makes the struct
+non-comparable. `errors.Is` skips that direct comparison and uses `Error.Is`
+to match error codes safely, including when `Data` contains a slice or map.
+Value receivers, `NewError` and `WithXxx` return types, and support for both
+`codeint.Error` and `*codeint.Error` as `error` are retained.
+
+In v0.30.2, a typed `nil` `*codeint.Error` target could also panic in `Error.Is`
+or `errors.Is` when the generic `GetCode()` branch called a value-receiver method.
+v1 adds an explicit `*codeint.Error` branch to `Error.Is`: a `nil` pointer target
+does not match the receiver, including when its `Code` is zero; a non-`nil` pointer
+target is compared by `Code`.
+
+```go
+err := codeint.ErrInvalid.WithData([]int{1})
+matched := errors.Is(err, err) // true: Data is not compared.
+sameCode := codeint.ErrInvalid.WithData(map[string]int{"value": 1})
+matched = errors.Is(err, sameCode) // true: matching uses Code, not Data.
+var nilTarget *codeint.Error
+matched = errors.Is(err, nilTarget) // false: a typed nil target does not match.
+```
+
+Update comparisons and collections when migrating from v0.30.2:
+
+- Direct `==` / `!=` comparisons of `codeint.Error` values no longer compile.
+  Use `errors.Is` for code matching; compare selected fields explicitly if the
+  application needs a different equality policy.
+- `map[codeint.Error]V` and using `codeint.Error` as a `comparable` type argument
+  no longer compile. Choose an application-owned comparable key, such as an
+  `int` containing `Code` when errors should be grouped by code.
+- Comparing two `error` interfaces containing `codeint.Error` values, or using
+  such a value as a `map[error]V` key, now panics even when `Data` is comparable.
+  Use `errors.Is` and explicit map keys instead. Comparing an `error` to `nil`
+  remains valid; `*codeint.Error` pointers remain comparable by identity.
+- Positional struct literals must become keyed literals, such as
+  `codeint.Error{Code: 400}`, or calls to `codeint.NewError`, because the struct
+  now contains a private field.
 
 ## HTTP behavior
 

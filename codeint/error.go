@@ -26,7 +26,12 @@ import (
 var _ error = Error{}
 
 // Error is used to stand for an error based the integer code.
+//
+// Error values are not comparable. Use [errors.Is] to match error codes.
 type Error struct {
+	// Prevent [errors.Is] from comparing interface fields before calling [Error.Is].
+	_ [0]func()
+
 	Data    any    `json:",omitempty"`
 	Code    int    `json:",omitempty"`
 	Reason  string `json:",omitempty"`
@@ -82,10 +87,14 @@ func (e Error) Error() string {
 }
 
 // Is reports whether e matches the target.
+// A nil [*Error] target does not match.
 func (e Error) Is(target error) bool {
 	switch err := target.(type) {
 	case Error:
 		return e.Code == err.Code
+
+	case *Error:
+		return err != nil && e.Code == err.Code
 
 	case interface{ GetCode() int }:
 		return e.Code == err.GetCode()

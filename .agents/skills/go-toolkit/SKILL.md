@@ -78,6 +78,13 @@ the packages needed for the task.
   `encoding/json/v2`, or pass `dst` directly to an application-owned decoder.
   For a non-`null` JSON error, initialize `result.Response.Error` with a concrete
   error pointer before decoding.
+- `codeint.Error` retains value receivers but is non-comparable in v1. Use
+  `errors.Is` for code matching, including errors with slice or map `Data`.
+  `Error.Is` rejects typed `nil` `*codeint.Error` targets and compares non-`nil`
+  pointer targets by `Code`. Use keyed struct literals or `codeint.NewError` and
+  application-owned comparable map keys. Do not compare two `error` interfaces
+  holding `codeint.Error` values directly or use those values as map keys;
+  comparisons of an `error` to `nil` remain valid.
 - HTTP request binders accept destination struct pointers, bind the requested
   source, then apply defaults and validation. Use `path`, `query`, `header`, or
   `form` tags as appropriate. `BindPath` reads `Request.PathValue`; a router or
