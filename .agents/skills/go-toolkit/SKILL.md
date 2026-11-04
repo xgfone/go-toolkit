@@ -97,6 +97,15 @@ the packages needed for the task.
   before serving: the backend is initialized once. The default backend routes
   unmatched paths and methods to its fallback, unless an explicit catch-all
   takes precedence.
+- `middleware.Response` sends pending errors or explicitly commits status `200`
+  for successful handlers that have not committed a final response and have not
+  hijacked the connection. Wrap it with the logger, and wrap both with
+  `middleware.Context`, so request logs see the committed status.
+- Use `http.NewResponseController(c.ResponseWriter)` for tracked flush/hijack
+  operations. A successful flush records the implicit `200`; failures preserve
+  the recorded status. `Context.Hijacked()` reports successful takeover; raw
+  connection writes can retain status `0`. See the source-root `MIGRATION.md`
+  for capability errors, custom writers, and explicit raw status recording.
 - HTTP client helpers such as `Get`/`Post` take a context and a response
   destination pointer. Automatic handling requires status 200; a
   `func(*http.Response) error` callback handles other statuses or formats.

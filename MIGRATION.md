@@ -244,9 +244,33 @@ Use `WrapClient` for application-specific logging.
 - The `Context` response writer no longer commits final status on informational
   1xx responses other than 101. A later final response is forwarded correctly;
   invalid status values outside `[100, 999]` panic.
+- `middleware.Response` now explicitly writes `http.StatusOK` when a handler
+  succeeds without committing a final response, provided the connection has not
+  been hijacked. In v0.30.2, only errors triggered an automatic response, so
+  request logs could record status `0` before `net/http` supplied its implicit
+  `200`. Keep the logger outside `middleware.Response` and inside
+  `middleware.Context` so it observes the committed status.
+- The default `Context` response writer now implements `http.Flusher`,
+  `FlushError() error`, and `http.Hijacker`. Use these operations through the
+  context writer, directly or via `http.NewResponseController(c.ResponseWriter)`;
+  manually unwrapping it bypasses state tracking. A successful flush records an
+  implicit `200`, preserving any existing final status. Failed flushes preserve
+  the recorded status: an error alone does not establish that headers were sent.
+  A failure before any response is committed can therefore receive the normal
+  error response. Unsupported operations return `http.ErrNotSupported`.
+- `Context.Hijacked()` reports successful connection takeover. After a
+  successful `Hijack`, `middleware.Response` sends neither a success nor an
+  error response. A failed `Hijack` leaves normal response handling available.
+  Custom response writers can expose their state with `Hijacked() bool`; the
+  `ResponseWriter` interface itself has not gained required methods. Raw writes
+  to the returned connection are not tracked: `StatusCode()` retains its last
+  known value, possibly `0`, rather than inferring `200` or `101`. Upgrade
+  handlers that need to log a status written directly to the connection must
+  explicitly record the known status in `Context.ResponseCode`.
 - `codeint.Error.WithStatus` and `StatusCode` now normalize invalid nonzero HTTP
   statuses outside `[100, 599]` to 500. Zero still clears an explicit status and
-  allows a valid `Code` to supply it. This also makes `NewError(42).ServeHTTP` safe.
+  allows a valid `Code` to supply it. This also makes `NewError(42).ServeHTTP`
+  safe.
 
 ### Router and request logging
 

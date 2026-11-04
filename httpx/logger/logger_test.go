@@ -110,6 +110,29 @@ func TestLoggerLogsRequest(t *testing.T) {
 	}
 }
 
+func TestLoggerLogsImplicitSuccessStatus(t *testing.T) {
+	logs := captureLogs(t)
+	config := NewDefaultConfig()
+	handler := httpx.ContextHandler(func(*httpx.Context) error {
+		return nil
+	})
+	wrapped := middleware.Context(config.Middleware(70).
+		HTTPHandler(middleware.Response(handler)))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/ping", nil)
+	wrapped.ServeHTTP(rec, req)
+
+	if len(logs.records) != 1 {
+		t.Fatalf("got %d log records, want 1", len(logs.records))
+	}
+	if got := logs.records[0]["code"]; got != int64(http.StatusOK) {
+		t.Fatalf("logged status = %v, want 200", got)
+	}
+	if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
+		t.Fatalf("response = %d %q, want empty 200", rec.Code, rec.Body.String())
+	}
+}
+
 func TestLoggerDefaultsOmitHTTPDetails(t *testing.T) {
 	logs := captureLogs(t)
 	config := NewDefaultConfig()

@@ -24,11 +24,32 @@ import (
 )
 
 func TestResponseMiddleware(t *testing.T) {
+	t.Run("success with no response written", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		ctx := httpx.AcquireContext()
+		defer httpx.ReleaseContext(ctx)
+		ctx.Reset(rec, req)
+		req = req.WithContext(httpx.SetContext(req.Context(), ctx))
+
+		handler := httpx.ContextHandler(func(*httpx.Context) error {
+			return nil
+		})
+		Response(handler).ServeHTTP(ctx.ResponseWriter, req)
+
+		if ctx.StatusCode() != http.StatusOK {
+			t.Fatalf("context status = %d, want %d", ctx.StatusCode(), http.StatusOK)
+		}
+		if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
+			t.Fatalf("response = %d %q, want empty 200", rec.Code, rec.Body.String())
+		}
+	})
+
 	t.Run("no error in context", func(t *testing.T) {
 		called := false
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 		})
 
 		middleware := Response(handler)
@@ -41,13 +62,15 @@ func TestResponseMiddleware(t *testing.T) {
 		ctx.Reset(rec, req)
 		req = req.WithContext(httpx.SetContext(req.Context(), ctx))
 
-		middleware.ServeHTTP(rec, req)
+		middleware.ServeHTTP(ctx.ResponseWriter, req)
 
 		if !called {
 			t.Error("handler should be called")
 		}
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+		if rec.Code != http.StatusNoContent ||
+			ctx.StatusCode() != http.StatusNoContent {
+			t.Errorf("response/context status = %d/%d, want 204",
+				rec.Code, ctx.StatusCode())
 		}
 	})
 
@@ -71,14 +94,16 @@ func TestResponseMiddleware(t *testing.T) {
 		ctx.Reset(rec, req)
 		req = req.WithContext(httpx.SetContext(req.Context(), ctx))
 
-		middleware.ServeHTTP(rec, req)
+		middleware.ServeHTTP(ctx.ResponseWriter, req)
 
 		if !called {
 			t.Error("handler should be called")
 		}
 
-		if rec.Code == 0 {
-			t.Error("status code should be written")
+		if rec.Code != http.StatusInternalServerError ||
+			ctx.StatusCode() != http.StatusInternalServerError {
+			t.Errorf("response/context status = %d/%d, want 500",
+				rec.Code, ctx.StatusCode())
 		}
 	})
 
@@ -86,7 +111,8 @@ func TestResponseMiddleware(t *testing.T) {
 		called := false
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte("accepted"))
 			ctx := httpx.GetContext(r.Context())
 			if ctx != nil {
 				ctx.Error = errors.New("test error after write")
@@ -103,14 +129,17 @@ func TestResponseMiddleware(t *testing.T) {
 		ctx.Reset(rec, req)
 		req = req.WithContext(httpx.SetContext(req.Context(), ctx))
 
-		middleware.ServeHTTP(rec, req)
+		middleware.ServeHTTP(ctx.ResponseWriter, req)
 
 		if !called {
 			t.Error("handler should be called")
 		}
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
+		if rec.Code != http.StatusAccepted || ctx.StatusCode() != http.StatusAccepted {
+			t.Errorf("response/context status = %d/%d, want 202", rec.Code, ctx.StatusCode())
+		}
+		if rec.Body.String() != "accepted" {
+			t.Errorf("response body = %q, want accepted", rec.Body.String())
 		}
 	})
 

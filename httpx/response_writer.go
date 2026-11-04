@@ -15,19 +15,28 @@
 package httpx
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 )
 
 // ResponseWriter is an extended [http.ResponseWriter].
+//
+// The default context response writer also implements FlushError() error,
+// [http.Flusher], [http.Hijacker], and Hijacked() bool. Unsupported flush
+// and hijack operations return [http.ErrNotSupported]; use
+// [http.ResponseController] to receive flush errors.
 type ResponseWriter interface {
 	http.ResponseWriter
 
 	// StatusCode returns the final response status code.
 	//
-	// Return 0 before a final response or 101 has been written.
+	// Return 0 until a final response or 101 has been recorded.
+	// Successful flushes record an implicit 200 if no final status is known.
 	// Other informational (1xx) responses do not commit the final status.
+	// Raw writes to a hijacked connection are not tracked.
 	StatusCode() int
 }
 
@@ -65,7 +74,7 @@ func (w *_ContextResponseWriter) WriteHeader(code int) {
 		panic(fmt.Errorf("invalid http response status code %d", code))
 	}
 
-	if w.ResponseCode != 0 {
+	if w.ResponseCode != 0 || w.hijacked {
 		return
 	}
 
@@ -74,6 +83,42 @@ func (w *_ContextResponseWriter) WriteHeader(code int) {
 	}
 
 	w.w.WriteHeader(code)
+}
+
+func (w *_ContextResponseWriter) Flush() {
+	_ = w.FlushError()
+}
+
+func (w *_ContextResponseWriter) FlushError() error {
+	if w.hijacked {
+		return http.ErrHijacked
+	}
+
+	// Record the implicit 200 only after a successful flush. An error alone
+	// does not establish that the underlying writer committed a response.
+	err := http.NewResponseController(w.w).Flush()
+	if err == nil && w.ResponseCode == 0 {
+		w.ResponseCode = http.StatusOK
+	}
+
+	return err
+}
+
+func (w *_ContextResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if w.hijacked {
+		return nil, nil, http.ErrHijacked
+	}
+
+	conn, rw, err := http.NewResponseController(w.w).Hijack()
+	if err == nil {
+		w.hijacked = true
+	}
+
+	return conn, rw, err
+}
+
+func (w *_ContextResponseWriter) Hijacked() bool {
+	return w.hijacked
 }
 
 func (w *_ContextResponseWriter) StatusCode() int {

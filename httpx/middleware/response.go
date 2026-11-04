@@ -20,13 +20,21 @@ import (
 	"github.com/xgfone/go-toolkit/httpx"
 )
 
-// Response is an http middleware to try to send the error response.
+// Response sends an error response or an empty 200 response if no final
+// response has been committed and the connection has not been hijacked.
+// It requires a request context installed by [Context].
 func Response(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		c := httpx.GetContext(r.Context())
-		if c != nil && c.Error != nil && c.StatusCode() == 0 {
+		if c == nil || c.Hijacked() || c.StatusCode() != 0 {
+			return
+		}
+
+		if c.Error != nil {
 			c.Failure(c.Error)
+		} else {
+			c.NoContent(http.StatusOK)
 		}
 	})
 }

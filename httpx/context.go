@@ -79,6 +79,8 @@ type Context struct {
 
 	// w is the original [http.ResponseWriter] never implement [ResponseWriter].
 	w http.ResponseWriter
+
+	hijacked bool
 }
 
 // Reset resets the request context.
@@ -111,9 +113,11 @@ func (c *Context) Reset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// StatusCode returns the written status code.
+// StatusCode returns the final response status recorded by the response writer.
 //
-// Return 0 if the response header has not been written yet.
+// Return 0 until a final response or 101 has been recorded. Successful flushes
+// record an implicit 200 if no final status is known. Failed flushes preserve
+// the recorded status; raw writes to a hijacked connection are not tracked.
 func (c *Context) StatusCode() int {
 	if c.ResponseCode > 0 {
 		return c.ResponseCode
@@ -124,6 +128,18 @@ func (c *Context) StatusCode() int {
 	}
 
 	return 0
+}
+
+// Hijacked reports whether the response writer has successfully handed the
+// connection to the handler. Custom response writers can report this state
+// by implementing a Hijacked() bool method.
+func (c *Context) Hijacked() bool {
+	if c.hijacked {
+		return true
+	}
+
+	rw, ok := c.ResponseWriter.(interface{ Hijacked() bool })
+	return ok && rw.Hijacked()
 }
 
 // AppendError appends the error err into [Context.Error].

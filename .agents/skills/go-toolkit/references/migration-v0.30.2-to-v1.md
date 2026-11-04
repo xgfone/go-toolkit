@@ -268,6 +268,15 @@ cancellation-aware helper.
   selection; invalid explicit `codeint.Error` HTTP statuses normalize to 500.
   Informational response headers no longer prevent a later final response;
   101 remains final. The `Context` writer rejects statuses outside [100, 999].
+  Unlike v0.30.2, `middleware.Response` explicitly writes `http.StatusOK` for
+  successful handlers with no final response and no hijacked connection. Place
+  the logger outside `middleware.Response` and inside `middleware.Context` so
+  it sees the committed status. The default writer now tracks flush/hijack
+  operations through `http.ResponseController`: successful flushes record an
+  implicit `200`, while failures preserve the recorded status.
+  `Context.Hijacked()` reports successful takeover and suppresses automatic
+  responses. Raw connection writes remain outside status tracking. See root
+  `MIGRATION.md` for capability errors, custom writers, and raw status recording.
 - **HTTP headers:** MIME types are normalized and charset parameters are
   unquoted. `Accept`/`AcceptEncoding`/`AcceptLanguage` read all header values,
   honor quoted commas and `q` parameters, and reject invalid weights. WebSocket
