@@ -27,7 +27,7 @@ Use documentation from the release tag or commit selected by your application.
 | String helpers, masks, and generators                              | [`stringx`](stringx/README.md)                                                                                                     |
 | Struct binding, defaults, and validation                           | [`structx`](structx), [`validation`](validation)                                                                                   |
 | Error codes, wrapped errors, and result responses                  | [`codeint`](codeint), [`errorx`](errorx), [`result`](result)                                                                       |
-| Clocks, cancellable waits, random values, and integer-list parsing | [`timex`](timex), [`random`](random), [`strconvx`](strconvx)                                                                       |
+| Clocks, calendar months, waits, random values, and integer parsing | [`timex`](timex), [`random`](random), [`strconvx`](strconvx)                                                                       |
 | Networking and address conversion                                  | [`netx`](netx), [`netx/netipx`](netx/netipx)                                                                                       |
 | Comment stripping, I/O adapters, reflection, and runtime helpers   | [`bytex`](bytex), [`iox`](iox), [`reflectx`](reflectx), [`runtimex`](runtimex)                                                     |
 | Zero-copy string/byte conversions                                  | [`unsafex`](unsafex)                                                                                                               |

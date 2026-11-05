@@ -333,6 +333,11 @@ Alongside additions documented in the package guides, v1 adds:
   integers. Whitespace-only input returns `nil`; invalid, empty, or out-of-range
   elements return a `nil` slice and an error wrapping `strconv.NumError` with a
   one-based element position. The unsigned parser rejects either sign.
+- `timex.AddMonths(t, months)` for calendar-month shifts with dates clamped to
+  the target month's last day. It has no v0.30.2 predecessor. It preserves the
+  input location and clock time, subject to `time.Date`'s daylight-saving rules.
+  Zero returns the input unchanged. Clamping is not reversible; calculate
+  recurring dates from the original anchor with `timex.AddMonths(anchor, n)`.
 - `timex.Sleep(ctx, duration)`, which observes cancellation even for non-positive
   durations, and `runtimex.EqualZero` for direct comparable zero checks.
 - `stringx.DesensitizerFunc`, `NewEmailDesensitizer`, and an email preset; these

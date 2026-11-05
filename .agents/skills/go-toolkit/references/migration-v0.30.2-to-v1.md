@@ -257,6 +257,13 @@ particular location is required. Restore `time.Now` after tests and do not
 replace the clock concurrently with its consumers. `timex.Sleep` is a new
 cancellation-aware helper.
 
+`timex.AddMonths(t, months)` is a new calendar-month helper with no v0.30.2
+predecessor. It clamps dates absent from the target month to its last day,
+retains the input location, clock time and nanoseconds using `time.Date`'s
+daylight-saving rules, and returns the original input for zero months. Clamping
+is not reversible and does not preserve a month-end preference. Calculate
+recurring dates with `timex.AddMonths(anchor, n)` from the original date.
+
 ## Behavioral changes to verify
 
 - **HTTP clients:** automatic JSON decoding writes directly into the caller's
@@ -305,10 +312,11 @@ cancellation-aware helper.
   millisecond time components are padded to three digits; string generators
   now validate minimum and exact output lengths.
 
-New APIs without v0.30.2 predecessors also include `strconvx.ParseInt64Slice` and
-`ParseUint64Slice`, `timex.Sleep`, `runtimex.EqualZero`, `stringx` email masking
-and `DesensitizerFunc`, and the optional experimental `exp/iterx` streams. Read
-their contracts in root `MIGRATION.md` and the target package source.
+New APIs without v0.30.2 predecessors also include `strconvx.ParseInt64Slice`,
+`ParseUint64Slice`, `timex.AddMonths`, `timex.Sleep`, `runtimex.EqualZero`,
+`stringx` email masking and `DesensitizerFunc`, and the optional experimental
+`exp/iterx` streams. Read their contracts in root `MIGRATION.md` and the target
+package source.
 
 Run tests for the used packages and their application integration after updating
 call sites. Verify behavior and output compatibility in addition to compilation,

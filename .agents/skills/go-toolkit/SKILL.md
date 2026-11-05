@@ -43,19 +43,19 @@ the packages needed for the task.
 
 ## Select the package
 
-| Task                                                                            | Packages and documentation                                                                                                                                     |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lazy iterator transforms and aggregation                                        | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go`                                                                                 |
-| Slice conversion, grouping, deduplication, or map conversion                    | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented                                                                |
-| String masking, email masking, or string generation                             | `stringx/README.md`, `stringx/doc.go`                                                                                                                          |
-| HTTP clients, request binding, context handlers, headers, or JSON/XML responses | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go`                |
-| Routes, middleware, CORS, or HTTP logging                                       | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go`           |
-| Application lifecycle, modules, background tasks, or build version command      | `app/MIGRATION.md`, `app/app.go`, `app/app_callback.go`, `app/app_taskgroup.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go` |
-| Struct binding, defaults, or validation                                         | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go`                                                                     |
-| Error codes, wrapped errors, or result responses                                | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go`                             |
-| Clocks, cancellable waits, random values, or integer-list parsing               | `timex/time.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go`                                                                    |
-| Networking, comments, I/O, reflection, runtime, or zero-copy conversions        | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/`                                                 |
-| Experimental streams or redaction                                               | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1                                           |
+| Task                                                                               | Packages and documentation                                                                                                                                     |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lazy iterator transforms and aggregation                                           | `iterx/doc.go`, `iterx/transform.go`, `iterx/func.go`, `iterx/example_test.go`                                                                                 |
+| Slice conversion, grouping, deduplication, or map conversion                       | `slicex/slice.go`, `mapx/map.go`, `mapx/smap.go`; use standard `slices`/`maps` where documented                                                                |
+| String masking, email masking, or string generation                                | `stringx/README.md`, `stringx/doc.go`                                                                                                                          |
+| HTTP clients, request binding, context handlers, headers, or JSON/XML responses    | `httpx/client_request.go`, `httpx/client_request_example_test.go`, `httpx/binder.go`, `httpx/handler.go`, `httpx/context.go`, `httpx/header.go`                |
+| Routes, middleware, CORS, or HTTP logging                                          | `httpx/router/doc.go`, `httpx/router/router.go`, `httpx/middleware/`, `httpx/cors/cors.go`, `httpx/logger/logger.go`, `httpx/logger/example_test.go`           |
+| Application lifecycle, modules, background tasks, or build version command         | `app/MIGRATION.md`, `app/app.go`, `app/app_callback.go`, `app/app_taskgroup.go`, `app/app_module.go`, `app/module/httpserver.go`, `app/cmd/version/version.go` |
+| Struct binding, defaults, or validation                                            | `structx/binder.go`, `structx/default.go`, `structx/validate.go`, `validation/validate.go`                                                                     |
+| Error codes, wrapped errors, or result responses                                   | `codeint/error.go`, `codeint/error_http.go`, `errorx/sensitive.go`, `errorx/strings.go`, `result/response.go`, `result/respond.go`                             |
+| Clocks, calendar months, cancellable waits, random values, or integer-list parsing | `timex/time.go`, `timex/month.go`, `timex/sleep.go`, `random/int.go`, `random/string.go`, `strconvx/slice.go`                                                                    |
+| Networking, comments, I/O, reflection, runtime, or zero-copy conversions           | `netx/`, `netx/netipx/`, `bytex/comment.go`, `iox/closer.go`, `reflectx/implement.go`, `runtimex/`, `unsafex/`                                                 |
+| Experimental streams or redaction                                                  | `exp/README.md`, `exp/iterx/doc.go`, `exp/redact/doc.go`; these packages have no compatibility guarantees even in v1                                           |
 
 ## Apply the relevant usage contracts
 
@@ -145,6 +145,13 @@ the packages needed for the task.
   `WithXxx` mask/affix configuration returns independent values. Preset getters
   and replacement setters are synchronized, but custom implementations and shared
   output buffers need their own concurrency discipline.
+- `timex.AddMonths(t, months)` shifts calendar months and clamps dates missing
+  from the target month to its last day. It preserves the input location, clock
+  time and nanoseconds using `time.Date`'s daylight-saving rules. Zero returns
+  the original input. Clamping is not reversible and does not preserve a month-end
+  preference; use `timex.AddMonths(anchor, n)` from the original date for recurring
+  schedules. This function is absent from v0.30.2; verify that the consuming
+  application's selected revision provides it before use.
 - `timex.Now` defaults to `time.Now` without location conversion. Prefer
   `time.Now` unless a replaceable clock is needed. Change `SetNowFunc` before
   concurrent use and restore `time.Now` after tests. `timex.Sleep` observes

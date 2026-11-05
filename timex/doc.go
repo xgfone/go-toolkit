@@ -17,6 +17,9 @@
 // The default clock is [time.Now], which uses [time.Local]. Applications can
 // configure their default local time zone through [time.Local] before concurrent use.
 //
+// [AddMonths] shifts calendar months, clamping dates absent from the target month
+// to its last day. It retains the input location and time of day using [time.Date].
+//
 // [Now] and [SetNowFunc] support replaceable clocks, primarily for predictable tests.
 // Callers that do not need a replaceable clock should use [time.Now] directly.
 package timex
