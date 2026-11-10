@@ -230,11 +230,17 @@ member no longer fills `codeint.Error.Code` and may be ignored without an error.
 Review custom pointer-receiver serializers and the numeric-only `,string` tag
 option.
 
-The new `omitempty` meaning can add zero numeric fields or remove empty values
-behind interfaces: `codeint.Error{}` now encodes as `{"Code":0}`, while
-`result.Ok("")` encodes as `{}`. Plain errors such as `errors.New` contain no
-exported fields and can fail JSON encoding; `time.Duration` also has no default
-representation in the current codec. Use explicit wire DTOs or application-owned
+The new `omitempty` meaning can add zero numeric and boolean fields or remove
+empty values behind interfaces. `codeint.Error`, `result.Response`,
+`httpx.Route`, and `runtimex.Frame` use `omitzero` to retain the v0.30.2
+omission rules. For example, `result.Ok("")` keeps the explicit empty `Data`
+string. `cors.Config` uses Go field names such as `AllowOrigins` as JSON keys
+and omits zero values. Its `yaml` tags are removed. Use an application-owned
+configuration type if you need the old YAML mapping.
+
+Plain errors such as `errors.New` contain no exported fields and can fail JSON
+encoding. `time.Duration` also has no default representation in the current
+codec. Use explicit wire DTOs or application-owned
 codecs when preserving an old contract. Some convenience responders discard
 rendering errors, so check payload serialization or own the responder. Root
 `MIGRATION.md` documents the concrete changes and a writer retaining the old

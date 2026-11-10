@@ -38,7 +38,7 @@ type Config struct {
 	// "null", or a subdomain pattern such as "https://*.example.com".
 	//
 	// Optional. Default: nil, which does not allow any cross-origin request.
-	AllowOrigins []string `json:"allowOrigins" yaml:"allowOrigins"`
+	AllowOrigins []string `json:",omitzero"`
 
 	// AllowHeaders indicates a list of request headers used in response to
 	// a preflight request to indicate which HTTP headers can be used when
@@ -52,7 +52,7 @@ type Config struct {
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
 	// Optional. Default: nil.
-	AllowHeaders []string `json:"allowHeaders" yaml:"allowHeaders"`
+	AllowHeaders []string `json:",omitzero"`
 
 	// AllowMethods indicates methods allowed when accessing the resource.
 	// This is used in response to a preflight request. If [Config.AllowCredentials] is
@@ -60,14 +60,14 @@ type Config struct {
 	// as a wildcard for credentialed requests.
 	//
 	// Optional. Default: nil.
-	AllowMethods []string `json:"allowMethods" yaml:"allowMethods"`
+	AllowMethods []string `json:",omitzero"`
 
 	// ExposeHeaders indicates response headers browsers are allowed to access
 	// from an actual CORS response. If [Config.AllowCredentials] is true, "*" is omitted
 	// because browsers do not treat it as a wildcard for credentialed requests.
 	//
 	// Optional. Default: nil.
-	ExposeHeaders []string `json:"exposeHeaders" yaml:"exposeHeaders"`
+	ExposeHeaders []string `json:",omitzero"`
 
 	// AllowCredentials indicates whether or not the response to the request
 	// can be exposed when the credentials flag is true. When used as part of
@@ -75,13 +75,13 @@ type Config struct {
 	// actual request can be made using credentials.
 	//
 	// Optional. Default: false.
-	AllowCredentials bool `json:"allowCredentials" yaml:"allowCredentials"`
+	AllowCredentials bool `json:",omitzero"`
 
 	// MaxAge indicates how long (in seconds) the results of a preflight request
 	// can be cached. Set it to nil to omit Access-Control-Max-Age.
 	//
 	// Optional. Default: nil.
-	MaxAge *int `json:"maxAge" yaml:"maxAge"`
+	MaxAge *int `json:",omitzero"`
 
 	// NormalizeHost optionally normalizes non-IP origin hosts in [Config.AllowOrigins].
 	//
@@ -89,7 +89,7 @@ type Config struct {
 	// by default. A caller may provide an IDNA ToASCII implementation here.
 	//
 	// Optional. Default: nil.
-	NormalizeHost HostNormalizer `json:"-" yaml:"-"`
+	NormalizeHost HostNormalizer `json:"-"`
 }
 
 var defaultAllowMethods = []string{

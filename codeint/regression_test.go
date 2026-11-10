@@ -106,6 +106,16 @@ func TestRegressionErrorIsPointerTarget(t *testing.T) {
 	}
 }
 
+func TestErrorJSONOmitsZeroValues(t *testing.T) {
+	data, err := json.Marshal(Error{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); got != "{}" {
+		t.Fatalf("zero Error JSON = %s, want {}", got)
+	}
+}
+
 func TestRegressionErrorJSONWithUncomparableData(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -113,6 +123,9 @@ func TestRegressionErrorJSONWithUncomparableData(t *testing.T) {
 		want string
 	}{
 		{"slice", []int{1}, `{"Data":[1],"Code":400,"Message":"Bad Request"}`},
+		{"empty slice", []int{}, `{"Data":[],"Code":400,"Message":"Bad Request"}`},
+		{"empty map", map[string]int{}, `{"Data":{},"Code":400,"Message":"Bad Request"}`},
+		{"empty string", "", `{"Data":"","Code":400,"Message":"Bad Request"}`},
 		{"map", map[string]int{"value": 1}, `{"Data":{"value":1},"Code":400,"Message":"Bad Request"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

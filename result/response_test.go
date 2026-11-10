@@ -76,6 +76,31 @@ func TestResponse(t *testing.T) {
 	}
 }
 
+func TestResponseJSONOmission(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		resp Response
+		want string
+	}{
+		{"zero", Response{}, `{}`},
+		{"empty string", Ok(""), `{"Data":""}`},
+		{"empty slice", Ok([]int{}), `{"Data":[]}`},
+		{"empty map", Ok(map[string]int{}), `{"Data":{}}`},
+		{"empty error string", Err(_Error{}), `{"Error":""}`},
+		{"typed nil error", Err((*_Error)(nil)), `{"Error":null}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.resp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(data); got != tc.want {
+				t.Errorf("JSON = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func _errequal(e1, e2 error) bool {
 	if e1 == nil && e2 == nil {
 		return true

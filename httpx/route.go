@@ -22,12 +22,12 @@ import (
 
 // Route is a http request route.
 type Route struct {
-	Host   string `json:",omitempty"`
-	Path   string `json:",omitempty"`
-	Method string `json:",omitempty"`
+	Host   string `json:",omitzero"`
+	Path   string `json:",omitzero"`
+	Method string `json:",omitzero"`
 
 	// Whether the route is registered successfully.
-	Online bool `json:",omitempty"`
+	Online bool `json:",omitzero"`
 
 	http.Handler `json:"-"`
 }

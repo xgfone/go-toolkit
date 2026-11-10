@@ -31,7 +31,7 @@ by several packages. Examples omit imports and application-specific values.
 | `github.com/xgfone/go-toolkit/redact`                                  | `github.com/xgfone/go-toolkit/exp/redact`; update imports wherever its `Level` and `Redactor` types are used.                           |
 | `router.DefaultRouter`                                                 | `router.Default()`; use `router.New()` for an independently owned router. The default instance can no longer be reassigned.             |
 | `logger.Config.Logger(priority)`                                       | The existing `logger.Config.Middleware(priority)` method.                                                                               |
-| `cors.Config.CORS(priority)`                                           | The existing `cors.Config.Middleware(priority)` method; CORS configuration otherwise retains its behavior.                              |
+| `cors.Config.CORS(priority)`                                           | The existing `cors.Config.Middleware(priority)` method. See [JSON configuration keys](#json-encoding-and-decoding).                     |
 | `logger.Config.GetRequestBody`, `GetResponse`                          | `GetLogAttrs(w, r) []slog.Attr`; migrate selected fields explicitly.                                                                    |
 | Assignable `httpx.Handler200`, `Handler404`, and other status handlers | Constants implementing `http.Handler`; declare application-owned handler variables with an explicit interface type when replacing them. |
 | `random.DefaultCharset` variable                                       | `random.DefaultCharset()` and `random.SetDefaultCharset(value)`.                                                                        |
@@ -124,14 +124,24 @@ populates `codeint.Error.Code`, whose JSON name is `Code`. An ignored member can
 leave the destination zero while decoding returns `nil`. Match field names
 exactly or decode through an application-owned DTO/codec.
 
-The omission changes affect toolkit DTOs too. Ignoring the old writer newline:
+`codeint.Error`, `result.Response`, `httpx.Route`, and `runtimex.Frame` use
+`omitzero` to preserve the v0.30.2 field omission rules. Zero values of
+`codeint.Error.Code`, `httpx.Route.Online`, and `runtimex.Frame.Line` are
+omitted. A `nil` `Data` or `Error` interface is omitted, while an explicitly
+supplied empty slice, map, or string in `Data` is retained. These values still
+follow `encoding/json/v2` defaults. For example, a typed `nil` slice in
+`Data` encodes as `[]` instead of `null`.
 
-- `codeint.Error{}` changes from `{}` to `{"Code":0}`.
-- `result.Ok("")` changes from `{"Data":""}` to `{}`; empty collections in `Data`
-  can also disappear under `omitempty`.
-- `result.Err(errors.New("failure"))` can now fail JSON encoding instead of
-  producing `{"Error":{}}`. Supply a serializable error DTO, such as an
-  appropriate `codeint.Error`, and check rendering errors.
+`cors.Config` now uses Go field names as JSON keys. For example, rename
+`allowOrigins` to `AllowOrigins` in input for the case-sensitive v1 decoder.
+Zero-valued fields are omitted, while non-`nil` empty slices are retained.
+`NormalizeHost` remains excluded from JSON. The `yaml` tags are removed. If a
+YAML configuration relies on the old keys or on excluding `NormalizeHost`,
+define those rules in an application-owned configuration type.
+
+`result.Err(errors.New("failure"))` can now fail JSON encoding instead of
+producing `{"Error":{}}`. Supply a serializable error DTO, such as an
+appropriate `codeint.Error`, and check rendering errors.
 
 Some convenience responders, including `result.Respond` with a raw
 `http.ResponseWriter`, do not return rendering errors. Validate their payloads or

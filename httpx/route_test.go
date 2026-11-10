@@ -16,12 +16,28 @@ package httpx
 
 import (
 	"bytes"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestRouteJSONOmission(t *testing.T) {
+	routes := []Route{
+		{Path: "/pending"},
+		{Host: "example.com", Path: "/ready", Method: http.MethodGet, Online: true, Handler: Handler200},
+	}
+	data, err := json.Marshal(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `[{"Path":"/pending"},{"Host":"example.com","Path":"/ready","Method":"GET","Online":true}]`
+	if got := string(data); got != want {
+		t.Errorf("JSON = %s, want %s", got, want)
+	}
+}
 
 // TestRoutePattern tests [Route.Pattern] method
 func TestRoutePattern(t *testing.T) {

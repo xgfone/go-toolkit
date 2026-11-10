@@ -30,8 +30,8 @@ func Failure(responder any, err error) {
 
 // Response represents a response result.
 type Response struct {
-	Error error `json:",omitempty"`
-	Data  any   `json:",omitempty"`
+	Error error `json:",omitzero"`
+	Data  any   `json:",omitzero"`
 }
 
 // NewResponse returns a new response.

@@ -32,10 +32,10 @@ type Error struct {
 	// Prevent [errors.Is] from comparing interface fields before calling [Error.Is].
 	_ [0]func()
 
-	Data    any    `json:",omitempty"`
-	Code    int    `json:",omitempty"`
-	Reason  string `json:",omitempty"`
-	Message string `json:",omitempty"`
+	Data    any    `json:",omitzero"`
+	Code    int    `json:",omitzero"`
+	Reason  string `json:",omitzero"`
+	Message string `json:",omitzero"`
 
 	Err    error `json:"-"`
 	Status int   `json:"-"`

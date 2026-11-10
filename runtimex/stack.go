@@ -37,9 +37,9 @@ func TrimSourcePath(file string) string {
 
 // Frame represents a call stack frame.
 type Frame struct {
-	File string `json:",omitempty"`
-	Func string `json:",omitempty"`
-	Line int    `json:",omitempty"`
+	File string `json:",omitzero"`
+	Func string `json:",omitzero"`
+	Line int    `json:",omitzero"`
 }
 
 // String formats the frame to a string.

@@ -15,6 +15,7 @@
 package runtimex
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func ExampleTrimSourcePath() {
 
 func TestCaller(t *testing.T) {
 	caller := Caller(0)
-	expect := "github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestCaller:39"
+	expect := "github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestCaller:40"
 	if caller.String() != expect {
 		t.Errorf("expect '%s', but got '%s'", expect, caller.String())
 	}
@@ -57,7 +58,7 @@ func TestStacks(t *testing.T) {
 	}
 
 	expects := []string{
-		"github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestStacks:51",
+		"github.com/xgfone/go-toolkit/runtimex/stack_test.go:TestStacks:52",
 	}
 
 	if len(expects) != len(stacks) {
@@ -75,4 +76,16 @@ func TestStacks(t *testing.T) {
 	}
 
 	// t.Error(Stacks(100))
+}
+
+func TestFrameJSONOmission(t *testing.T) {
+	frames := []Frame{{File: "???"}, {File: "file.go", Func: "run", Line: 42}}
+	data, err := json.Marshal(frames)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `[{"File":"???"},{"File":"file.go","Func":"run","Line":42}]`
+	if got := string(data); got != want {
+		t.Errorf("JSON = %s, want %s", got, want)
+	}
 }
