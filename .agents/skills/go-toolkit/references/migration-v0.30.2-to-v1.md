@@ -240,11 +240,12 @@ configuration type if you need the old YAML mapping.
 
 Plain errors such as `errors.New` contain no exported fields and can fail JSON
 encoding. `time.Duration` also has no default representation in the current
-codec. Use explicit wire DTOs or application-owned
-codecs when preserving an old contract. Some convenience responders discard
-rendering errors, so check payload serialization or own the responder. Root
-`MIGRATION.md` documents the concrete changes and a writer retaining the old
-newline/HTML policy.
+codec. Use explicit wire DTOs or application-owned codecs when preserving an old
+contract. The shared HTTP JSON renderer writes status 500 with
+`{"Code":500,"Message":"Internal Server Error"}` on an encoding failure.
+`httpx.JSON` reports the encoding error after a successful fallback write.
+Root `MIGRATION.md` lists the affected responders and shows a writer retaining
+the old newline/HTML policy.
 
 ### Time policy
 

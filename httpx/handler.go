@@ -47,7 +47,10 @@ func (h statusHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(int(h))
 }
 
-// JSON sends the response by the json format to the client.
+// JSON writes a JSON response with the given status code.
+//
+// If encoding fails, it writes a generic HTTP 500 JSON response and returns the
+// encoding error unless writing fails. An error may follow a committed response.
 func JSON(w http.ResponseWriter, code int, v any) (err error) {
 	return render.JSON(w, code, v)
 }

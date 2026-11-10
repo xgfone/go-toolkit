@@ -21,7 +21,8 @@ import (
 	"github.com/xgfone/go-toolkit/internal/pools"
 )
 
-// JSON sends the response by the json format to the client.
+// JSON writes a JSON response. On an encoding error it sends a generic
+// HTTP 500 response and returns the encoding error unless writing fails.
 func JSON(w http.ResponseWriter, code int, v any) (err error) {
 	if v == nil {
 		w.WriteHeader(code)
@@ -31,11 +32,17 @@ func JSON(w http.ResponseWriter, code int, v any) (err error) {
 	pool, buf := pools.GetBuffer(64 * 1024) // 64KB
 	defer pools.PutBuffer(pool, buf)
 
-	if err = json.MarshalWrite(buf, v); err == nil {
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(code)
-		err = write(w, buf)
+	if err = json.MarshalWrite(buf, v); err != nil {
+		buf.Reset()
+		buf.WriteString(`{"Code":500,"Message":"Internal Server Error"}`)
+		code = http.StatusInternalServerError
+		w.Header().Del("Content-Length")
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(code)
+	if writeErr := write(w, buf); writeErr != nil {
+		return writeErr
+	}
 	return
 }

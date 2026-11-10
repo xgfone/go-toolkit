@@ -15,6 +15,8 @@
 package render
 
 import (
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -43,4 +45,47 @@ func TestJSON(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json; charset=UTF-8" {
 		t.Errorf("unexpected Content-Type: %q", ct)
 	}
+}
+
+func TestJSONEncodingFailure(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rec.Header().Set("Content-Length", "1")
+
+	if err := JSON(rec, http.StatusOK, []any{"private data", make(chan int)}); err == nil {
+		t.Fatal("expected an encoding error")
+	}
+
+	const want = `{"Code":500,"Message":"Internal Server Error"}`
+	if rec.Code != http.StatusInternalServerError || rec.Body.String() != want {
+		t.Errorf("response = %d %q, want 500 %q", rec.Code, rec.Body.String(), want)
+	}
+
+	header := rec.Result().Header
+	if ct := header.Get("Content-Type"); ct != "application/json; charset=UTF-8" {
+		t.Errorf("unexpected Content-Type: %q", ct)
+	}
+	if length := header.Get("Content-Length"); length != "" {
+		t.Errorf("stale Content-Length: %q", length)
+	}
+}
+
+func TestJSONWriteFailure(t *testing.T) {
+	w := &failingJSONWriter{ResponseRecorder: httptest.NewRecorder()}
+
+	if err := JSON(w, http.StatusConflict, "conflict"); err != io.ErrClosedPipe {
+		t.Errorf("write error = %v, want %v", err, io.ErrClosedPipe)
+	}
+	if w.Code != http.StatusConflict || w.writes != 1 {
+		t.Errorf("status = %d, body writes = %d; want 409, 1", w.Code, w.writes)
+	}
+}
+
+type failingJSONWriter struct {
+	*httptest.ResponseRecorder
+	writes int
+}
+
+func (w *failingJSONWriter) Write([]byte) (int, error) {
+	w.writes++
+	return 0, io.ErrClosedPipe
 }

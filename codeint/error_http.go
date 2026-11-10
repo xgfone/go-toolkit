@@ -57,6 +57,7 @@ func (e Error) StatusCode() int {
 }
 
 // ServeHTTP implements the interface [http.Handler].
+// It sends a generic JSON error with status 500 if encoding e fails.
 func (e Error) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = render.JSON(w, e.StatusCode(), e)
 }

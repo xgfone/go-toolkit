@@ -139,13 +139,17 @@ Zero-valued fields are omitted, while non-`nil` empty slices are retained.
 YAML configuration relies on the old keys or on excluding `NormalizeHost`,
 define those rules in an application-owned configuration type.
 
-`result.Err(errors.New("failure"))` can now fail JSON encoding instead of
-producing `{"Error":{}}`. Supply a serializable error DTO, such as an
-appropriate `codeint.Error`, and check rendering errors.
+Encoding `result.Err(errors.New("failure"))` can now fail where v0.30.2
+produced `{"Error":{}}`. Use a serializable error type such as `codeint.Error`
+when including an error in the payload.
 
-Some convenience responders, including `result.Respond` with a raw
-`http.ResponseWriter`, do not return rendering errors. Validate their payloads or
-use an application-owned responder when those errors must be handled.
+The HTTP JSON renderer now writes status 500 with
+`{"Code":500,"Message":"Internal Server Error"}` when encoding fails. This
+applies to `httpx.JSON`, `httpx.Context.JSON`, `codeint.Error.ServeHTTP`, and
+`result.Respond` with a raw `http.ResponseWriter`. In v0.30.2 the renderer
+returned the encoding error before writing. `httpx.JSON` returns the encoding
+error after a successful fallback write or the write error if writing fails.
+An error return can therefore follow a committed response.
 
 When retaining a previous wire contract, use explicit DTO fields and tags
 supported by the target codec, or own the encoder/decoder. For example, this
