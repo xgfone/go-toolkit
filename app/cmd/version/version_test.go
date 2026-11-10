@@ -15,6 +15,7 @@
 package main
 
 import (
+	"errors"
 	"go/parser"
 	"go/token"
 	"os"
@@ -97,6 +98,25 @@ func TestGetVersion(t *testing.T) {
 			{"checkout", "-"}, commit,
 			{"merge", "--no-ff", "-m", "merge feature", "feature"},
 		}},
+		{"unmerged_higher_tag", "v1.2.0", "v", "v1.2.0-1", [][]string{
+			{"checkout", "-b", "feature"},
+			{"commit", "--allow-empty", "-m", "feature change"},
+			{"tag", "-a", "v9.0.0", "-m", "unmerged release"},
+			{"checkout", "-"}, commit,
+		}},
+		{"only_unmerged_tag", "", "v", "", [][]string{
+			{"checkout", "-b", "feature"},
+			{"commit", "--allow-empty", "-m", "feature change"},
+			{"tag", "v9.0.0"},
+			{"checkout", "-"}, commit,
+		}},
+		{"merged_higher_tag", "v1.2.0", "v", "v2.0.0-2", [][]string{
+			{"checkout", "-b", "feature"},
+			{"commit", "--allow-empty", "-m", "feature change"},
+			{"tag", "v2.0.0"},
+			{"checkout", "-"}, commit,
+			{"merge", "--no-ff", "-m", "merge feature", "feature"},
+		}},
 		{"no_tag", "", "v", "", nil},
 		{"no_matching_tag", "release-1.0.0", "v", "", nil},
 	}
@@ -128,8 +148,7 @@ func TestGetVersionWithoutHead(t *testing.T) {
 	dir := t.TempDir()
 	initGitRepo(t, dir, "v1.0.0")
 
-	// Keep the tag, but move to a branch with no commits: listing tags succeeds
-	// while counting commits relative to HEAD fails.
+	// Keep the tag while switching to a branch with no commit at HEAD.
 	cmd := exec.Command("git", "checkout", "--orphan", "unborn")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -143,6 +162,32 @@ func TestGetVersionWithoutHead(t *testing.T) {
 	}
 	if got != "" {
 		t.Errorf("getVersion returned %q on error, want an empty version", got)
+	}
+}
+
+func TestGetVersionCommitCountError(t *testing.T) {
+	if _, err := os.Stat("/bin/sh"); err != nil {
+		t.Skip("Git stub requires /bin/sh")
+	}
+
+	const git = `#!/bin/sh
+case "$1" in
+	for-each-ref) echo refs/tags/v1.0.0 ;;
+	rev-list) exit 42 ;;
+	*) exit 2 ;;
+esac
+`
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "git"), []byte(git), 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", dir)
+	version, err := getVersion("v")
+	var exitErr *exec.ExitError
+	if version != "" || !errors.As(err, &exitErr) || exitErr.ExitCode() != 42 {
+		t.Fatalf("getVersion() = %q, %v, want empty version and rev-list exit status 42", version, err)
 	}
 }
 

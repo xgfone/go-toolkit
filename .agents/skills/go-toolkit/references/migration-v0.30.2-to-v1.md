@@ -154,9 +154,10 @@ follow rollback; `Wait` panics retain dependencies. HTTP `Wait` cancellation onl
 ends the observer wait; `Stop`'s context controls its grace budget. Failed HTTP
 `Init` closes its raw listener even when wrapping returns `nil` or panics. See
 `app/MIGRATION.md` for the full v0.30.2-to-v1 lifecycle migration. Regenerate files
-from `app/cmd/version` so generated initializers use `app.Default()` instead of
-`app.DefaultApp`; the v1 command also parses its flags and adds a commit-count
-suffix when HEAD is beyond its selected version tag.
+from `app/cmd/version` so generated initializers use `app.Default()`. The v1
+command parses its flags and selects the highest matching tag reachable from
+`HEAD`. It generates an empty version if no such tag exists and adds a
+commit-count suffix when `HEAD` is beyond the selected tag.
 
 ### Error matching
 

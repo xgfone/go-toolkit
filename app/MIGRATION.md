@@ -354,10 +354,12 @@ For each existing `Module` implementation and wrapper:
 ## Generated build metadata
 
 Regenerate files produced by `app/cmd/version`, or replace generated references
-to `app.DefaultApp` with `app.Default()`. The v1 command also parses its flags
-and appends the count of commits after its selected version tag when nonzero,
-such as `v1.2.0-3`; check consumers that parse `App.Version` as a plain release
-tag.
+to `app.DefaultApp` with `app.Default()`. The v1 command parses its flags and
+selects the highest matching version tag reachable from `HEAD`. v0.30.2
+considered all matching tags in the repository. With no reachable matching tag,
+the generated version is empty. Otherwise, v1 appends the count of commits
+after the selected tag when nonzero, such as `v1.2.0-3`. Check consumers
+that parse `App.Version` as a plain release tag.
 
 `App.BuildTime` now returns the stored instant in `time.Local`; v0.30.2 used
 `timex.Location`, which defaulted to UTC. Use `.UTC()` or `.In(location)` when

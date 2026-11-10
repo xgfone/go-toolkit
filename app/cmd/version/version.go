@@ -15,8 +15,9 @@
 // Command version generates a Go source file that sets the app version and
 // build time. It is intended to be invoked via //go:generate.
 //
-// When HEAD has commits beyond the selected version tag, the version includes
-// their count as a suffix, such as "v1.2.0-3".
+// The command selects the highest matching version tag reachable from HEAD.
+// When HEAD has commits beyond that tag, the version includes their count
+// as a suffix, such as "v1.2.0-3".
 //
 // It supports the following flags:
 //
@@ -80,6 +81,7 @@ func getVersion(prefix string) (string, error) {
 	cmd := exec.Command(
 		"git", "for-each-ref",
 		"--count=1",
+		"--merged=HEAD",
 		"--sort=-version:refname",
 		"--format=%(refname)",
 		"refs/tags/"+prefix+"*",
