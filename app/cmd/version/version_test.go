@@ -165,15 +165,63 @@ func TestGetVersionWithoutHead(t *testing.T) {
 	}
 }
 
-func TestGetVersionCommitCountError(t *testing.T) {
+func TestGetVersionDirty(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		commands [][]string
+		want     string
+	}{
+		{"unstaged", "tracked.txt", nil, "v1.0.0-dirty"},
+		{"staged", "tracked.txt", [][]string{{"add", "tracked.txt"}}, "v1.0.0-dirty"},
+		{"staged_addition", "new.txt", [][]string{{"add", "new.txt"}}, "v1.0.0-dirty"},
+		{"staged_deletion", "", [][]string{{"rm", "tracked.txt"}}, "v1.0.0-dirty"},
+		{"unstaged_deletion", "", [][]string{{"rm", "tracked.txt"}, {"restore", "--staged", "tracked.txt"}}, "v1.0.0-dirty"},
+		{"untracked", "new.txt", nil, "v1.0.0"},
+		{"restored", "tracked.txt", [][]string{{"restore", "tracked.txt"}}, "v1.0.0"},
+		{"after_tag", "tracked.txt", [][]string{{"commit", "--allow-empty", "-m", "next"}}, "v1.0.0-1-dirty"},
+		{"committed", "tracked.txt", [][]string{{"add", "tracked.txt"}, {"commit", "-m", "next"}}, "v1.0.0-1"},
+		{"clean_dirty_tag", "", [][]string{{"tag", "v2.0.0-dirty"}}, "v2.0.0-dirty"},
+		{"dirty_dirty_tag", "tracked.txt", [][]string{{"tag", "v2.0.0-dirty"}}, "v2.0.0-dirty-dirty"},
+		{"no_matching_tag", "tracked.txt", [][]string{{"tag", "-d", "v1.0.0"}}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			initGitRepo(t, dir, "v1.0.0")
+			if tt.file != "" {
+				err := os.WriteFile(filepath.Join(dir, tt.file), []byte("changed\n"), 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, args := range tt.commands {
+				cmd := exec.Command("git", args...)
+				cmd.Dir = dir
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v\n%s", args, err, out)
+				}
+			}
+
+			withChdir(t, dir)
+			got, err := getVersion("v")
+			if err != nil || got != tt.want {
+				t.Fatalf("getVersion() = %q, %v, want %q, nil", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetVersionGitError(t *testing.T) {
 	if _, err := os.Stat("/bin/sh"); err != nil {
 		t.Skip("Git stub requires /bin/sh")
 	}
 
 	const git = `#!/bin/sh
 case "$1" in
+	"$FAIL_COMMAND") exit 42 ;;
 	for-each-ref) echo refs/tags/v1.0.0 ;;
-	rev-list) exit 42 ;;
+	rev-list) echo 0 ;;
 	*) exit 2 ;;
 esac
 `
@@ -184,10 +232,16 @@ esac
 	}
 
 	t.Setenv("PATH", dir)
-	version, err := getVersion("v")
-	var exitErr *exec.ExitError
-	if version != "" || !errors.As(err, &exitErr) || exitErr.ExitCode() != 42 {
-		t.Fatalf("getVersion() = %q, %v, want empty version and rev-list exit status 42", version, err)
+	for _, command := range []string{"rev-list", "describe"} {
+		t.Run(command, func(t *testing.T) {
+			t.Setenv("FAIL_COMMAND", command)
+			version, err := getVersion("v")
+			var exitErr *exec.ExitError
+			if version != "" || !errors.As(err, &exitErr) || exitErr.ExitCode() != 42 {
+				t.Fatalf("getVersion() = %q, %v, want empty version and %s exit status 42",
+					version, err, command)
+			}
+		})
 	}
 }
 
@@ -247,11 +301,18 @@ func TestMainExitsOnError(t *testing.T) {
 
 func initGitRepo(t *testing.T, dir, tag string) {
 	t.Helper()
+
+	err := os.WriteFile(filepath.Join(dir, "tracked.txt"), []byte("initial\n"), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	commands := [][]string{
 		{"init"},
 		{"config", "user.email", "test@test.com"},
 		{"config", "user.name", "test"},
-		{"commit", "--allow-empty", "-m", "init"},
+		{"add", "tracked.txt"},
+		{"commit", "-m", "init"},
 	}
 	if tag != "" {
 		commands = append(commands, []string{"tag", tag})

@@ -17,7 +17,9 @@
 //
 // The command selects the highest matching version tag reachable from HEAD.
 // When HEAD has commits beyond that tag, the version includes their count
-// as a suffix, such as "v1.2.0-3".
+// as a suffix, such as "v1.2.0-3". Uncommitted changes to tracked files append
+// "-dirty", following Git's native dirty detection; untracked files do not
+// affect the version.
 //
 // It supports the following flags:
 //
@@ -99,6 +101,14 @@ func getVersion(prefix string) (string, error) {
 	}
 	if count := strings.TrimSpace(string(out)); count != "0" {
 		version += "-" + count
+	}
+
+	// Exclude tags so a tag ending in "-dirty" cannot imply a dirty tree.
+	out, err = exec.Command("git", "describe", "--always", "--dirty", "--exclude=*").Output()
+	if err != nil {
+		return "", err
+	} else if strings.HasSuffix(strings.TrimSpace(string(out)), "-dirty") {
+		version += "-dirty"
 	}
 
 	return version, nil

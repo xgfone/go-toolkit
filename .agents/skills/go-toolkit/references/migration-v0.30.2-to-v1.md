@@ -157,7 +157,11 @@ ends the observer wait; `Stop`'s context controls its grace budget. Failed HTTP
 from `app/cmd/version` so generated initializers use `app.Default()`. The v1
 command parses its flags and selects the highest matching tag reachable from
 `HEAD`. It generates an empty version if no such tag exists and adds a
-commit-count suffix when `HEAD` is beyond the selected tag.
+commit-count suffix when `HEAD` is beyond the selected tag. Unlike v0.30.2,
+v1 also appends `-dirty` for staged or unstaged changes to tracked files,
+following `git describe --dirty`; untracked and ignored files do not trigger it.
+Consumers must accept versions such as `v1.2.0-3-dirty`. No suffix is added to
+an empty version when no matching tag is reachable.
 
 ### Error matching
 
